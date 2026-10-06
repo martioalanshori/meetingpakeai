@@ -14,6 +14,7 @@ Sumber kebenaran: **`PRD.md`**. Baca §0 sebelum mengerjakan apa pun. Kerjakan s
 | thiserror / uuid (v4) / chrono | 2.0.21 / 1.27.0 / 0.4.45 |
 | keyring (default v1 → Windows Credential Manager) | 4.2.0 |
 | reqwest (default rustls + json, multipart) | 0.13.5 |
+| wasapi / hound | 0.25.0 / 3.5.1 |
 | tracing / tracing-appender / tracing-subscriber (env-filter) | 0.1.44 / 0.2.5 / 0.3.23 |
 | Node / npm | 22.17.0 / 10.9.2 |
 | @tauri-apps/api / cli | 2.12.1 / 2.12.1 |
@@ -29,6 +30,8 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - Dev: `npm run tauri dev`
 - Cek frontend: `npm run check`
 - Cek Rust (dari `src-tauri/`): `cargo check` dan `cargo clippy -- -D warnings`
+- Uji rekam mic (langkah 4): `cargo run --example record_mic -- <detik> [folder]` dari `src-tauri/`
+- Uji repair header WAV: `cargo run --example repair_wav -- <file.wav>`
 - Build installer: `npm run tauri build` (NSIS, per-user)
 - Di shell sesi lama mungkin perlu `export PATH="$HOME/.cargo/bin:$PATH"`.
 
@@ -56,19 +59,25 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Modul `groq.rs` | Bagian bersama Groq (client, `ProviderError`, pemetaan HTTP→error, `list_models`) di `src-tauri/src/groq.rs`; dipakai `stt/groq.rs` & `llm/groq.rs`. |
 | `get_onboarding_status.micPermission` | Sementara selalu `unknown` sampai langkah 8. |
 | UI API key | Bagian API key di Pengaturan dibuat di langkah 3 (agar bisa diuji); key diuji dulu, disimpan hanya jika lolos. |
+| Fallback `rubato` (§7.1) | Belum dibuat: autoconvert WASAPI terbukti jalan di mesin dev (lihat Hasil verifikasi). Ditambahkan hanya jika ada laporan device yang menolak format 16 kHz mono. |
+| Baca buffer WASAPI | Pakai `read_from_device` (bukan `read_from_device_to_deque` yang memanggil `.unwrap()` saat ReleaseBuffer → panic jika device dicabut). Paket bertanda `silent` ditulis sebagai nol. |
+| Buffer WASAPI | `buffer_duration_hns` = default device period (bukan min period seperti contoh crate) agar CPU lebih hemat. |
+| Contoh uji manual | `src-tauri/examples/record_mic.rs`, `repair_wav.rs` — alat uji, bukan bagian app. |
 | Rute dinamis `meeting/[id]` | `prerender = false` (dilayani lewat fallback SPA `index.html`). |
 
 ## Hasil verifikasi §21
 
 - 2026-10-06: `GET /openai/v1/models` dengan key tidak valid → HTTP 401 (dipetakan ke `INVALID_API_KEY`).
 - #1 nama model: _menunggu uji dengan key asli pemilik_.
+- 2026-10-06 #6 `wasapi` 0.25: capture mic shared+event dengan **autoconvert ke 16 kHz mono PCM16 berhasil** (Windows 11, mesin dev). Rekam 65 dtk → 64,99 dtk audio (part 1 = 960000 sampel tepat), header hound = 44 byte (`data` di offset 36). Loopback = device Render + `Direction::Capture` (crate otomatis set AUDCLNT_STREAMFLAGS_LOOPBACK); perilaku saat hening & device invalidated diuji di langkah 5/7.
+- 2026-10-06 repair header: file dengan header ukuran 0 + byte ganjil → diperbaiki benar.
 
 ## Progres langkah §19
 
 - [x] 1. Scaffold Tauri 2 + SvelteKit SPA + Tailwind 4, tray, single-instance, 2 jendela
 - [x] 2. `error.rs`, `db/` + migrasi 001 + repo, `config/`
 - [x] 3. `secrets.rs` + command API key + `test_api_key`
-- [ ] 4. Capture mic + writer part + repair header
+- [x] 4. Capture mic + writer part + repair header
 - [ ] 5. Loopback + timeline padding + pause/mute + level
 - [ ] 6. Command rekam + widget recorder + popup consent
 - [ ] 7. Device change + auto-stop + cek disk

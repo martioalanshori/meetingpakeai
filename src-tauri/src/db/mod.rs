@@ -1,6 +1,7 @@
 //! SQLite (rusqlite bundled). Satu koneksi dibagi lewat Mutex; worker & command bergantian memakainya.
 
 pub mod repo_meetings;
+pub mod repo_parts;
 pub mod repo_settings;
 pub mod repo_usage;
 
