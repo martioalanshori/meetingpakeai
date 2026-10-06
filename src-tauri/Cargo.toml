@@ -35,6 +35,12 @@ keyring = "4.2.0"
 reqwest = { version = "0.13.5", features = ["json", "multipart"] }
 wasapi = "0.25.0"
 hound = "3.5.1"
+tauri-plugin-dialog = "2.8.1"
+winreg = "0.56.0"
+webrtc-vad = "0.4.0"
+strsim = "0.11.1"
+async-trait = "0.1.92"
+tokio = { version = "1.53.2", features = ["time", "sync", "macros", "rt", "rt-multi-thread"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

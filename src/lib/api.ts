@@ -87,4 +87,6 @@ export const events = {
   recordingWarning: (cb: (p: RecordingWarningPayload) => void) => on("recording://warning", cb),
   jobProgress: (cb: (p: JobProgressPayload) => void) => on("job://progress", cb),
   meetingUpdated: (cb: (p: MeetingUpdatedPayload) => void) => on("meeting://updated", cb),
+  /** Menu tray "Mulai rekam" → buka popup consent di jendela main. */
+  trayStartRecording: (cb: () => void) => on<null>("tray://start-recording", () => cb()),
 };

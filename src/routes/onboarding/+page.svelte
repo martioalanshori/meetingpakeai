@@ -3,4 +3,4 @@
   import { id } from "$lib/i18n/id";
 </script>
 
-<Placeholder title={id.placeholder.onboarding} />
+<Placeholder title={"Onboarding"} />

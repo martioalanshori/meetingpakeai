@@ -1,14 +1,29 @@
 // SEMUA teks UI ada di sini (PRD §14, §15). Komponen tidak boleh berisi teks UI langsung.
-import type { ErrorCode, MeetingStatus } from "../types";
+import type { Channel, ErrorCode, MeetingStatus } from "../types";
 
 export const id = {
   appName: "Meeting Pake AI",
+  common: {
+    cancel: "Batal",
+    back: "← Kembali ke Beranda",
+    loading: "Memuat…",
+    close: "Tutup",
+  },
 
   home: {
     startRecording: "● Mulai rekam",
     stopRecording: "■ Stop rekam",
+    starting: "Memulai…",
+    stopping: "Menghentikan…",
     settings: "Pengaturan",
     empty: "Belum ada meeting. Klik Mulai rekam saat meeting dimulai.",
+    loadMore: "Muat lebih banyak",
+    interrupted: (title: string) =>
+      `Rekaman "${title}" terputus karena aplikasi tertutup tidak normal. Audio sampai sebelum terputus masih bisa diproses.`,
+    interruptedProcess: "Proses",
+    interruptedDiscard: "Hapus",
+    queuePaused: "Pemrosesan dijeda karena API key Groq tidak valid. Perbarui API key di Pengaturan.",
+    openSettings: "Buka Pengaturan",
   },
 
   status: {
@@ -24,6 +39,74 @@ export const id = {
     failed: "Gagal",
     interrupted: "Rekaman terputus",
   } satisfies Record<MeetingStatus, string>,
+
+  consent: {
+    title: "Sebelum merekam",
+    body: "Pastikan semua peserta tahu meeting ini direkam dan ditranskrip dengan AI. Audio akan dikirim ke Groq untuk diproses.",
+    messageLabel: "Pesan untuk ditempel ke chat meeting",
+    copy: "Salin pesan consent",
+    checkbox: "Saya sudah memberi tahu peserta meeting",
+    start: "Mulai rekam",
+  },
+
+  toast: {
+    copied: "Pesan disalin",
+    tooShort: "Rekaman kurang dari 5 detik sehingga tidak disimpan.",
+    saved: "Rekaman disimpan dan sedang diproses.",
+    settingsSaved: "Pengaturan tersimpan",
+    titleSaved: "Judul disimpan",
+    deleted: "Meeting dihapus",
+    requeued: "Meeting masuk antrean lagi",
+  },
+
+  recorder: {
+    paused: "Dijeda",
+    pause: "Jeda",
+    resume: "Lanjutkan",
+    mute: "Matikan mikrofon",
+    unmute: "Nyalakan mikrofon",
+    stop: "Stop rekam",
+    openMain: "Buka Meeting Pake AI",
+    mic: "Mic",
+    system: "Sistem",
+    deviceLost: (channel: Channel) =>
+      channel === "mic"
+        ? "Mikrofon terputus. Rekaman lanjut tanpa mikrofon."
+        : "Audio sistem terputus. Rekaman lanjut tanpa audio sistem.",
+    autoStop: "Tidak ada suara 10 menit. Stop rekam?",
+    autoStopCountdown: (s: number) => `Berhenti otomatis dalam ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`,
+    autoStopStop: "Stop",
+    autoStopContinue: "Lanjut",
+  },
+
+  detail: {
+    tabSummary: "Ringkasan",
+    tabActionItems: "Action Items",
+    tabTranscript: "Transkrip",
+    processing: "Sedang diproses…",
+    retry: "Coba lagi",
+    menu: "Menu lainnya",
+    regenerate: "Buat ulang ringkasan",
+    retranscribe: "Transkrip ulang",
+    audioDeleted: "Audio sudah dihapus",
+    delete: "Hapus meeting",
+    deleteConfirm: "Hapus meeting ini secara permanen? Audio, transkrip, dan ringkasan tidak bisa dikembalikan.",
+    deleteButton: "Hapus",
+    summary: "Ringkasan",
+    decisions: "Keputusan",
+    topics: "Topik",
+    noDecisions: "Tidak ada keputusan yang tercatat.",
+    noActionItems: "Tidak ada action item.",
+    assignee: "PJ:",
+    due: "Tenggat:",
+    emptyTranscript: "Tidak ada transkrip.",
+    editTitle: "Klik untuk mengubah judul",
+    interruptedNote: "Rekaman ini terputus. Pilih Proses untuk mentranskrip audio yang tersimpan.",
+  },
+
+  summary: {
+    noSpeech: "Tidak ada percakapan yang terdeteksi.",
+  },
 
   settings: {
     title: "Pengaturan",
@@ -46,18 +129,52 @@ export const id = {
       missingModels: (models: string[]) =>
         `Model berikut tidak tersedia di akun Groq Anda: ${models.join(", ")}. Periksa providers.json.`,
     },
+    general: "Umum",
+    displayName: "Nama Anda",
+    displayNameHint: 'Label suara Anda di transkrip (menggantikan "Saya").',
+    language: "Bahasa transkrip",
+    langId: "Indonesia",
+    langAuto: "Otomatis",
+    langAutoNote: "Otomatis untuk meeting campuran Inggris.",
+    deleteAudio: "Hapus audio otomatis setelah transkrip selesai",
+    deleteAudioNote: "Jika aktif, fitur Transkrip ulang tidak tersedia.",
+    minimizeToTray: "Tutup ke tray",
+    minimizeToTrayNote: "Tombol tutup menyembunyikan aplikasi ke tray; antrean tetap diproses.",
+    consentMessage: "Pesan consent",
+    save: "Simpan",
+    about: "Tentang",
+    version: (v: string) => `Versi ${v}`,
+    openLogs: "Buka folder log",
   },
 
-  recorder: {
-    paused: "Dijeda",
-  },
-
-  placeholder: {
-    comingSoon: "Halaman ini dibangun di langkah berikutnya.",
-    onboarding: "Onboarding",
-    meeting: "Detail meeting",
-    settings: "Pengaturan",
-    back: "← Kembali ke Beranda",
+  onboarding: {
+    welcomeTitle: "Selamat datang di Meeting Pake AI",
+    privacy:
+      "Meeting Pake AI merekam suara mikrofon dan audio komputer Anda selama meeting. Rekaman dan transkrip disimpan di komputer ini tanpa enkripsi tambahan. Untuk diproses, audio dan transkrip dikirim ke layanan Groq menggunakan API key milik Anda. Anda bertanggung jawab memberi tahu dan meminta izin peserta meeting sebelum merekam.",
+    understand: "Saya mengerti, lanjut",
+    apiKeyTitle: "API key Groq",
+    apiKeySteps: [
+      "Buat akun (gratis) di console.groq.com.",
+      "Buka menu API Keys.",
+      "Klik Create API Key, lalu salin key dan tempel di bawah.",
+    ],
+    openConsole: "Buka console.groq.com",
+    next: "Lanjut",
+    micTitle: "Izin mikrofon & tes rekam",
+    permAllowed: "Akses mikrofon diizinkan.",
+    permDenied: "Akses mikrofon diblokir Windows.",
+    permUnknown: "Status izin mikrofon belum diketahui. Jalankan tes untuk memastikan.",
+    openPrivacy: "Buka Pengaturan Privasi",
+    recheck: "Periksa lagi",
+    startTest: "Mulai tes 5 detik",
+    testing: 'Ucapkan: "tes satu dua tiga" — aplikasi juga memutar nada tes.',
+    micOk: "✔ Mikrofon menangkap suara",
+    micFail: "✖ Mikrofon tidak menangkap suara. Periksa mikrofon lalu ulangi tes.",
+    systemOk: "✔ Audio sistem tertangkap",
+    systemFail: "✖ Audio sistem tidak tertangkap. Anda tetap bisa lanjut, tetapi suara peserta lain mungkin tidak terekam. Periksa volume dan perangkat output.",
+    doneTitle: "Siap dipakai!",
+    tip: "Gunakan headphone untuk hasil terbaik.",
+    start: "Mulai",
   },
 
   errors: {

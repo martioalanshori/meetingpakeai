@@ -1,42 +1,54 @@
 pub mod audio;
+pub mod bridge;
 pub mod commands;
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod events;
 pub mod groq;
+pub mod recording;
 pub mod secrets;
+pub mod windows_integration;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, WindowEvent};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tokio::sync::Notify;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling::{Builder as RollingBuilder, Rotation};
 
+use crate::bridge::{TauriBridge, TRAY_ICON_IDLE, TRAY_ID};
 use crate::config::providers::ProvidersConfig;
 use crate::config::settings;
 use crate::db::{now_ms, repo_usage, Db};
-
-const TRAY_ID: &str = "main-tray";
-const TRAY_ICON_IDLE: &[u8] = include_bytes!("../icons/tray-idle.png");
-const TRAY_ICON_RECORDING: &[u8] = include_bytes!("../icons/tray-recording.png");
+use crate::recording::{RecordingService, StopReason};
 
 /// usage_log lebih tua dari ini dihapus saat start (PRD §11).
 const USAGE_LOG_RETENTION_MS: i64 = 2 * 24 * 60 * 60 * 1000;
 
-/// State global aplikasi. Field lain ditambahkan di langkah berikutnya.
+/// Event ke jendela main: menu tray "Mulai rekam" → buka popup consent (tidak ada Start tanpa consent).
+pub const EV_TRAY_START_RECORDING: &str = "tray://start-recording";
+
+/// State global aplikasi.
 pub struct AppState {
     /// Root data: `%APPDATA%\com.meetingpakeai.desktop\`.
     pub data_dir: PathBuf,
-    pub db: Db,
+    pub db: Arc<Db>,
     pub providers: ProvidersConfig,
     /// HTTP client bersama (koneksi di-reuse).
     pub http: reqwest::Client,
     /// Cermin setting `minimize_to_tray` agar handler close tidak perlu query DB.
     pub minimize_to_tray: AtomicBool,
+    pub bridge: Arc<TauriBridge>,
+    pub recording: Arc<RecordingService>,
+    /// Membangunkan worker antrean (meeting baru, retry, API key baru).
+    pub queue_wake: Arc<Notify>,
     _log_guard: WorkerGuard,
 }
 
@@ -61,7 +73,7 @@ fn init_state(app: &AppHandle) -> Result<AppState, Box<dyn std::error::Error>> {
     let log_guard = init_logging(&data_dir.join("logs"))?;
     tracing::info!("app start, versi {}", app.package_info().version);
 
-    let db = Db::open(&data_dir.join("db").join("app.sqlite"))?;
+    let db = Arc::new(Db::open(&data_dir.join("db").join("app.sqlite"))?);
     let providers = ProvidersConfig::load(&data_dir.join("providers.json"));
     let minimize_to_tray = {
         let conn = db.conn();
@@ -72,17 +84,31 @@ fn init_state(app: &AppHandle) -> Result<AppState, Box<dyn std::error::Error>> {
         settings::load(&conn)?.minimize_to_tray
     };
 
+    let bridge = Arc::new(TauriBridge::new(app.clone(), db.clone()));
+    let queue_wake = Arc::new(Notify::new());
+    let wake = queue_wake.clone();
+    let recording = Arc::new(RecordingService::new(
+        data_dir.clone(),
+        db.clone(),
+        bridge.clone(),
+        providers.recording.clone(),
+        Box::new(move || wake.notify_one()),
+    ));
+
     Ok(AppState {
         data_dir,
         db,
         providers,
         http: groq::build_client(),
         minimize_to_tray: AtomicBool::new(minimize_to_tray),
+        bridge,
+        recording,
+        queue_wake,
         _log_guard: log_guard,
     })
 }
 
-fn show_main_window(app: &AppHandle) {
+pub fn show_main_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
@@ -90,21 +116,46 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
-/// Ganti ikon tray normal / merah (dipakai saat rekaman mulai/berhenti).
-pub fn set_tray_recording(app: &AppHandle, recording: bool) -> tauri::Result<()> {
-    if let Some(tray) = app.tray_by_id(TRAY_ID) {
-        let bytes = if recording { TRAY_ICON_RECORDING } else { TRAY_ICON_IDLE };
-        tray.set_icon(Some(Image::from_bytes(bytes)?))?;
-    }
-    Ok(())
+fn stop_recording_in_background(app: &AppHandle, then_exit: bool) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if let Some(state) = app.try_state::<AppState>() {
+            if let Err(e) = state.recording.stop(StopReason::Manual) {
+                tracing::warn!("stop dari tray gagal: {}", e.message);
+            }
+        }
+        if then_exit {
+            app.exit(0);
+        }
+    });
 }
 
-fn build_tray(app: &AppHandle) -> tauri::Result<()> {
+/// Keluar penuh; saat merekam minta konfirmasi dulu (PRD §6.4).
+fn request_quit(app: &AppHandle) {
+    let recording = app.try_state::<AppState>().is_some_and(|s| s.recording.is_recording());
+    if !recording {
+        app.exit(0);
+        return;
+    }
+    let handle = app.clone();
+    app.dialog()
+        .message("Rekaman sedang berjalan. Stop dan keluar?")
+        .title("Meeting Pake AI")
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom("Stop dan keluar".into(), "Batal".into()))
+        .show(move |ok| {
+            if ok {
+                stop_recording_in_background(&handle, true);
+            }
+        });
+}
+
+fn build_tray(app: &AppHandle, bridge: &TauriBridge) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Buka Meeting Pake AI", true, None::<&str>)?;
-    // TODO langkah 6: label berganti "Stop rekam" saat merekam; mulai rekam selalu lewat popup consent.
     let record = MenuItem::with_id(app, "record", "Mulai rekam", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Keluar", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &record, &quit])?;
+    *bridge.record_item.lock().unwrap_or_else(|e| e.into_inner()) = Some(record.clone());
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(Image::from_bytes(TRAY_ICON_IDLE)?)
@@ -112,9 +163,18 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "open" | "record" => show_main_window(app),
-            // TODO langkah 6: konfirmasi "Rekaman sedang berjalan. Stop dan keluar?" saat merekam.
-            "quit" => app.exit(0),
+            "open" => show_main_window(app),
+            "record" => {
+                let recording = app.try_state::<AppState>().is_some_and(|s| s.recording.is_recording());
+                if recording {
+                    stop_recording_in_background(app, false);
+                } else {
+                    // Start selalu lewat popup consent di jendela main.
+                    show_main_window(app);
+                    let _ = app.emit_to("main", EV_TRAY_START_RECORDING, ());
+                }
+            }
+            "quit" => request_quit(app),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -140,10 +200,11 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let state = init_state(app.handle())?;
+            build_tray(app.handle(), &state.bridge)?;
             app.manage(state);
-            build_tray(app.handle())?;
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -154,11 +215,11 @@ pub fn run() {
                 let to_tray = window
                     .try_state::<AppState>()
                     .is_none_or(|s| s.minimize_to_tray.load(Ordering::Relaxed));
+                api.prevent_close();
                 if to_tray {
-                    api.prevent_close();
                     let _ = window.hide();
                 } else {
-                    window.app_handle().exit(0);
+                    request_quit(window.app_handle());
                 }
             }
         })
@@ -170,6 +231,13 @@ pub fn run() {
             commands::api_key::delete_api_key,
             commands::settings::get_settings,
             commands::settings::update_settings,
+            commands::recording::start_recording,
+            commands::recording::pause_recording,
+            commands::recording::resume_recording,
+            commands::recording::set_mic_muted,
+            commands::recording::stop_recording,
+            commands::recording::get_recording_state,
+            commands::recording::respond_auto_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

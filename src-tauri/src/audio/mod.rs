@@ -36,6 +36,8 @@ pub enum AudioError {
     #[error("tidak ada device output")]
     NoOutputDevice,
     /// Device dicabut / diganti (AUDCLNT_E_DEVICE_INVALIDATED); bisa dibuka ulang.
+    #[error("akses mikrofon ditolak Windows")]
+    AccessDenied,
     #[error("device tidak valid lagi")]
     DeviceInvalidated,
     #[error("wasapi: {0}")]
@@ -46,12 +48,14 @@ pub enum AudioError {
 
 const AUDCLNT_E_DEVICE_INVALIDATED: i32 = 0x8889_0004_u32 as i32;
 const E_NOTFOUND: i32 = 0x8007_0490_u32 as i32;
+const E_ACCESSDENIED: i32 = 0x8007_0005_u32 as i32;
 
 impl AudioError {
     pub(crate) fn from_wasapi(e: wasapi::WasapiError, channel: Channel) -> Self {
         if let wasapi::WasapiError::Windows(w) = &e {
             match w.code().0 {
                 AUDCLNT_E_DEVICE_INVALIDATED => return Self::DeviceInvalidated,
+                E_ACCESSDENIED => return Self::AccessDenied,
                 E_NOTFOUND => {
                     return match channel {
                         Channel::Mic => Self::NoInputDevice,
@@ -71,6 +75,7 @@ impl From<AudioError> for crate::error::AppError {
         match e {
             AudioError::NoInputDevice => ErrorCode::NoInputDevice.into(),
             AudioError::NoOutputDevice => ErrorCode::NoOutputDevice.into(),
+            AudioError::AccessDenied => ErrorCode::MicPermissionDenied.into(),
             other => AppError::internal(format!("audio: {other}")),
         }
     }

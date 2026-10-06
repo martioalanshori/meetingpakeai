@@ -140,7 +140,8 @@ pub struct Recorder {
     controls: Arc<Controls>,
     mic: Arc<ChannelShared>,
     system: Arc<ChannelShared>,
-    handles: Vec<CaptureHandle>,
+    /// Handle capture per channel [mic, system]; diganti saat device dibuka ulang.
+    handles: Mutex<[Option<CaptureHandle>; 2]>,
 }
 
 impl Recorder {
@@ -168,7 +169,13 @@ impl Recorder {
         // Jika system gagal, `mic_handle` di-drop → thread mic berhenti.
         let system_handle = capture::spawn(Channel::System, Sink { shared: system.clone(), controls: controls.clone() })?;
 
-        Ok(Self { dir: dir.to_path_buf(), controls, mic, system, handles: vec![mic_handle, system_handle] })
+        Ok(Self {
+            dir: dir.to_path_buf(),
+            controls,
+            mic,
+            system,
+            handles: Mutex::new([Some(mic_handle), Some(system_handle)]),
+        })
     }
 
     pub fn dir(&self) -> &Path {
@@ -210,6 +217,22 @@ impl Recorder {
         (self.mic.level.get(), self.system.level.get())
     }
 
+    /// Buka ulang default device untuk channel yang mati (PRD §7.5). Celah terisi nol oleh timeline.
+    pub fn reopen(&self, channel: Channel) -> Result<(), AudioError> {
+        let shared = self.shared(channel).clone();
+        let mut handles = self.handles.lock().unwrap_or_else(|e| e.into_inner());
+        let slot = &mut handles[channel_index(channel)];
+        // Thread lama sudah keluar (on_error); join agar resource WASAPI lepas.
+        if let Some(old) = slot.take() {
+            old.stop();
+        }
+        let handle = capture::spawn(channel, Sink { shared: shared.clone(), controls: self.controls.clone() })?;
+        *slot = Some(handle);
+        shared.alive.store(true, Ordering::SeqCst);
+        tracing::info!("channel {} dibuka ulang", channel.as_str());
+        Ok(())
+    }
+
     fn shared(&self, channel: Channel) -> &Arc<ChannelShared> {
         match channel {
             Channel::Mic => &self.mic,
@@ -218,11 +241,12 @@ impl Recorder {
     }
 
     /// Stop: hentikan capture, pad kedua channel sampai panjang final yang sama, tutup part.
-    pub fn stop(mut self) -> Result<StopResult, AudioError> {
+    pub fn stop(self) -> Result<StopResult, AudioError> {
         self.controls.clock.pause();
         let final_samples = self.controls.clock.expected_samples_at(Instant::now());
         self.controls.limit.store(final_samples, Ordering::SeqCst);
-        for h in self.handles.drain(..) {
+        let handles = std::mem::take(&mut *self.handles.lock().unwrap_or_else(|e| e.into_inner()));
+        for h in handles.into_iter().flatten() {
             h.stop();
         }
         let mut totals = [0u64; 2];
@@ -239,5 +263,12 @@ impl Recorder {
             mic_samples: totals[0],
             system_samples: totals[1],
         })
+    }
+}
+
+fn channel_index(channel: Channel) -> usize {
+    match channel {
+        Channel::Mic => 0,
+        Channel::System => 1,
     }
 }

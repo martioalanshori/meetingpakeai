@@ -2,4 +2,5 @@
 
 pub mod api_key;
 pub mod onboarding;
+pub mod recording;
 pub mod settings;
