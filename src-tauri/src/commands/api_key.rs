@@ -12,14 +12,15 @@ pub struct TestApiKeyResult {
 }
 
 #[tauri::command]
-pub async fn save_api_key(key: String) -> AppResult<()> {
+pub async fn save_api_key(state: State<'_, AppState>, key: String) -> AppResult<()> {
     let key = key.trim();
     if key.is_empty() {
         return Err(AppError::new(ErrorCode::InvalidApiKey));
     }
     secrets::set_api_key(key)?;
     tracing::info!("api key disimpan");
-    // TODO langkah 13: lanjutkan antrean yang dijeda karena INVALID_API_KEY.
+    // Antrean yang dijeda karena key tidak valid dilanjutkan (PRD §9.5, AC F7.5).
+    state.worker.resume_after_new_key();
     Ok(())
 }
 

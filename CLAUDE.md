@@ -79,7 +79,15 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Tes audio onboarding | Nada diputar dengan WinAPI `PlaySoundW` (file `test_tone.wav` di app data). Loopback gagal dibuka → tes tetap jalan, system = gagal. |
 | Izin mikrofon | `allowed` jika setting pengguna terbaca dan semua `Value` = Allow (HKLM + HKCU + HKCU NonPackaged); `denied` jika ada yang Deny; selain itu `unknown`. Akses ditolak saat membuka mic (E_ACCESSDENIED) → `MIC_PERMISSION_DENIED`. |
 | Command tambahan `open_log_folder` | Untuk tombol "Buka folder log" di Pengaturan (§14.6). |
-| Contoh uji manual | `src-tauri/examples/record_mic.rs`, `record_both.rs`, `repair_wav.rs`, `record_service.rs`, `groq_probe.rs`, `audio_test.rs` — alat uji, bukan bagian app. |
+| `response_json` chunk | Disimpan sebagai JSON `Vec<SttSegment>` hasil parse (bukan body mentah Groq) agar step merging tidak bergantung format provider. |
+| Fallback parameter LLM | Jika Groq membalas 400 yang menyebut reasoning/response_format/json, request diulang sekali tanpa `llm_extra_body` & `response_format`, dan sisa sesi tanpa itu. |
+| `PayloadTooLarge` (413) | Tidak memecah chunk; job `failed` dengan pesan. Chunk maks ±610 dtk = ±19,5 MB < 25 MB sehingga praktis tidak terjadi. |
+| Rate limiter | Jendela kosong selalu diizinkan (request besar tidak macet). Saat menunggu jendela menit/jam, cek ulang tiap 5 dtk. Pemakaian dicatat setelah request sukses (LLM: token aktual dari `usage`). |
+| Error provider di `failed` | `error_code = INTERNAL` dengan pesan Indonesia (mis. "Groq menolak permintaan: …"). |
+| `MeetingListItem.errorCode` | Field tambahan untuk banner "antrean dijeda" di Beranda. |
+| `retry_job` di step preprocessing dengan audio terhapus | Ditolak `AUDIO_NOT_AVAILABLE`. |
+| Merge perantara | Prompt `MERGE_INTERMEDIATE` (format CHUNK) di `llm/prompts.rs` untuk merge bertingkat (§10.4). |
+| Contoh uji manual | `src-tauri/examples/record_mic.rs`, `record_both.rs`, `repair_wav.rs`, `record_service.rs`, `groq_probe.rs`, `audio_test.rs`, `e2e.rs` — alat uji, bukan bagian app. |
 | Rute dinamis `meeting/[id]` | `prerender = false` (dilayani lewat fallback SPA `index.html`). |
 
 ## Hasil verifikasi §21
@@ -92,6 +100,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - 2026-10-06 #6 `wasapi` 0.25: capture mic shared+event dengan **autoconvert ke 16 kHz mono PCM16 berhasil** (Windows 11, mesin dev). Rekam 65 dtk → 64,99 dtk audio (part 1 = 960000 sampel tepat), header hound = 44 byte (`data` di offset 36). Loopback = device Render + `Direction::Capture` (crate otomatis set AUDCLNT_STREAMFLAGS_LOOPBACK); perilaku saat hening & device invalidated diuji di langkah 5/7.
 - 2026-10-06 loopback (`record_both` 40 dtk, pause 6 dtk, mute 8 dtk, nada 1 kHz diputar): nada tertangkap di channel system (−15,3 dBFS); loopback diam → tidak ada paket, celah terisi nol; panjang mic = system = 641214 sampel (selisih 0 ms); timeline 40,075 dtk vs dinding 46,1 dtk (pause tidak masuk timeline).
 - 2026-10-06 tes audio onboarding: nada 1 kHz −12 dBFS via PlaySound tertangkap loopback, puncak −12,07 dBFS. Registry izin mic di Windows 11 terbaca `allowed`.
+- 2026-10-06 **E2E** (`e2e` 50 dtk, TTS Inggris via speaker, bahasa auto): VAD → 2 chunk (mic+system) → STT → merge → dedup (salinan echo di mic dibuang) → ringkasan single pass. Done 8 dtk setelah Stop. Judul, ringkasan Indonesia, 2 keputusan, 4 topik, 2 action item dengan PJ & tenggat ("Jumat depan (2026-10-16)").
 - 2026-10-06 repair header: file dengan header ukuran 0 + byte ganjil → diperbaiki benar.
 
 ## Progres langkah §19
@@ -104,10 +113,10 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - [x] 6. Command rekam + widget recorder + popup consent
 - [x] 7. Device change + auto-stop + cek disk
 - [x] 8. Onboarding UI + izin mic + tes 5 detik
-- [ ] 9. VAD + chunker + offset map
-- [ ] 10. GroqStt + rate limiter + retry
-- [ ] 11. Filter + merge + dedup
-- [ ] 12. GroqLlm + prompts + parse + map-reduce
-- [ ] 13. Worker + state machine + recovery + retensi
+- [x] 9. VAD + chunker + offset map
+- [x] 10. GroqStt + rate limiter + retry
+- [x] 11. Filter + merge + dedup
+- [x] 12. GroqLlm + prompts + parse + map-reduce
+- [x] 13. Worker + state machine + recovery + retensi
 - [ ] 14. UI Beranda + Detail + Pengaturan
 - [ ] 15. Uji end-to-end, ukur NFR, build NSIS

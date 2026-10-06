@@ -6,8 +6,13 @@ pub mod db;
 pub mod error;
 pub mod events;
 pub mod groq;
+pub mod llm;
+pub mod pipeline;
+pub mod preprocess;
+pub mod queue;
 pub mod recording;
 pub mod secrets;
+pub mod stt;
 pub mod windows_integration;
 
 use std::path::{Path, PathBuf};
@@ -27,6 +32,7 @@ use crate::bridge::{TauriBridge, TRAY_ICON_IDLE, TRAY_ID};
 use crate::config::providers::ProvidersConfig;
 use crate::config::settings;
 use crate::db::{now_ms, repo_usage, Db};
+use crate::queue::worker::Worker;
 use crate::recording::{RecordingService, StopReason};
 
 /// usage_log lebih tua dari ini dihapus saat start (PRD §11).
@@ -49,6 +55,7 @@ pub struct AppState {
     pub recording: Arc<RecordingService>,
     /// Membangunkan worker antrean (meeting baru, retry, API key baru).
     pub queue_wake: Arc<Notify>,
+    pub worker: Arc<Worker>,
     _log_guard: WorkerGuard,
 }
 
@@ -84,6 +91,11 @@ fn init_state(app: &AppHandle) -> Result<AppState, Box<dyn std::error::Error>> {
         settings::load(&conn)?.minimize_to_tray
     };
 
+    // Recovery sebelum worker jalan (PRD §13).
+    if let Err(e) = queue::recovery::run(&data_dir, &db) {
+        tracing::error!("recovery gagal: {}", e.message);
+    }
+
     let bridge = Arc::new(TauriBridge::new(app.clone(), db.clone()));
     let queue_wake = Arc::new(Notify::new());
     let wake = queue_wake.clone();
@@ -95,15 +107,26 @@ fn init_state(app: &AppHandle) -> Result<AppState, Box<dyn std::error::Error>> {
         Box::new(move || wake.notify_one()),
     ));
 
+    let http = groq::build_client();
+    let worker = Arc::new(Worker::new(
+        data_dir.clone(),
+        db.clone(),
+        providers.clone(),
+        http.clone(),
+        bridge.clone(),
+        queue_wake.clone(),
+    ));
+
     Ok(AppState {
         data_dir,
         db,
         providers,
-        http: groq::build_client(),
+        http,
         minimize_to_tray: AtomicBool::new(minimize_to_tray),
         bridge,
         recording,
         queue_wake,
+        worker,
         _log_guard: log_guard,
     })
 }
@@ -204,6 +227,7 @@ pub fn run() {
         .setup(|app| {
             let state = init_state(app.handle())?;
             build_tray(app.handle(), &state.bridge)?;
+            tauri::async_runtime::spawn(state.worker.clone().run());
             app.manage(state);
             Ok(())
         })
@@ -242,6 +266,16 @@ pub fn run() {
             commands::recording::stop_recording,
             commands::recording::get_recording_state,
             commands::recording::respond_auto_stop,
+            commands::meetings::list_meetings,
+            commands::meetings::get_meeting,
+            commands::meetings::get_transcript,
+            commands::meetings::rename_meeting,
+            commands::meetings::set_action_item_done,
+            commands::meetings::delete_meeting,
+            commands::meetings::retry_job,
+            commands::meetings::regenerate_summary,
+            commands::meetings::retranscribe,
+            commands::meetings::resolve_interrupted,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

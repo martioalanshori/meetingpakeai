@@ -272,3 +272,38 @@ pub fn has_invalid_key_failure(conn: &Connection) -> AppResult<bool> {
         |r| r.get(0),
     )?)
 }
+
+/// Meeting berikutnya untuk worker (FIFO `started_at`): step berjalan/antre, atau `waiting_*` yang jadwalnya tiba.
+pub fn next_job(conn: &Connection, now: i64) -> AppResult<Option<MeetingRow>> {
+    Ok(conn
+        .query_row(
+            &format!(
+                "SELECT {COLS} FROM meetings
+                 WHERE status IN ('queued','preprocessing','transcribing','merging','summarizing')
+                    OR (status IN ('waiting_quota','waiting_network') AND COALESCE(next_run_at, 0) <= ?1)
+                 ORDER BY started_at ASC LIMIT 1"
+            ),
+            [now],
+            map_row,
+        )
+        .optional()?)
+}
+
+/// Jadwal `waiting_*` paling awal (untuk tidur worker).
+pub fn earliest_waiting(conn: &Connection) -> AppResult<Option<i64>> {
+    Ok(conn.query_row(
+        "SELECT MIN(next_run_at) FROM meetings WHERE status IN ('waiting_quota','waiting_network')",
+        [],
+        |r| r.get(0),
+    )?)
+}
+
+/// Meeting yang gagal karena API key tidak valid → kembali ke step semula (setelah key baru tersimpan).
+pub fn requeue_invalid_key(conn: &Connection) -> AppResult<usize> {
+    Ok(conn.execute(
+        "UPDATE meetings SET status = COALESCE(failed_step, 'queued'), failed_step = NULL, error_code = NULL,
+           error_message = NULL, progress_done = 0, progress_total = 0, updated_at = ?1
+         WHERE status = 'failed' AND error_code IN ('INVALID_API_KEY', 'NO_API_KEY')",
+        [now_ms()],
+    )?)
+}

@@ -1,0 +1,66 @@
+//! Tabel `transcript_segments`.
+
+use rusqlite::{params, Connection};
+use serde::Serialize;
+
+use crate::error::AppResult;
+use crate::pipeline::merge::Segment;
+
+/// `TranscriptSegment` di UI (PRD §12.2).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VisibleSegment {
+    pub id: i64,
+    pub channel: String,
+    pub start_ms: i64,
+    pub end_ms: i64,
+    pub text: String,
+}
+
+pub fn replace_all(conn: &mut Connection, meeting_id: &str, segments: &[Segment]) -> AppResult<()> {
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM transcript_segments WHERE meeting_id = ?1", [meeting_id])?;
+    {
+        let mut stmt = tx.prepare(
+            "INSERT INTO transcript_segments
+               (meeting_id, channel, start_ms, end_ms, text, no_speech_prob, avg_logprob, compression_ratio, is_filtered, is_duplicate)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        )?;
+        for s in segments {
+            stmt.execute(params![
+                meeting_id,
+                s.channel,
+                s.start_ms,
+                s.end_ms,
+                s.text,
+                s.no_speech_prob,
+                s.avg_logprob,
+                s.compression_ratio,
+                s.is_filtered,
+                s.is_duplicate
+            ])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+pub fn delete_for_meeting(conn: &Connection, meeting_id: &str) -> AppResult<()> {
+    conn.execute("DELETE FROM transcript_segments WHERE meeting_id = ?1", [meeting_id])?;
+    Ok(())
+}
+
+/// Hanya segment yang ditampilkan: `is_filtered = 0 AND is_duplicate = 0`.
+pub fn list_visible(conn: &Connection, meeting_id: &str) -> AppResult<Vec<VisibleSegment>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, channel, start_ms, end_ms, text FROM transcript_segments
+         WHERE meeting_id = ?1 AND is_filtered = 0 AND is_duplicate = 0
+         ORDER BY start_ms, CASE channel WHEN 'mic' THEN 0 ELSE 1 END, id",
+    )?;
+    let rows = stmt
+        .query_map([meeting_id], |r| {
+            Ok(VisibleSegment { id: r.get(0)?, channel: r.get(1)?, start_ms: r.get(2)?, end_ms: r.get(3)?, text: r.get(4)? })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
