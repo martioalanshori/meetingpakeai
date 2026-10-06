@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability untuk jendela main dan recorder",
+  "windows": ["main", "recorder"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "opener:default",
+    "notification:default"
+  ]
+}
