@@ -25,6 +25,29 @@ export const id = {
     interrupted: "Rekaman terputus",
   } satisfies Record<MeetingStatus, string>,
 
+  settings: {
+    title: "Pengaturan",
+    apiKey: {
+      heading: "API key Groq",
+      saved: "Tersimpan di Windows Credential Manager",
+      notSaved: "Belum diatur",
+      inputLabel: "API key",
+      inputPlaceholder: "gsk_…",
+      change: "Ganti",
+      cancel: "Batal",
+      test: "Uji koneksi",
+      testAndSave: "Uji & simpan",
+      testing: "Menguji…",
+      remove: "Hapus",
+      removeConfirm: "Hapus API key dari komputer ini?",
+      ok: "✔ Terhubung ke Groq",
+      saveOk: "✔ API key valid dan tersimpan",
+      removed: "API key dihapus",
+      missingModels: (models: string[]) =>
+        `Model berikut tidak tersedia di akun Groq Anda: ${models.join(", ")}. Periksa providers.json.`,
+    },
+  },
+
   recorder: {
     paused: "Dijeda",
   },

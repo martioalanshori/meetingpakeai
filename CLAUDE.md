@@ -12,6 +12,8 @@ Sumber kebenaran: **`PRD.md`**. Baca §0 sebelum mengerjakan apa pun. Kerjakan s
 | serde / serde_json | 1.0.229 / 1.0.151 |
 | rusqlite (bundled) | 0.40.2 |
 | thiserror / uuid (v4) / chrono | 2.0.21 / 1.27.0 / 0.4.45 |
+| keyring (default v1 → Windows Credential Manager) | 4.2.0 |
+| reqwest (default rustls + json, multipart) | 0.13.5 |
 | tracing / tracing-appender / tracing-subscriber (env-filter) | 0.1.44 / 0.2.5 / 0.3.23 |
 | Node / npm | 22.17.0 / 10.9.2 |
 | @tauri-apps/api / cli | 2.12.1 / 2.12.1 |
@@ -50,17 +52,22 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | `providers.json` | Key yang hilang diisi dari default secara rekursif; `llm_extra_body` diganti utuh (bukan digabung) agar parameter default bisa dihapus. |
 | Setting teks kosong | `userDisplayName`/`consentMessage` kosong setelah trim → kembali ke default. |
 | Default providers | Disematkan di binary (`include_str!` dari `resources/providers.default.json`) lalu ditulis ke app data jika belum ada. |
+| reqwest TLS | Fitur `rustls-tls` di PRD §6.1 sudah tidak ada di reqwest 0.13; TLS default 0.13 = rustls (aws-lc-rs). Tetap memenuhi NFR "TLS (rustls)". |
+| Modul `groq.rs` | Bagian bersama Groq (client, `ProviderError`, pemetaan HTTP→error, `list_models`) di `src-tauri/src/groq.rs`; dipakai `stt/groq.rs` & `llm/groq.rs`. |
+| `get_onboarding_status.micPermission` | Sementara selalu `unknown` sampai langkah 8. |
+| UI API key | Bagian API key di Pengaturan dibuat di langkah 3 (agar bisa diuji); key diuji dulu, disimpan hanya jika lolos. |
 | Rute dinamis `meeting/[id]` | `prerender = false` (dilayani lewat fallback SPA `index.html`). |
 
 ## Hasil verifikasi §21
 
-_(belum ada — isi saat langkah terkait dikerjakan)_
+- 2026-10-06: `GET /openai/v1/models` dengan key tidak valid → HTTP 401 (dipetakan ke `INVALID_API_KEY`).
+- #1 nama model: _menunggu uji dengan key asli pemilik_.
 
 ## Progres langkah §19
 
 - [x] 1. Scaffold Tauri 2 + SvelteKit SPA + Tailwind 4, tray, single-instance, 2 jendela
 - [x] 2. `error.rs`, `db/` + migrasi 001 + repo, `config/`
-- [ ] 3. `secrets.rs` + command API key + `test_api_key`
+- [x] 3. `secrets.rs` + command API key + `test_api_key`
 - [ ] 4. Capture mic + writer part + repair header
 - [ ] 5. Loopback + timeline padding + pause/mute + level
 - [ ] 6. Command rekam + widget recorder + popup consent

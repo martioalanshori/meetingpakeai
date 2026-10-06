@@ -2,6 +2,8 @@ pub mod commands;
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod groq;
+pub mod secrets;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -30,6 +32,8 @@ pub struct AppState {
     pub data_dir: PathBuf,
     pub db: Db,
     pub providers: ProvidersConfig,
+    /// HTTP client bersama (koneksi di-reuse).
+    pub http: reqwest::Client,
     /// Cermin setting `minimize_to_tray` agar handler close tidak perlu query DB.
     pub minimize_to_tray: AtomicBool,
     _log_guard: WorkerGuard,
@@ -71,6 +75,7 @@ fn init_state(app: &AppHandle) -> Result<AppState, Box<dyn std::error::Error>> {
         data_dir,
         db,
         providers,
+        http: groq::build_client(),
         minimize_to_tray: AtomicBool::new(minimize_to_tray),
         _log_guard: log_guard,
     })
@@ -157,6 +162,11 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::onboarding::get_onboarding_status,
+            commands::onboarding::complete_onboarding,
+            commands::api_key::save_api_key,
+            commands::api_key::test_api_key,
+            commands::api_key::delete_api_key,
             commands::settings::get_settings,
             commands::settings::update_settings,
         ])
