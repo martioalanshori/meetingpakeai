@@ -71,3 +71,9 @@ pub async fn respond_auto_stop(state: State<'_, AppState>, continue_recording: b
         .await
         .map_err(AppError::internal)?
 }
+
+/// Tambahan: jendela main yang baru dibuat dari menu tray menanyakan apakah popup consent perlu dibuka.
+#[tauri::command]
+pub async fn take_pending_consent(state: State<'_, AppState>) -> AppResult<bool> {
+    Ok(state.pending_consent.swap(false, std::sync::atomic::Ordering::SeqCst))
+}

@@ -31,7 +31,7 @@
   let busy = $state(false);
   let error = $state<string | null>(null);
 
-  const elapsed = $derived(rs.status === "recording" ? baseMs + (now - baseAt) : baseMs);
+  const elapsed = $derived(rs.status === "recording" ? baseMs + Math.max(0, now - baseAt) : baseMs);
   const secondsLeft = $derived(
     autoStopDeadline === null ? 0 : Math.max(0, Math.ceil((autoStopDeadline - now) / 1000)),
   );
@@ -63,7 +63,10 @@
   let timer: ReturnType<typeof setInterval>;
 
   onMount(async () => {
-    timer = setInterval(() => (now = performance.now()), 250);
+    timer = setInterval(() => {
+      // Timer hanya berdetak saat merekam (CPU idle ≈ 0).
+      if (rs.status === "recording" || autoStopDeadline !== null) now = performance.now();
+    }, 250);
     unlisten.push(
       await events.recordingState(applyState),
       await events.recordingLevel((l) => {

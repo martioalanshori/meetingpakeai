@@ -22,7 +22,7 @@ use std::sync::Arc;
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, WindowEvent};
+use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tokio::sync::Notify;
 use tracing_appender::non_blocking::WorkerGuard;
@@ -51,6 +51,8 @@ pub struct AppState {
     pub http: reqwest::Client,
     /// Cermin setting `minimize_to_tray` agar handler close tidak perlu query DB.
     pub minimize_to_tray: AtomicBool,
+    /// Jendela main baru dibuat dari menu tray "Mulai rekam": popup consent dibuka setelah halaman siap.
+    pub pending_consent: AtomicBool,
     pub bridge: Arc<TauriBridge>,
     pub recording: Arc<RecordingService>,
     /// Membangunkan worker antrean (meeting baru, retry, API key baru).
@@ -123,6 +125,7 @@ fn init_state(app: &AppHandle) -> Result<AppState, Box<dyn std::error::Error>> {
         providers,
         http,
         minimize_to_tray: AtomicBool::new(minimize_to_tray),
+        pending_consent: AtomicBool::new(false),
         bridge,
         recording,
         queue_wake,
@@ -132,11 +135,7 @@ fn init_state(app: &AppHandle) -> Result<AppState, Box<dyn std::error::Error>> {
 }
 
 pub fn show_main_window(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
-        let _ = w.unminimize();
-        let _ = w.show();
-        let _ = w.set_focus();
-    }
+    bridge::show_main_window(app, false);
 }
 
 fn stop_recording_in_background(app: &AppHandle, then_exit: bool) {
@@ -193,8 +192,7 @@ fn build_tray(app: &AppHandle, bridge: &TauriBridge) -> tauri::Result<()> {
                     stop_recording_in_background(app, false);
                 } else {
                     // Start selalu lewat popup consent di jendela main.
-                    show_main_window(app);
-                    let _ = app.emit_to("main", EV_TRAY_START_RECORDING, ());
+                    bridge::show_main_window(app, true);
                 }
             }
             "quit" => request_quit(app),
@@ -239,10 +237,9 @@ pub fn run() {
                 let to_tray = window
                     .try_state::<AppState>()
                     .is_none_or(|s| s.minimize_to_tray.load(Ordering::Relaxed));
-                api.prevent_close();
-                if to_tray {
-                    let _ = window.hide();
-                } else {
+                // Ke tray: jendela dihancurkan (WebView2 dilepas, RAM kecil); app tetap hidup lewat tray.
+                if !to_tray {
+                    api.prevent_close();
                     request_quit(window.app_handle());
                 }
             }
@@ -266,6 +263,7 @@ pub fn run() {
             commands::recording::stop_recording,
             commands::recording::get_recording_state,
             commands::recording::respond_auto_stop,
+            commands::recording::take_pending_consent,
             commands::meetings::list_meetings,
             commands::meetings::get_meeting,
             commands::meetings::get_transcript,
@@ -277,6 +275,12 @@ pub fn run() {
             commands::meetings::retranscribe,
             commands::meetings::resolve_interrupted,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            // Semua jendela tertutup (code = None) → tetap hidup di tray; keluar hanya lewat app.exit().
+            if let RunEvent::ExitRequested { code: None, api, .. } = event {
+                api.prevent_exit();
+            }
+        });
 }

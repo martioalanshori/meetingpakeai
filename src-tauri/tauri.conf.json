@@ -21,19 +21,6 @@
         "minWidth": 800,
         "minHeight": 600,
         "center": true
-      },
-      {
-        "label": "recorder",
-        "title": "Meeting Pake AI - Rekaman",
-        "url": "/recorder",
-        "width": 300,
-        "height": 64,
-        "resizable": false,
-        "decorations": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "visible": false,
-        "focus": false
       }
     ],
     "security": {
@@ -42,7 +29,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -51,8 +40,12 @@
       "icons/icon.ico"
     ],
     "windows": {
-      "webviewInstallMode": { "type": "downloadBootstrapper" },
-      "nsis": { "installMode": "currentUser" }
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser"
+      }
     }
   }
 }

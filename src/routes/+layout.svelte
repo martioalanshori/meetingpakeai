@@ -6,7 +6,7 @@
   import { api } from "$lib/api";
   import ConsentDialog from "$lib/components/ConsentDialog.svelte";
   import Toaster from "$lib/components/Toaster.svelte";
-  import { initRecording, rec } from "$lib/recording.svelte";
+  import { initRecording, openConsent, rec } from "$lib/recording.svelte";
 
   let { children } = $props();
 
@@ -16,6 +16,8 @@
   onMount(async () => {
     if (page.url.pathname.startsWith("/recorder")) return;
     await initRecording();
+    // Jendela dibuat ulang dari menu tray "Mulai rekam" → langsung buka popup consent.
+    if (await api.takePendingConsent().catch(() => false)) openConsent();
     try {
       const s = await api.getOnboardingStatus();
       if (!s.completed && !page.url.pathname.startsWith("/onboarding")) await goto("/onboarding");

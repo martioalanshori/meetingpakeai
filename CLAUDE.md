@@ -90,6 +90,8 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Virtualized list > 500 segment | Memakai CSS `content-visibility: auto` per baris (browser hanya me-render baris terlihat), tanpa library tambahan. |
 | Warna label transkrip | mic `#2563eb`, system `#047857` (kontras ≥ 4.5:1 di latar putih). |
 | Banner antrean dijeda | Dihitung di Beranda dari meeting `failed` dengan `errorCode` INVALID_API_KEY / NO_API_KEY. |
+| Jendela on-demand (NFR RAM) | Widget `recorder` dibuat saat mulai rekam dan dihancurkan saat Stop (tidak ada di tauri.conf.json). Jendela main dihancurkan saat ditutup ke tray dan dibuat ulang dari konfigurasi saat dibuka (tray / instance kedua). `RunEvent::ExitRequested { code: None }` dicegah agar app tetap hidup di tray. |
+| Command tambahan `take_pending_consent` | Jendela main yang baru dibuat dari menu tray "Mulai rekam" menanyakan flag ini lalu membuka popup consent. |
 | Contoh uji manual | `src-tauri/examples/record_mic.rs`, `record_both.rs`, `repair_wav.rs`, `record_service.rs`, `groq_probe.rs`, `audio_test.rs`, `e2e.rs` — alat uji, bukan bagian app. |
 | Rute dinamis `meeting/[id]` | `prerender = false` (dilayani lewat fallback SPA `index.html`). |
 
@@ -105,6 +107,19 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - 2026-10-06 tes audio onboarding: nada 1 kHz −12 dBFS via PlaySound tertangkap loopback, puncak −12,07 dBFS. Registry izin mic di Windows 11 terbaca `allowed`.
 - 2026-10-06 **E2E** (`e2e` 50 dtk, TTS Inggris via speaker, bahasa auto): VAD → 2 chunk (mic+system) → STT → merge → dedup (salinan echo di mic dibuang) → ringkasan single pass. Done 8 dtk setelah Stop. Judul, ringkasan Indonesia, 2 keputusan, 4 topik, 2 action item dengan PJ & tenggat ("Jumat depan (2026-10-16)").
 - 2026-10-06 repair header: file dengan header ukuran 0 + byte ganjil → diperbaiki benar.
+
+## Hasil ukur NFR (langkah 15, build release, 2026-10-06)
+
+| Area | Target | Hasil |
+|---|---|---|
+| Ukuran installer NSIS | < 30 MB | **4,24 MiB** ✅ |
+| RAM idle di tray | < 80 MB | **33,9 MB working set, 1 proses** ✅ |
+| CPU idle | ≈ 0% | **0,00%** (15 dtk) ✅ |
+| RAM jendela main terbuka | (tidak ada target) | 345 MB working set / 171 MB private, 7 proses (WebView2) |
+| Waktu proses | median < 10 menit / meeting 1 jam | E2E 50 dtk audio: 8 dtk setelah Stop. Meeting 1 jam belum diuji. |
+| RAM/CPU saat merekam 60 menit | < 150 MB / < 5% | **Belum diukur** (butuh rekaman 60 menit lewat UI). |
+
+Installer: `src-tauri/target/release/bundle/nsis/Meeting Pake AI_0.1.0_x64-setup.exe`.
 
 ## Progres langkah §19
 
@@ -122,4 +137,4 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - [x] 12. GroqLlm + prompts + parse + map-reduce
 - [x] 13. Worker + state machine + recovery + retensi
 - [x] 14. UI Beranda + Detail + Pengaturan
-- [ ] 15. Uji end-to-end, ukur NFR, build NSIS
+- [x] 15. Uji end-to-end, ukur NFR, build NSIS

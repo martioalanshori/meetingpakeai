@@ -53,6 +53,7 @@ export const api = {
   setMicMuted: (muted: boolean) => call<RecordingState>("set_mic_muted", { muted }),
   stopRecording: () => call<{ meetingId: string | null }>("stop_recording"),
   getRecordingState: () => call<RecordingState>("get_recording_state"),
+  takePendingConsent: () => call<boolean>("take_pending_consent"),
   respondAutoStop: (continueRecording: boolean) =>
     call<void>("respond_auto_stop", { continueRecording }),
 
