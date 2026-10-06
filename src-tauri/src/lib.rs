@@ -226,6 +226,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::onboarding::get_onboarding_status,
             commands::onboarding::complete_onboarding,
+            commands::onboarding::check_mic_permission,
+            commands::onboarding::open_mic_settings,
+            commands::onboarding::run_audio_test,
+            commands::onboarding::open_log_folder,
             commands::api_key::save_api_key,
             commands::api_key::test_api_key,
             commands::api_key::delete_api_key,

@@ -4,6 +4,7 @@ pub mod capture;
 pub mod devices;
 pub mod level;
 pub mod recorder;
+pub mod test_tone;
 pub mod timeline;
 pub mod writer;
 

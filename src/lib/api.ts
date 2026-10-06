@@ -43,6 +43,7 @@ export const api = {
   openMicSettings: () => call<void>("open_mic_settings"),
   runAudioTest: () => call<AudioTestResult>("run_audio_test"),
   completeOnboarding: () => call<void>("complete_onboarding"),
+  openLogFolder: () => call<void>("open_log_folder"),
 
   // Rekaman
   startRecording: (sourceApp?: string) =>

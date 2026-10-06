@@ -75,7 +75,11 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Notifikasi auto-stop | Teks notifikasi Windows saat auto-stop ditulis di Rust (`recording.rs`), bukan i18n UI. |
 | Stop < 5 dtk dari widget | Widget memakai notifikasi Windows (`id.toast.tooShort`) karena jendela main bisa tersembunyi. |
 | Posisi widget | Disimpan saat widget disembunyikan (Stop), dipulihkan saat muncul. |
-| Contoh uji manual | `src-tauri/examples/record_mic.rs`, `record_both.rs`, `repair_wav.rs`, `record_service.rs`, `groq_probe.rs` — alat uji, bukan bagian app. |
+| Reconnect / auto-stop / disk (langkah 7) | Di monitor `recording.rs` (tick 100 ms): buka ulang default device tiap 1 dtk maks 10x; hening < −50 dBFS kedua channel selama `auto_stop_silence_min` → peringatan + 2 menit; `max_recording_hours`; disk < 500 MB dicek tiap 30 dtk. Hening saat pause tidak dihitung. |
+| Tes audio onboarding | Nada diputar dengan WinAPI `PlaySoundW` (file `test_tone.wav` di app data). Loopback gagal dibuka → tes tetap jalan, system = gagal. |
+| Izin mikrofon | `allowed` jika setting pengguna terbaca dan semua `Value` = Allow (HKLM + HKCU + HKCU NonPackaged); `denied` jika ada yang Deny; selain itu `unknown`. Akses ditolak saat membuka mic (E_ACCESSDENIED) → `MIC_PERMISSION_DENIED`. |
+| Command tambahan `open_log_folder` | Untuk tombol "Buka folder log" di Pengaturan (§14.6). |
+| Contoh uji manual | `src-tauri/examples/record_mic.rs`, `record_both.rs`, `repair_wav.rs`, `record_service.rs`, `groq_probe.rs`, `audio_test.rs` — alat uji, bukan bagian app. |
 | Rute dinamis `meeting/[id]` | `prerender = false` (dilayani lewat fallback SPA `index.html`). |
 
 ## Hasil verifikasi §21
@@ -87,6 +91,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - 2026-10-06 #5 header: STT `x-ratelimit-limit-audio-seconds: 7200`, `x-ratelimit-limit-requests: 2000`; LLM `x-ratelimit-limit-requests: 1000`, `x-ratelimit-limit-tokens: 8000`, `x-ratelimit-reset-*`. Sesuai `providers.json` default. `retry-after` hanya muncul saat 429 (belum teramati).
 - 2026-10-06 #6 `wasapi` 0.25: capture mic shared+event dengan **autoconvert ke 16 kHz mono PCM16 berhasil** (Windows 11, mesin dev). Rekam 65 dtk → 64,99 dtk audio (part 1 = 960000 sampel tepat), header hound = 44 byte (`data` di offset 36). Loopback = device Render + `Direction::Capture` (crate otomatis set AUDCLNT_STREAMFLAGS_LOOPBACK); perilaku saat hening & device invalidated diuji di langkah 5/7.
 - 2026-10-06 loopback (`record_both` 40 dtk, pause 6 dtk, mute 8 dtk, nada 1 kHz diputar): nada tertangkap di channel system (−15,3 dBFS); loopback diam → tidak ada paket, celah terisi nol; panjang mic = system = 641214 sampel (selisih 0 ms); timeline 40,075 dtk vs dinding 46,1 dtk (pause tidak masuk timeline).
+- 2026-10-06 tes audio onboarding: nada 1 kHz −12 dBFS via PlaySound tertangkap loopback, puncak −12,07 dBFS. Registry izin mic di Windows 11 terbaca `allowed`.
 - 2026-10-06 repair header: file dengan header ukuran 0 + byte ganjil → diperbaiki benar.
 
 ## Progres langkah §19
@@ -97,8 +102,8 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - [x] 4. Capture mic + writer part + repair header
 - [x] 5. Loopback + timeline padding + pause/mute + level
 - [x] 6. Command rekam + widget recorder + popup consent
-- [ ] 7. Device change + auto-stop + cek disk
-- [ ] 8. Onboarding UI + izin mic + tes 5 detik
+- [x] 7. Device change + auto-stop + cek disk
+- [x] 8. Onboarding UI + izin mic + tes 5 detik
 - [ ] 9. VAD + chunker + offset map
 - [ ] 10. GroqStt + rate limiter + retry
 - [ ] 11. Filter + merge + dedup

@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 
 use crate::audio::recorder::Recorder;
+use crate::audio::test_tone::{self, AudioTestResult};
 use crate::audio::writer::PartEvent;
 use crate::audio::Channel;
 use crate::config::providers::RecordingConfig;
@@ -87,6 +88,8 @@ pub struct RecordingService {
     /// Dipanggil setelah meeting masuk antrean (membangunkan worker).
     on_queued: Box<dyn Fn() + Send + Sync>,
     active: Mutex<Option<Arc<Active>>>,
+    /// Tes audio onboarding sedang berjalan (tidak boleh bersamaan dengan rekaman).
+    testing: AtomicBool,
 }
 
 fn default_title(started_at_ms: i64) -> String {
@@ -112,7 +115,7 @@ impl RecordingService {
         config: RecordingConfig,
         on_queued: Box<dyn Fn() + Send + Sync>,
     ) -> Self {
-        Self { data_dir, db, events, config, on_queued, active: Mutex::new(None) }
+        Self { data_dir, db, events, config, on_queued, active: Mutex::new(None), testing: AtomicBool::new(false) }
     }
 
     fn lock_active(&self) -> MutexGuard<'_, Option<Arc<Active>>> {
@@ -140,7 +143,7 @@ impl RecordingService {
 
     pub fn start(self: &Arc<Self>, source_app: Option<String>) -> AppResult<String> {
         let mut guard = self.lock_active();
-        if guard.is_some() {
+        if guard.is_some() || self.testing.load(Ordering::SeqCst) {
             return Err(ErrorCode::AlreadyRecording.into());
         }
         if secrets::get_api_key()?.is_none() {
@@ -210,6 +213,34 @@ impl RecordingService {
         self.emit_state();
         events::emit(self.events.as_ref(), events::EV_MEETING_UPDATED, &MeetingUpdated { meeting_id: &meeting_id });
         Ok(meeting_id)
+    }
+
+    /// Tes 5 detik onboarding: rekam mic + loopback sambil memutar nada tes, emit level 10 Hz.
+    pub fn run_audio_test(&self) -> AppResult<AudioTestResult> {
+        if self.is_recording() || self.testing.swap(true, Ordering::SeqCst) {
+            return Err(ErrorCode::AlreadyRecording.into());
+        }
+        let result = (|| {
+            let tone = self.data_dir.join("test_tone.wav");
+            if !tone.exists() {
+                test_tone::write_tone(&tone)?;
+            }
+            let sink = self.events.clone();
+            test_tone::run(
+                || {
+                    if !windows_integration::play_wav_async(&tone) {
+                        tracing::warn!("nada tes gagal diputar");
+                    }
+                },
+                |mic, sys| sink.emit_json(events::EV_RECORDING_LEVEL, serde_json::json!({ "micDbfs": mic, "systemDbfs": sys })),
+            )
+            .map_err(AppError::from)
+        })();
+        self.testing.store(false, Ordering::SeqCst);
+        if let Ok(r) = &result {
+            tracing::info!("tes audio: mic {:.1} dBFS, sistem {:.1} dBFS", r.mic_peak_dbfs, r.system_peak_dbfs);
+        }
+        result
     }
 
     fn with_active<T>(&self, f: impl FnOnce(&Active) -> T) -> AppResult<T> {
