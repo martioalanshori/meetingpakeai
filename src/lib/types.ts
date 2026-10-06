@@ -55,6 +55,8 @@ export type MeetingListItem = {
   progressDone: number;
   progressTotal: number;
   errorMessage: string | null;
+  /** Tambahan dari backend: kode error untuk status failed. */
+  errorCode: ErrorCode | null;
 };
 
 export type ActionItem = {
@@ -76,7 +78,6 @@ export type MeetingDetail = MeetingListItem & {
   endedAt: number | null;
   language: "id" | "auto";
   failedStep: string | null;
-  errorCode: ErrorCode | null;
   audioDeleted: boolean;
   labels: { mic: string; system: string };
   summary: MeetingSummary | null;

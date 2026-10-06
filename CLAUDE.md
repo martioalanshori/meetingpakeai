@@ -87,6 +87,9 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | `MeetingListItem.errorCode` | Field tambahan untuk banner "antrean dijeda" di Beranda. |
 | `retry_job` di step preprocessing dengan audio terhapus | Ditolak `AUDIO_NOT_AVAILABLE`. |
 | Merge perantara | Prompt `MERGE_INTERMEDIATE` (format CHUNK) di `llm/prompts.rs` untuk merge bertingkat (§10.4). |
+| Virtualized list > 500 segment | Memakai CSS `content-visibility: auto` per baris (browser hanya me-render baris terlihat), tanpa library tambahan. |
+| Warna label transkrip | mic `#2563eb`, system `#047857` (kontras ≥ 4.5:1 di latar putih). |
+| Banner antrean dijeda | Dihitung di Beranda dari meeting `failed` dengan `errorCode` INVALID_API_KEY / NO_API_KEY. |
 | Contoh uji manual | `src-tauri/examples/record_mic.rs`, `record_both.rs`, `repair_wav.rs`, `record_service.rs`, `groq_probe.rs`, `audio_test.rs`, `e2e.rs` — alat uji, bukan bagian app. |
 | Rute dinamis `meeting/[id]` | `prerender = false` (dilayani lewat fallback SPA `index.html`). |
 
@@ -118,5 +121,5 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - [x] 11. Filter + merge + dedup
 - [x] 12. GroqLlm + prompts + parse + map-reduce
 - [x] 13. Worker + state machine + recovery + retensi
-- [ ] 14. UI Beranda + Detail + Pengaturan
+- [x] 14. UI Beranda + Detail + Pengaturan
 - [ ] 15. Uji end-to-end, ukur NFR, build NSIS
