@@ -2,6 +2,9 @@
 
 pub mod capture;
 pub mod devices;
+pub mod level;
+pub mod recorder;
+pub mod timeline;
 pub mod writer;
 
 use serde::{Deserialize, Serialize};

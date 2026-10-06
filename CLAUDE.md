@@ -31,6 +31,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - Cek frontend: `npm run check`
 - Cek Rust (dari `src-tauri/`): `cargo check` dan `cargo clippy -- -D warnings`
 - Uji rekam mic (langkah 4): `cargo run --example record_mic -- <detik> [folder]` dari `src-tauri/`
+- Uji rekam 2 channel (langkah 5): `cargo run --example record_both -- <detik> [folder] [pause_di pause_lama] [mute_di mute_lama]`
 - Uji repair header WAV: `cargo run --example repair_wav -- <file.wav>`
 - Build installer: `npm run tauri build` (NSIS, per-user)
 - Di shell sesi lama mungkin perlu `export PATH="$HOME/.cargo/bin:$PATH"`.
@@ -62,7 +63,10 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Fallback `rubato` (§7.1) | Belum dibuat: autoconvert WASAPI terbukti jalan di mesin dev (lihat Hasil verifikasi). Ditambahkan hanya jika ada laporan device yang menolak format 16 kHz mono. |
 | Baca buffer WASAPI | Pakai `read_from_device` (bukan `read_from_device_to_deque` yang memanggil `.unwrap()` saat ReleaseBuffer → panic jika device dicabut). Paket bertanda `silent` ditulis sebagai nol. |
 | Buffer WASAPI | `buffer_duration_hns` = default device period (bukan min period seperti contoh crate) agar CPU lebih hemat. |
-| Contoh uji manual | `src-tauri/examples/record_mic.rs`, `repair_wav.rs` — alat uji, bukan bagian app. |
+| Isi celah saat loopback diam | Selain saat paket datang (§7.2), tiap putaran loop (≤100 ms) channel yang tertinggal > 200 ms langsung diisi nol sampai `expected`, agar file di disk mengikuti timeline (penting untuk recovery crash). |
+| Batas saat Stop | Saat Stop, jam dibekukan, panjang final dihitung, lalu tulisan dibatasi ke panjang itu dan kekurangan di-pad nol → kedua channel sama persis. |
+| `loopback.rs` (§6.2) | Tidak dibuat terpisah: `audio/devices.rs` membuka mic & loopback, `audio/capture.rs` dipakai keduanya. Orkestrasi dua channel di `audio/recorder.rs`. |
+| Contoh uji manual | `src-tauri/examples/record_mic.rs`, `record_both.rs`, `repair_wav.rs` — alat uji, bukan bagian app. |
 | Rute dinamis `meeting/[id]` | `prerender = false` (dilayani lewat fallback SPA `index.html`). |
 
 ## Hasil verifikasi §21
@@ -70,6 +74,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - 2026-10-06: `GET /openai/v1/models` dengan key tidak valid → HTTP 401 (dipetakan ke `INVALID_API_KEY`).
 - #1 nama model: _menunggu uji dengan key asli pemilik_.
 - 2026-10-06 #6 `wasapi` 0.25: capture mic shared+event dengan **autoconvert ke 16 kHz mono PCM16 berhasil** (Windows 11, mesin dev). Rekam 65 dtk → 64,99 dtk audio (part 1 = 960000 sampel tepat), header hound = 44 byte (`data` di offset 36). Loopback = device Render + `Direction::Capture` (crate otomatis set AUDCLNT_STREAMFLAGS_LOOPBACK); perilaku saat hening & device invalidated diuji di langkah 5/7.
+- 2026-10-06 loopback (`record_both` 40 dtk, pause 6 dtk, mute 8 dtk, nada 1 kHz diputar): nada tertangkap di channel system (−15,3 dBFS); loopback diam → tidak ada paket, celah terisi nol; panjang mic = system = 641214 sampel (selisih 0 ms); timeline 40,075 dtk vs dinding 46,1 dtk (pause tidak masuk timeline).
 - 2026-10-06 repair header: file dengan header ukuran 0 + byte ganjil → diperbaiki benar.
 
 ## Progres langkah §19
@@ -78,7 +83,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - [x] 2. `error.rs`, `db/` + migrasi 001 + repo, `config/`
 - [x] 3. `secrets.rs` + command API key + `test_api_key`
 - [x] 4. Capture mic + writer part + repair header
-- [ ] 5. Loopback + timeline padding + pause/mute + level
+- [x] 5. Loopback + timeline padding + pause/mute + level
 - [ ] 6. Command rekam + widget recorder + popup consent
 - [ ] 7. Device change + auto-stop + cek disk
 - [ ] 8. Onboarding UI + izin mic + tes 5 detik
