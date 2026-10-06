@@ -10,6 +10,9 @@ Sumber kebenaran: **`PRD.md`**. Baca §0 sebelum mengerjakan apa pun. Kerjakan s
 | tauri / tauri-build | 2.12.1 / 2.7.1 (fitur `tray-icon`, `image-png`) |
 | tauri-plugin-opener / -notification / -single-instance | 2.7.0 / 2.5.1 / 2.5.2 |
 | serde / serde_json | 1.0.229 / 1.0.151 |
+| rusqlite (bundled) | 0.40.2 |
+| thiserror / uuid (v4) / chrono | 2.0.21 / 1.27.0 / 0.4.45 |
+| tracing / tracing-appender / tracing-subscriber (env-filter) | 0.1.44 / 0.2.5 / 0.3.23 |
 | Node / npm | 22.17.0 / 10.9.2 |
 | @tauri-apps/api / cli | 2.12.1 / 2.12.1 |
 | @sveltejs/kit / adapter-static / vite-plugin-svelte | 2.70.3 / 3.0.10 / 7.3.1 |
@@ -43,6 +46,10 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Ikon | Placeholder: app = lingkaran indigo; tray `icons/tray-idle.png` (abu-abu) / `icons/tray-recording.png` (merah). |
 | Cek disk saat merekam | Tiap 30 detik. |
 | Argumen `update_settings` | `{ patch: Partial<Settings> }`. |
+| tracing-subscriber | Ditambahkan (tidak ada di §6.1) karena dibutuhkan untuk memasang subscriber tracing ke file. |
+| `providers.json` | Key yang hilang diisi dari default secara rekursif; `llm_extra_body` diganti utuh (bukan digabung) agar parameter default bisa dihapus. |
+| Setting teks kosong | `userDisplayName`/`consentMessage` kosong setelah trim → kembali ke default. |
+| Default providers | Disematkan di binary (`include_str!` dari `resources/providers.default.json`) lalu ditulis ke app data jika belum ada. |
 | Rute dinamis `meeting/[id]` | `prerender = false` (dilayani lewat fallback SPA `index.html`). |
 
 ## Hasil verifikasi §21
@@ -52,7 +59,7 @@ _(belum ada — isi saat langkah terkait dikerjakan)_
 ## Progres langkah §19
 
 - [x] 1. Scaffold Tauri 2 + SvelteKit SPA + Tailwind 4, tray, single-instance, 2 jendela
-- [ ] 2. `error.rs`, `db/` + migrasi 001 + repo, `config/`
+- [x] 2. `error.rs`, `db/` + migrasi 001 + repo, `config/`
 - [ ] 3. `secrets.rs` + command API key + `test_api_key`
 - [ ] 4. Capture mic + writer part + repair header
 - [ ] 5. Loopback + timeline padding + pause/mute + level

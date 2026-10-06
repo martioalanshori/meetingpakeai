@@ -24,6 +24,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-single-instance = "2.5.2"
 tauri-plugin-notification = "2.5.1"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+thiserror = "2.0.21"
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+uuid = { version = "1.27.0", features = ["v4"] }
+chrono = "0.4.45"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

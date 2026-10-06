@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "stt_model": "whisper-large-v3-turbo",
+  "llm_model": "qwen/qwen3.8-27b",
+  "llm_extra_body": { "reasoning_effort": "none" },
+  "limits": {
+    "stt_rpm": 20, "stt_rpd": 2000, "stt_audio_sec_per_hour": 7200, "stt_audio_sec_per_day": 28800,
+    "llm_rpm": 30, "llm_rpd": 1000, "llm_tpm": 8000, "llm_tpd": 200000,
+    "safety_factor": 0.9, "stt_max_file_mb": 25
+  },
+  "pipeline": {
+    "stt_chunk_target_sec": 300, "llm_chunk_max_tokens": 4000,
+    "no_speech_prob_max": 0.6, "avg_logprob_min": -1.0, "compression_ratio_max": 2.4,
+    "dedup_similarity": 0.75,
+    "hallucination_phrases": ["terima kasih telah menonton", "terima kasih sudah menonton",
+      "jangan lupa subscribe", "subtitle oleh", "thank you for watching", "thanks for watching"]
+  },
+  "recording": { "auto_stop_silence_min": 10, "max_recording_hours": 4 }
+}

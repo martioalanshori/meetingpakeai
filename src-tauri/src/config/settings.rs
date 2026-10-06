@@ -1,0 +1,116 @@
+//! Pengaturan pengguna (PRD §11.1), disimpan di tabel `settings` (key snake_case → JSON).
+//! API key TIDAK pernah disimpan di sini (lihat `secrets.rs`).
+
+use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
+
+use crate::db::repo_settings;
+use crate::error::AppResult;
+
+pub const KEY_ONBOARDING_COMPLETED: &str = "onboarding_completed";
+pub const KEY_USER_DISPLAY_NAME: &str = "user_display_name";
+pub const KEY_STT_LANGUAGE: &str = "stt_language";
+pub const KEY_DELETE_AUDIO: &str = "delete_audio_after_transcript";
+pub const KEY_MINIMIZE_TO_TRAY: &str = "minimize_to_tray";
+pub const KEY_CONSENT_MESSAGE: &str = "consent_message";
+pub const KEY_RECORDER_POSITION: &str = "recorder_position";
+
+pub const DEFAULT_USER_DISPLAY_NAME: &str = "Saya";
+pub const DEFAULT_SYSTEM_LABEL: &str = "Peserta lain";
+pub const DEFAULT_CONSENT_MESSAGE: &str = "Halo semua, meeting ini saya rekam dan transkrip menggunakan Meeting Pake AI untuk membuat notulen. Rekaman hanya untuk keperluan internal. Jika ada yang keberatan, mohon kabari saya.";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SttLanguage {
+    Id,
+    Auto,
+}
+
+impl SttLanguage {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Id => "id",
+            Self::Auto => "auto",
+        }
+    }
+}
+
+/// Tipe `Settings` di UI (PRD §12.2).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Settings {
+    pub user_display_name: String,
+    pub stt_language: SttLanguage,
+    pub delete_audio_after_transcript: bool,
+    pub minimize_to_tray: bool,
+    pub consent_message: String,
+}
+
+/// `Partial<Settings>` dari `update_settings`.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsPatch {
+    pub user_display_name: Option<String>,
+    pub stt_language: Option<SttLanguage>,
+    pub delete_audio_after_transcript: Option<bool>,
+    pub minimize_to_tray: Option<bool>,
+    pub consent_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct WindowPosition {
+    pub x: i32,
+    pub y: i32,
+}
+
+pub fn load(conn: &Connection) -> AppResult<Settings> {
+    Ok(Settings {
+        user_display_name: repo_settings::get(conn, KEY_USER_DISPLAY_NAME)?
+            .unwrap_or_else(|| DEFAULT_USER_DISPLAY_NAME.to_string()),
+        stt_language: repo_settings::get(conn, KEY_STT_LANGUAGE)?.unwrap_or(SttLanguage::Id),
+        delete_audio_after_transcript: repo_settings::get(conn, KEY_DELETE_AUDIO)?.unwrap_or(true),
+        minimize_to_tray: repo_settings::get(conn, KEY_MINIMIZE_TO_TRAY)?.unwrap_or(true),
+        consent_message: repo_settings::get(conn, KEY_CONSENT_MESSAGE)?
+            .unwrap_or_else(|| DEFAULT_CONSENT_MESSAGE.to_string()),
+    })
+}
+
+/// Simpan field yang dikirim saja. Teks di-trim; teks kosong → kembali ke default.
+pub fn apply_patch(conn: &Connection, patch: SettingsPatch) -> AppResult<Settings> {
+    if let Some(name) = patch.user_display_name {
+        let name = name.trim();
+        let name = if name.is_empty() { DEFAULT_USER_DISPLAY_NAME } else { name };
+        repo_settings::set(conn, KEY_USER_DISPLAY_NAME, &name)?;
+    }
+    if let Some(lang) = patch.stt_language {
+        repo_settings::set(conn, KEY_STT_LANGUAGE, &lang)?;
+    }
+    if let Some(v) = patch.delete_audio_after_transcript {
+        repo_settings::set(conn, KEY_DELETE_AUDIO, &v)?;
+    }
+    if let Some(v) = patch.minimize_to_tray {
+        repo_settings::set(conn, KEY_MINIMIZE_TO_TRAY, &v)?;
+    }
+    if let Some(msg) = patch.consent_message {
+        let msg = msg.trim();
+        let msg = if msg.is_empty() { DEFAULT_CONSENT_MESSAGE } else { msg };
+        repo_settings::set(conn, KEY_CONSENT_MESSAGE, &msg)?;
+    }
+    load(conn)
+}
+
+pub fn onboarding_completed(conn: &Connection) -> AppResult<bool> {
+    Ok(repo_settings::get(conn, KEY_ONBOARDING_COMPLETED)?.unwrap_or(false))
+}
+
+pub fn set_onboarding_completed(conn: &Connection) -> AppResult<()> {
+    repo_settings::set(conn, KEY_ONBOARDING_COMPLETED, &true)
+}
+
+pub fn recorder_position(conn: &Connection) -> AppResult<Option<WindowPosition>> {
+    repo_settings::get(conn, KEY_RECORDER_POSITION)
+}
+
+pub fn set_recorder_position(conn: &Connection, pos: WindowPosition) -> AppResult<()> {
+    repo_settings::set(conn, KEY_RECORDER_POSITION, &pos)
+}
