@@ -6,6 +6,7 @@
   import { api, events } from "$lib/api";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import SummaryEditor from "$lib/components/SummaryEditor.svelte";
+  import AudioPlayer from "$lib/components/AudioPlayer.svelte";
   import CopyButton from "$lib/components/CopyButton.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import Menu, { type MenuEntry } from "$lib/components/Menu.svelte";
@@ -41,8 +42,12 @@
   let titleInput = $state<HTMLInputElement | null>(null);
   let editingSummary = $state(false);
   let audioSrc = $state<string | null>(null);
-  let audioEl = $state<HTMLAudioElement | null>(null);
+  let player = $state<AudioPlayer | null>(null);
   let audioLoading = $state(false);
+  /** Posisi pemutaran (ms) untuk menyorot kalimat yang sedang diputar. */
+  let playMs = $state<number | null>(null);
+  /** Ikuti kalimat aktif dengan auto-scroll; berhenti sementara saat pengguna menggulir sendiri. */
+  let followUntil = 0;
 
   const PROCESSING: MeetingStatus[] = [
     "queued",
@@ -103,7 +108,8 @@
     untrack(() => {
       if (mid === loadedId) return;
       loadedId = mid;
-      audioEl?.pause();
+      player?.pause();
+      playMs = null;
       switching = meeting !== null;
       editing = false;
       editingSummary = false;
@@ -275,9 +281,8 @@
         audioSrc = convertFileSrc(await api.preparePlayback(meetingId));
         await tick();
       }
-      if (!audioEl) return;
-      audioEl.currentTime = ms / 1000;
-      await audioEl.play();
+      followUntil = 0;
+      await player?.seekAndPlay(ms);
     } catch (e) {
       showToast((e as AppError).message ?? t.errors.INTERNAL, "error");
     } finally {
@@ -285,6 +290,26 @@
     }
   }
 
+
+  /** Segment yang sedang diputar: `startMs` terbesar yang ≤ posisi (pencarian biner). */
+  const activeSegId = $derived.by(() => {
+    if (playMs === null || transcript.length === 0) return null;
+    let lo = 0;
+    let hi = transcript.length - 1;
+    if (playMs < transcript[0].startMs) return null;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (transcript[mid].startMs <= playMs) lo = mid;
+      else hi = mid - 1;
+    }
+    return transcript[lo].id;
+  });
+
+  $effect(() => {
+    const segId = activeSegId;
+    if (segId === null || Date.now() < followUntil) return;
+    document.getElementById(`seg-${segId}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  });
 
   /** Teks saat notulen belum ada, sesuai status (bukan "—"). */
   const emptyNote = $derived(
@@ -586,18 +611,30 @@
         {#if !meeting.audioDeleted}<p class="-mt-2 text-sm text-ink-faint">{t.detail.clickToPlay}</p>{/if}
 
         {#if audioSrc || audioLoading}
-          <div class="sticky top-2 z-10 rounded-xl border border-line bg-sheet p-2 shadow-[0_8px_24px_-12px_rgb(30_36_51/0.3)]">
-            {#if audioLoading && !audioSrc}<span class="px-2 text-sm text-ink-soft">{t.detail.preparingAudio}</span>{/if}
+          <div class="sticky top-2 z-10 rounded-xl border border-line bg-sheet px-3 py-2 shadow-[0_8px_24px_-12px_rgb(30_36_51/0.3)]">
+            {#if audioLoading && !audioSrc}
+              <span class="text-sm text-ink-soft">{t.detail.preparingAudio}</span>
+            {/if}
             {#if audioSrc}
-              <audio bind:this={audioEl} src={audioSrc} controls preload="auto" class="h-9 w-full"></audio>
+              <AudioPlayer bind:this={player} src={audioSrc} ontime={(ms) => (playMs = ms)} />
             {/if}
           </div>
         {/if}
 
         <!-- Transkrip polos (tanpa label pembicara, keputusan pemilik). Satu tombol putar per baris di kolom waktu. -->
-        <ol class={["flex flex-col gap-3", transcript.length > 500 && "virtualized"]}>
+        <ol
+          class={["flex flex-col gap-1", transcript.length > 500 && "virtualized"]}
+          onwheel={() => (followUntil = Date.now() + 5000)}
+        >
           {#each transcript as s (s.id)}
-            <li class="row grid grid-cols-[4.5rem_1fr] items-baseline gap-x-3">
+            <li
+              id={`seg-${s.id}`}
+              class={[
+                "row -mx-2 grid grid-cols-[4.5rem_1fr] items-baseline gap-x-3 rounded-lg px-2 py-1 transition-colors",
+                s.id === activeSegId && "bg-wash",
+              ]}
+              aria-current={s.id === activeSegId ? "true" : undefined}
+            >
               {#if meeting.audioDeleted}
                 <span class="tabular text-sm text-ink-faint">{formatTimestamp(s.startMs)}</span>
               {:else}

@@ -2,6 +2,7 @@
 //! `recordings/<id>/playback.wav`, dibuat sekali saat pertama diminta lalu dipakai ulang.
 
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use crate::audio::writer::WAV_SPEC;
 use crate::db::{repo_parts, Db};
@@ -11,9 +12,17 @@ use crate::preprocess::reader::PartReader;
 const BLOCK_SAMPLES: u64 = 10 * 16_000;
 pub const PLAYBACK_FILE: &str = "playback.wav";
 
+/// Satu pembuatan sekaligus: pembuatan di latar belakang (setelah job selesai) dan klik pengguna
+/// tidak boleh menulis file sementara yang sama bersamaan.
+static BUILD_LOCK: Mutex<()> = Mutex::new(());
+
 /// Path absolut file playback; dibuat jika belum ada.
 pub fn prepare(data_dir: &Path, db: &Db, meeting_id: &str) -> AppResult<PathBuf> {
     let out = data_dir.join("recordings").join(meeting_id).join(PLAYBACK_FILE);
+    if out.exists() {
+        return Ok(out);
+    }
+    let _guard = BUILD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     if out.exists() {
         return Ok(out);
     }

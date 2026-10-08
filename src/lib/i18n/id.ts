@@ -211,6 +211,13 @@ export const id = {
     modelMissing: (m: string) => `Tersimpan, tetapi model "${m}" tidak ditemukan di akun ini. Periksa nama modelnya.`,
   },
 
+  player: {
+    play: "Putar",
+    pause: "Jeda",
+    seek: "Posisi audio",
+    speed: "Kecepatan putar",
+  },
+
   minutes: {
     date: "Tanggal",
     actionItemsOf: (title: string) => `Action items — ${title}`,

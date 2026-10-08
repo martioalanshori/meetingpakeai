@@ -309,6 +309,15 @@ impl Worker {
             events::emit(self.events.as_ref(), events::EV_MEETING_UPDATED, &MeetingUpdated { meeting_id: &id });
             if let Some(r) = row {
                 self.events.meeting_done(&id, &r.title);
+                // Audio masih disimpan → siapkan file putar sekarang agar klik pertama di transkrip langsung jalan.
+                if !r.audio_deleted {
+                    let (data_dir, db, mid) = (self.data_dir.clone(), self.db.clone(), id.clone());
+                    tokio::task::spawn_blocking(move || {
+                        if let Err(e) = crate::playback::prepare(&data_dir, &db, &mid) {
+                            tracing::warn!("audio putar {mid} gagal disiapkan: {}", e.message);
+                        }
+                    });
+                }
             }
         }
     }
