@@ -54,7 +54,7 @@
 {:else}
   <div class="flex h-full print:block">
     <div class="contents print:hidden"><AppRail /></div>
-    <div class="min-w-0 flex-1 overflow-y-auto border-l border-line bg-sheet print:overflow-visible print:border-0">
+    <div class="min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] border-l border-line bg-sheet print:overflow-visible print:border-0">
       {@render children()}
     </div>
   </div>

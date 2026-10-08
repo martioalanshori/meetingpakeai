@@ -11,7 +11,7 @@
   import { showToast } from "$lib/toast.svelte";
   import Highlight from "$lib/components/Highlight.svelte";
   import MeetingDetail from "$lib/components/MeetingDetail.svelte";
-  import { detailTab, setWindowTitle, viewport } from "$lib/viewport.svelte";
+  import { detailTab, viewport } from "$lib/viewport.svelte";
   import { confirmDialog } from "$lib/confirm.svelte";
   import { formatTimestamp } from "$lib/format";
   import type { AppError, MeetingListItem, SearchHit } from "$lib/types";
@@ -105,10 +105,6 @@
       const tab = detailTab.meetingId === selected ? detailTab.tab : selectedTab;
       untrack(() => goto(`/meeting/${selected}${tab ? `?tab=${tab}` : ""}`, { replaceState: true }));
     }
-  });
-
-  $effect(() => {
-    if (!viewport.wide || !selected) setWindowTitle(null);
   });
 
   /** Muat ulang semua item yang sedang tampil (minimal satu halaman). */
@@ -312,13 +308,13 @@
           <ul class="flex flex-col">
             {#each g.items as m (m.id)}
               {@const active = viewport.wide && m.id === selected}
-              <li class="mrow">
+              <li class="mrow -mx-3">
                 <a
                   href={`/meeting/${m.id}`}
                   onclick={(e) => openRow(e, m.id)}
                   aria-current={active ? "true" : undefined}
                   class={[
-                    "-mx-3 grid items-baseline gap-x-4 rounded-lg px-3 py-3",
+                    "grid items-baseline gap-x-4 rounded-lg px-3 py-3",
                     compact ? "grid-cols-[3rem_minmax(0,1fr)]" : "grid-cols-[3.5rem_minmax(0,1fr)_auto]",
                     active
                       ? "bg-sheet shadow-[0_1px_2px_rgb(28_31_38/0.08),inset_0_0_0_1px_var(--color-line)]"
@@ -329,7 +325,7 @@
                 >
                   <span class="tabular text-sm text-ink-soft">{formatTime(m.startedAt)}</span>
                   <span class="flex min-w-0 flex-col gap-1">
-                    <span class="truncate font-semibold">{m.title}</span>
+                    <span class="leading-snug font-semibold text-pretty wrap-anywhere">{m.title}</span>
                     {#if compact}
                       <span class="flex flex-wrap items-center gap-x-3 gap-y-0.5">
                         {#if m.durationMs > 0}
@@ -366,10 +362,10 @@
 {#if viewport.wide}
   <!-- Layar lebar: daftar di kiri, notulen meeting terpilih di kanan; tiap panel bergulir sendiri. -->
   <div class="grid h-full grid-cols-[minmax(17.5rem,24rem)_minmax(0,1fr)] print:block">
-    <div class="flex min-h-0 flex-col gap-5 overflow-y-auto border-r border-line bg-paper px-5 pt-7 pb-10 print:hidden">
+    <div class="flex min-h-0 flex-col gap-5 overflow-y-auto [scrollbar-gutter:stable] border-r border-line bg-paper px-5 pt-7 pb-10 print:hidden">
       {@render listBody(true)}
     </div>
-    <div class="min-h-0 overflow-y-auto print:overflow-visible">
+    <div class="min-h-0 overflow-y-auto [scrollbar-gutter:stable] print:overflow-visible">
       {#if selected}
         <MeetingDetail meetingId={selected} initialTab={selectedTab} embedded ondeleted={() => goto("/", { replaceState: true })} />
       {:else if loaded}
