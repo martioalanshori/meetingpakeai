@@ -6,7 +6,7 @@ use crate::audio::test_tone::AudioTestResult;
 use crate::config::settings;
 use crate::error::{AppError, AppResult};
 use crate::windows_integration::mic_permission;
-use crate::{secrets, AppState};
+use crate::AppState;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,7 +24,7 @@ pub async fn get_onboarding_status(state: State<'_, AppState>) -> AppResult<Onbo
     let completed = settings::onboarding_completed(&state.db.conn())?;
     Ok(OnboardingStatus {
         completed,
-        api_key_set: secrets::get_api_key()?.is_some(),
+        api_key_set: crate::ai::keys_ready(&state.db.conn())?,
         mic_permission: mic_permission::check().as_str(),
         queue_paused: state.worker.is_paused(),
     })

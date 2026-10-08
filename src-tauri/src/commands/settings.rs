@@ -35,7 +35,12 @@ pub async fn update_settings(app: AppHandle, state: State<'_, AppState>, patch: 
 /// Tambahan (langkah 29, C5.2): pemakaian kuota Groq hari ini dari `usage_log`.
 #[tauri::command]
 pub async fn get_quota_today(state: State<'_, AppState>) -> AppResult<crate::queue::rate_limiter::QuotaToday> {
-    crate::queue::rate_limiter::quota_today(&state.db.conn(), &state.providers.limits, crate::db::now_ms())
+    let conn = state.db.conn();
+    let mut q = crate::queue::rate_limiter::quota_today(&conn, &state.providers.limits, crate::db::now_ms())?;
+    // Batas harian hanya diketahui untuk Groq (free tier); penyedia lain mengikuti akun masing-masing.
+    q.stt_groq = crate::ai::provider_of(&conn, crate::ai::Role::Stt)? == crate::ai::GROQ;
+    q.llm_groq = crate::ai::provider_of(&conn, crate::ai::Role::Llm)? == crate::ai::GROQ;
+    Ok(q)
 }
 
 /// Ukuran maksimal log yang dimasukkan ke laporan (bagian akhir file terbaru).
@@ -54,7 +59,11 @@ pub async fn save_problem_report(app: AppHandle, state: State<'_, AppState>) -> 
     s.user_display_name = "(disembunyikan)".into();
     report.push_str(&format!("Pengaturan: {}\n", serde_json::to_string(&s)?));
     report.push_str(&format!("Antrean dijeda: {}\n", state.worker.is_paused()));
-    report.push_str(&format!("Model: STT {} / LLM {}\n\n", state.providers.stt_model, state.providers.llm_model));
+    for (name, role) in [("Transkrip", crate::ai::Role::Stt), ("Ringkasan", crate::ai::Role::Llm)] {
+        let e = crate::ai::endpoint(&state.db.conn(), role, &state.providers)?;
+        report.push_str(&format!("{name}: {} / {}\n", e.provider, e.model));
+    }
+    report.push('\n');
 
     let mut logs: Vec<_> = std::fs::read_dir(state.data_dir.join("logs"))?
         .flatten()

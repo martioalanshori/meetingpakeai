@@ -20,7 +20,7 @@ use crate::db::repo_meetings::{self, NewMeeting};
 use crate::db::{now_ms, repo_parts, Db};
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::events::{self, EventSink, MeetingUpdated};
-use crate::{secrets, windows_integration};
+use crate::windows_integration;
 
 const MIN_FREE_START_BYTES: u64 = 1024 * 1024 * 1024;
 const MIN_FREE_RECORDING_BYTES: u64 = 500 * 1024 * 1024;
@@ -159,7 +159,7 @@ impl RecordingService {
         if guard.is_some() || self.testing.load(Ordering::SeqCst) {
             return Err(ErrorCode::AlreadyRecording.into());
         }
-        if secrets::get_api_key()?.is_none() {
+        if !crate::ai::keys_ready(&self.db.conn())? {
             return Err(ErrorCode::NoApiKey.into());
         }
         if windows_integration::free_disk_bytes(&self.data_dir).is_some_and(|b| b < MIN_FREE_START_BYTES) {

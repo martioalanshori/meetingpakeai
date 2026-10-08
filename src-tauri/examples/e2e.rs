@@ -13,7 +13,7 @@ use meeting_pake_ai_lib::config::settings::{self, SettingsPatch, SttLanguage};
 use meeting_pake_ai_lib::db::repo_meetings::{self, MeetingStatus};
 use meeting_pake_ai_lib::db::{repo_segments, repo_summary, Db};
 use meeting_pake_ai_lib::events::EventSink;
-use meeting_pake_ai_lib::groq;
+use meeting_pake_ai_lib::ai_http;
 use meeting_pake_ai_lib::queue::worker::Worker;
 use meeting_pake_ai_lib::recording::{RecordingService, StopReason};
 use tokio::sync::Notify;
@@ -63,7 +63,7 @@ fn main() {
     println!("rekaman selesai, mulai antrean");
 
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let worker = Arc::new(Worker::new(dir.clone(), db.clone(), providers, groq::build_client(), sink, wake.clone()));
+    let worker = Arc::new(Worker::new(dir.clone(), db.clone(), providers, ai_http::build_client(), sink, wake.clone()));
     rt.spawn(worker.clone().run());
     let started = std::time::Instant::now();
     loop {

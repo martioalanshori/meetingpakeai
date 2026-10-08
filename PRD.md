@@ -1054,7 +1054,7 @@ macOS (Core Audio taps, 14.2+), transkrip live, AEC, diarization, Accessibility 
 | Stack | Tauri 2 + Rust + SvelteKit SPA (Svelte 5) + Tailwind 4 |
 | VAD | webrtc-vad (bukan Silero) |
 | Format upload | WAV 16 kHz mono PCM16 (bukan Opus/FLAC) |
-| Provider | Groq; model dari `providers.json` |
+| Provider | ~~Groq saja~~ → 2026-10-08: dapat dipilih per peran (Transkrip / Ringkasan): Groq (default), OpenAI, OpenRouter, Google Gemini, atau server kustom kompatibel OpenAI; model bisa diubah. |
 | API key | Milik pengguna, di Windows Credential Manager, tanpa proxy |
 | Label pembicara | 2 label (mic/system), tanpa diarization |
 | Retensi | Audio dihapus setelah transkrip sukses (default, bisa dimatikan) |

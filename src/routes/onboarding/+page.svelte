@@ -4,7 +4,7 @@
   import { openUrl } from "@tauri-apps/plugin-opener";
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { api, events } from "$lib/api";
-  import ClipboardKeyHint from "$lib/components/ClipboardKeyHint.svelte";
+  import AiProviderSection from "$lib/components/AiProviderSection.svelte";
   import Wordmark from "$lib/components/Wordmark.svelte";
   import { id } from "$lib/i18n/id";
   import type { AppError, AudioTestResult, MicPermission } from "$lib/types";
@@ -15,11 +15,8 @@
   let autostart = $state(true);
   let shortcut = $state("");
 
-  // Langkah 2: API key
-  let keyInput = $state("");
+  // Langkah 2: layanan AI (siap jika semua key yang dibutuhkan tersimpan)
   let keyOk = $state(false);
-  let keyBusy = $state(false);
-  let keyMessage = $state<{ kind: "ok" | "warn" | "error"; text: string } | null>(null);
 
   // Langkah 3: izin mic & tes
   let permission = $state<MicPermission>("unknown");
@@ -46,25 +43,6 @@
   });
 
   onDestroy(() => unlisten?.());
-
-  async function testKey() {
-    keyBusy = true;
-    keyMessage = null;
-    try {
-      const res = await api.testApiKey(keyInput);
-      await api.saveApiKey(keyInput);
-      keyOk = true;
-      keyInput = "";
-      keyMessage =
-        res.missingModels.length > 0
-          ? { kind: "warn", text: id.settings.apiKey.missingModels(res.missingModels) }
-          : { kind: "ok", text: id.settings.apiKey.saveOk };
-    } catch (e) {
-      keyMessage = { kind: "error", text: (e as AppError).message };
-    } finally {
-      keyBusy = false;
-    }
-  }
 
   async function recheckPermission() {
     try {
@@ -126,6 +104,8 @@
   {:else if step === 2}
     <section class="flex flex-col gap-5">
       <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.apiKeyTitle}</h1>
+      <p class="leading-relaxed">{t.aiIntro}</p>
+      <h2 class="font-bold">{t.groqQuick}</h2>
       <ol class="flex flex-col gap-3">
         {#each t.apiKeySteps as s, i (s)}
           <li class="grid grid-cols-[1.75rem_1fr] items-baseline leading-relaxed">
@@ -136,51 +116,9 @@
       <button type="button" class={[secondary, "self-start"]} onclick={() => openUrl("https://console.groq.com/keys")}>
         {t.openConsole}
       </button>
-      {#if keyInput.trim() === "" && !keyOk}
-        <ClipboardKeyHint
-          onuse={(k) => {
-            keyInput = k;
-            testKey();
-          }}
-        />
-      {/if}
-      <form
-        class="flex flex-wrap items-end gap-2"
-        onsubmit={(e) => {
-          e.preventDefault();
-          testKey();
-        }}
-      >
-        <label class="flex min-w-64 flex-1 flex-col gap-1 text-sm">
-          {id.settings.apiKey.inputLabel}
-          <input
-            type="password"
-            autocomplete="off"
-            spellcheck="false"
-            class="field font-mono"
-            placeholder={id.settings.apiKey.inputPlaceholder}
-            bind:value={keyInput}
-          />
-        </label>
-        <button type="submit" class={secondary} disabled={keyBusy || keyInput.trim() === ""}>
-          {keyBusy ? id.settings.apiKey.testing : id.settings.apiKey.test}
-        </button>
-      </form>
-      {#if keyMessage}
-        <p
-          role="status"
-          class={[
-            "text-sm",
-            keyMessage.kind === "ok" && "text-ok",
-            keyMessage.kind === "warn" && "text-warn",
-            keyMessage.kind === "error" && "text-bad",
-          ]}
-        >
-          {keyMessage.text}
-        </p>
-      {:else if keyOk}
-        <p class="text-sm text-ok">{id.settings.apiKey.saved}</p>
-      {/if}
+      <div class="border-t border-line pt-5">
+        <AiProviderSection showHeading={false} onchange={(ready) => (keyOk = ready)} />
+      </div>
       <button type="button" class={[primary, "self-start"]} disabled={!keyOk} onclick={() => (step = 3)}>
         {t.next}
       </button>

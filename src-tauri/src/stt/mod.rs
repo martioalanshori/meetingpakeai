@@ -1,13 +1,13 @@
 //! Abstraksi Speech-to-Text (PRD §9.1).
 
-pub mod groq;
+pub mod openai;
 
 use std::path::PathBuf;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-pub use crate::groq::ProviderError;
+pub use crate::ai_http::ProviderError;
 
 #[async_trait]
 pub trait SttProvider: Send + Sync {

@@ -89,6 +89,9 @@ export type QuotaToday = {
   llmTokensLimit: number;
   llmRequestsUsed: number;
   llmRequestsLimit: number;
+  /** Peran memakai Groq (batas di atas berlaku). */
+  sttGroq: boolean;
+  llmGroq: boolean;
 };
 
 export type SummaryEdit = {
@@ -171,7 +174,32 @@ export type TaskItem = {
   done: boolean;
 };
 
-export type TestApiKeyResult = { ok: boolean; missingModels: string[] };
+export type AiRole = "stt" | "llm";
+
+export type AiPreset = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  /** null = penyedia tidak mendukung peran ini. */
+  sttModel: string | null;
+  llmModel: string | null;
+  keyUrl: string | null;
+  keyPrefix: string | null;
+  keyRequired: boolean;
+};
+
+export type Endpoint = { provider: string; baseUrl: string; model: string };
+
+export type AiConfig = {
+  stt: Endpoint & { keySet: boolean };
+  llm: Endpoint & { keySet: boolean };
+  presets: AiPreset[];
+  keysSet: string[];
+};
+
+export type SaveAiResult = { verified: boolean; modelMissing: boolean };
+
+export type DetectedKey = { provider: string; key: string };
 
 // Payload event (§12.4)
 export type LevelPayload = { micDbfs: number; systemDbfs: number };

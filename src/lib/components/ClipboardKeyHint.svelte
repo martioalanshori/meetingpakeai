@@ -3,15 +3,16 @@
   import { api } from "$lib/api";
   import { id } from "$lib/i18n/id";
 
-  // Tawarkan API key Groq yang baru disalin dari console.groq.com (langkah 24).
-  // Key tidak diisi diam-diam: pengguna harus menekan tombol.
-  let { onuse }: { onuse: (key: string) => void } = $props();
+  // Tawarkan API key yang baru disalin dari halaman penyedia (langkah 24). Hanya key yang bentuknya cocok
+  // dengan `provider` yang ditawarkan. Key tidak diisi diam-diam: pengguna harus menekan tombol.
+  let { provider, onuse }: { provider: string; onuse: (key: string) => void } = $props();
 
   let found = $state<string | null>(null);
   let dismissed = $state<string | null>(null);
 
   async function check() {
-    found = await api.detectApiKeyInClipboard().catch(() => null);
+    const d = await api.detectApiKeyInClipboard().catch(() => null);
+    found = d && d.provider === provider ? d.key : null;
   }
 
   onMount(check);

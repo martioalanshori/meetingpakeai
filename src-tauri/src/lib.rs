@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod audio;
 pub mod bridge;
 pub mod commands;
@@ -6,7 +7,7 @@ pub mod db;
 pub mod desktop;
 pub mod error;
 pub mod events;
-pub mod groq;
+pub mod ai_http;
 pub mod llm;
 pub mod meeting_watch;
 pub mod pipeline;
@@ -114,7 +115,7 @@ fn init_state(app: &AppHandle) -> Result<AppState, Box<dyn std::error::Error>> {
         Box::new(move || wake.notify_one()),
     ));
 
-    let http = groq::build_client();
+    let http = ai_http::build_client();
     let worker = Arc::new(Worker::new(
         data_dir.clone(),
         db.clone(),
@@ -289,9 +290,10 @@ pub fn run() {
             commands::onboarding::open_mic_settings,
             commands::onboarding::run_audio_test,
             commands::onboarding::open_log_folder,
-            commands::api_key::save_api_key,
-            commands::api_key::test_api_key,
-            commands::api_key::delete_api_key,
+            commands::api_key::get_ai_config,
+            commands::api_key::default_ai_endpoint,
+            commands::api_key::save_ai_endpoint,
+            commands::api_key::delete_ai_key,
             commands::api_key::detect_api_key_in_clipboard,
             commands::settings::get_settings,
             commands::settings::update_settings,

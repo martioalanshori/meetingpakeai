@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { getVersion } from "@tauri-apps/api/app";
   import { api } from "$lib/api";
-  import ApiKeySection from "$lib/components/ApiKeySection.svelte";
+  import AiProviderSection from "$lib/components/AiProviderSection.svelte";
   import ShortcutInput from "$lib/components/ShortcutInput.svelte";
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
@@ -163,10 +163,10 @@
   {/if}
 
   <section class="border-b border-line py-7">
-    <ApiKeySection />
+    <AiProviderSection onchange={() => api.getQuotaToday().then((q) => (quota = q), () => {})} />
   </section>
 
-  {#if quota}
+  {#if quota && (quota.sttGroq || quota.llmGroq)}
     <section class="flex flex-col gap-2 border-b border-line py-7">
       <h2 class="mb-1 text-lg font-bold">{t.quota}</h2>
       <span>{t.quotaAudio(Math.round(quota.sttAudioSecUsed / 60), Math.round(quota.sttAudioSecLimit / 60))}</span>
@@ -179,6 +179,9 @@
       <span>{t.quotaTokens(quota.llmTokensUsed, Math.round(quota.llmTokensLimit))}</span>
       <span class="font-medium">{t.quotaEstimate(quotaHours)}</span>
       <span class="max-w-prose text-sm text-ink-soft">{t.quotaNote}</span>
+      {#if !(quota.sttGroq && quota.llmGroq)}
+        <span class="max-w-prose text-sm text-ink-soft">{t.quotaPartial}</span>
+      {/if}
     </section>
   {/if}
 

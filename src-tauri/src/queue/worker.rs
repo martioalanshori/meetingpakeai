@@ -19,16 +19,17 @@ use crate::db::repo_meetings::{self, MeetingRow, MeetingStatus};
 use crate::db::{now_ms, repo_chunks, repo_segments, repo_summary, Db};
 use crate::error::{AppError, ErrorCode};
 use crate::events::{self, EventSink, MeetingUpdated};
-use crate::groq::ProviderError;
-use crate::llm::groq::GroqLlm;
+use crate::ai::{self, Endpoint, Role};
+use crate::ai_http::ProviderError;
+use crate::llm::openai::OpenAiLlm;
 use crate::llm::{ChatMessage, LlmProvider, LlmRequest};
 use crate::pipeline::summarize::{self, LlmCaller, SummarizeInput, SummaryOutcome};
 use crate::pipeline::{dedup, merge};
 use crate::queue::rate_limiter::{self, Admission, Cost};
 use crate::queue::state::{StepError, StepResult};
-use crate::stt::groq::GroqStt;
+use crate::stt::openai::OpenAiStt;
 use crate::stt::{SttProvider, SttRequest, SttSegment};
-use crate::{preprocess, secrets};
+use crate::preprocess;
 
 const RATE_MAX_ATTEMPTS: u32 = 6;
 const NET_MAX_ATTEMPTS: u32 = 5;
@@ -75,9 +76,9 @@ fn backoff(attempt: u32) -> Duration {
 
 fn provider_failure(e: &ProviderError) -> AppError {
     let msg = match e {
-        ProviderError::PayloadTooLarge => "File audio terlalu besar untuk Groq.".to_string(),
-        ProviderError::BadRequest(m) => format!("Groq menolak permintaan: {m}"),
-        ProviderError::InvalidResponse(m) => format!("Respons Groq tidak bisa dibaca: {m}"),
+        ProviderError::PayloadTooLarge => "File audio terlalu besar untuk layanan transkrip.".to_string(),
+        ProviderError::BadRequest(m) => format!("Layanan AI menolak permintaan: {m}"),
+        ProviderError::InvalidResponse(m) => format!("Respons layanan AI tidak bisa dibaca: {m}"),
         other => format!("{other:?}"),
     };
     tracing::warn!("provider gagal: {msg}");
@@ -310,7 +311,7 @@ impl Worker {
                 tracing::warn!("meeting {id}: API key tidak valid, antrean dijeda");
                 let _ = repo_meetings::set_failed(&conn, id, step, &err);
                 self.paused.store(true, Ordering::SeqCst);
-                self.events.notify("API key Groq tidak valid", err.code.message());
+                self.events.notify("API key layanan AI tidak valid", err.code.message());
                 MeetingStatus::Failed
             }
             StepError::WaitingQuota(at) => {
@@ -327,16 +328,26 @@ impl Worker {
         events::emit(self.events.as_ref(), events::EV_MEETING_UPDATED, &MeetingUpdated { meeting_id: id });
     }
 
-    fn api_key(&self) -> StepResult<String> {
-        match secrets::get_api_key() {
-            Ok(Some(k)) => Ok(k),
-            Ok(None) => Err(StepError::Unauthorized(ErrorCode::NoApiKey.into())),
-            Err(e) => Err(StepError::Failed(e)),
+    /// Penyedia + key untuk satu peran. Key wajib belum ada → antrean dijeda seperti key tidak valid.
+    fn endpoint(&self, role: Role) -> StepResult<(Endpoint, Option<String>)> {
+        let e = ai::endpoint(&self.db.conn(), role, &self.providers)?;
+        match ai::api_key_for(&e) {
+            Ok(k) => Ok((e, k)),
+            Err(err) if err.code == ErrorCode::NoApiKey => Err(StepError::Unauthorized(err)),
+            Err(err) => Err(StepError::Failed(err)),
         }
     }
 
-    /// Tunggu sampai rate limiter mengizinkan (PRD §9.5).
+    /// Tunggu sampai rate limiter mengizinkan (PRD §9.5). Batas di providers.json adalah batas free tier
+    /// Groq, jadi hanya berlaku jika peran ini memakai Groq; penyedia lain cukup ditangani lewat 429.
     async fn admit(&self, cost: Cost) -> StepResult<()> {
+        let role = match cost {
+            Cost::Stt { .. } => Role::Stt,
+            Cost::Llm { .. } => Role::Llm,
+        };
+        if ai::provider_of(&self.db.conn(), role)? != ai::GROQ {
+            return Ok(());
+        }
         loop {
             let adm = rate_limiter::check(&self.db.conn(), &self.providers.limits, cost, now_ms())?;
             match adm {
@@ -415,7 +426,8 @@ impl Worker {
         if done == total {
             return Ok(());
         }
-        let stt = GroqStt { http: self.http.clone(), api_key: self.api_key()?, model: self.providers.stt_model.clone() };
+        let (e, api_key) = self.endpoint(Role::Stt)?;
+        let stt = OpenAiStt { http: self.http.clone(), base_url: e.base_url, api_key, model: e.model };
         let language = (m.language == "id").then(|| "id".to_string());
         for c in chunks.iter().filter(|c| c.stt_status != "done") {
             let path = self.data_dir.join(&c.path);
@@ -446,7 +458,7 @@ impl Worker {
     /// transkrip tiap bagian; waktu segmen bagian kedua digeser sehingga tetap waktu file asli.
     fn transcribe_file<'a>(
         &'a self,
-        stt: &'a GroqStt,
+        stt: &'a OpenAiStt,
         language: &'a Option<String>,
         path: &'a Path,
         duration_ms: i64,
@@ -519,6 +531,7 @@ impl Worker {
     async fn step_summarize(&self, m: &MeetingRow) -> StepResult<()> {
         let id = &m.id;
         self.enter_step(id, MeetingStatus::Summarizing, 1)?;
+        let (llm_endpoint, llm_key) = self.endpoint(Role::Llm)?;
         let (input, model) = {
             let conn = self.db.conn();
             let label_saya = settings::load(&conn)?.user_display_name;
@@ -540,14 +553,16 @@ impl Worker {
             let template = repo_meetings::summary_template(&conn, id)?;
             (
                 SummarizeInput { lines, word_count, label_saya, label_peserta, tanggal, template },
-                self.providers.llm_model.clone(),
+                llm_endpoint.model.clone(),
             )
         };
 
         let outcome = if input.word_count < 20 {
             SummaryOutcome::Empty
         } else {
-            let llm = GroqLlm::new(self.http.clone(), self.api_key()?, model.clone(), self.providers.llm_extra_body.clone());
+            // `llm_extra_body` (mis. reasoning_effort) khusus model Groq di providers.json.
+            let extra = if llm_endpoint.is_groq() { self.providers.llm_extra_body.clone() } else { Default::default() };
+            let llm = OpenAiLlm::new(self.http.clone(), llm_endpoint.base_url.clone(), llm_key, model.clone(), extra);
             let caller = Caller { worker: self, llm, meeting_id: id };
             summarize::summarize(&caller, &input, self.providers.pipeline.llm_chunk_max_tokens as usize).await?
         };
@@ -581,7 +596,7 @@ fn hhmmss(ms: i64) -> String {
 /// `LlmCaller` untuk summarize: rate limiter + retry + pencatatan token.
 struct Caller<'a> {
     worker: &'a Worker,
-    llm: GroqLlm,
+    llm: OpenAiLlm,
     meeting_id: &'a str,
 }
 

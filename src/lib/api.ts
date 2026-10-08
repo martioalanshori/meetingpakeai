@@ -2,7 +2,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  AiConfig,
+  AiRole,
   AppError,
+  DetectedKey,
+  Endpoint,
+  SaveAiResult,
   AudioTestResult,
   AutoStopWarningPayload,
   JobProgressPayload,
@@ -20,7 +25,6 @@ import type {
   RecordingWarningPayload,
   Settings,
   SummaryEdit,
-  TestApiKeyResult,
   TranscriptSegment,
   UpdateInfo,
 } from "./types";
@@ -42,10 +46,12 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
 export const api = {
   // Onboarding & API key
   getOnboardingStatus: () => call<OnboardingStatus>("get_onboarding_status"),
-  saveApiKey: (key: string) => call<void>("save_api_key", { key }),
-  testApiKey: (key?: string) => call<TestApiKeyResult>("test_api_key", { key }),
-  deleteApiKey: () => call<void>("delete_api_key"),
-  detectApiKeyInClipboard: () => call<string | null>("detect_api_key_in_clipboard"),
+  getAiConfig: () => call<AiConfig>("get_ai_config"),
+  defaultAiEndpoint: (role: AiRole, provider: string) => call<Endpoint>("default_ai_endpoint", { role, provider }),
+  saveAiEndpoint: (role: AiRole, endpoint: Endpoint, key: string | null) =>
+    call<SaveAiResult>("save_ai_endpoint", { role, endpoint, key }),
+  deleteAiKey: (provider: string) => call<void>("delete_ai_key", { provider }),
+  detectApiKeyInClipboard: () => call<DetectedKey | null>("detect_api_key_in_clipboard"),
   checkMicPermission: () => call<MicPermission>("check_mic_permission"),
   openMicSettings: () => call<void>("open_mic_settings"),
   runAudioTest: () => call<AudioTestResult>("run_audio_test"),

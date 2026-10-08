@@ -106,6 +106,9 @@ pub struct QuotaToday {
     pub llm_tokens_limit: f64,
     pub llm_requests_used: i64,
     pub llm_requests_limit: f64,
+    /// Peran memakai Groq (batas di atas berlaku); diisi command.
+    pub stt_groq: bool,
+    pub llm_groq: bool,
 }
 
 pub fn quota_today(conn: &Connection, limits: &Limits, now_ms: i64) -> AppResult<QuotaToday> {
@@ -122,6 +125,8 @@ pub fn quota_today(conn: &Connection, limits: &Limits, now_ms: i64) -> AppResult
         llm_tokens_limit: f64::from(limits.llm_tpd) * sf,
         llm_requests_used: llm.requests,
         llm_requests_limit: f64::from(limits.llm_rpd) * sf,
+        stt_groq: true,
+        llm_groq: true,
     })
 }
 

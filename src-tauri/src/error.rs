@@ -49,11 +49,11 @@ impl ErrorCode {
     /// Pesan untuk pengguna (PRD §15).
     pub fn message(self) -> &'static str {
         match self {
-            Self::NoApiKey => "API key Groq belum diatur. Buka Pengaturan untuk menambahkannya.",
-            Self::InvalidApiKey => "API key Groq tidak valid atau sudah dicabut. Perbarui di Pengaturan.",
-            Self::Network => "Tidak bisa terhubung ke Groq. Periksa koneksi internet.",
-            Self::RateLimited => "Batas kecepatan Groq tercapai. Proses akan dilanjutkan otomatis.",
-            Self::QuotaExhausted => "Kuota harian Groq habis. Proses dilanjutkan otomatis besok.",
+            Self::NoApiKey => "API key layanan AI belum diatur. Buka Pengaturan untuk menambahkannya.",
+            Self::InvalidApiKey => "API key layanan AI tidak valid atau sudah dicabut. Perbarui di Pengaturan.",
+            Self::Network => "Tidak bisa terhubung ke layanan AI. Periksa koneksi internet atau alamat API.",
+            Self::RateLimited => "Batas kecepatan layanan AI tercapai. Proses akan dilanjutkan otomatis.",
+            Self::QuotaExhausted => "Kuota harian layanan AI habis. Proses dilanjutkan otomatis besok.",
             Self::MicPermissionDenied => "Akses mikrofon diblokir Windows. Izinkan di Pengaturan Privasi.",
             Self::NoInputDevice => "Mikrofon tidak ditemukan.",
             Self::NoOutputDevice => "Perangkat audio output tidak ditemukan.",

@@ -3,7 +3,9 @@
 //!   cargo run --example groq_probe -- [file.wav]
 
 use meeting_pake_ai_lib::config::providers::ProvidersConfig;
-use meeting_pake_ai_lib::{groq, secrets};
+use meeting_pake_ai_lib::{ai, ai_http, secrets};
+
+const GROQ_URL: &str = "https://api.groq.com/openai/v1";
 
 fn main() {
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
@@ -11,12 +13,12 @@ fn main() {
 }
 
 async fn run() {
-    let key = secrets::get_api_key().ok().flatten().expect("API key belum tersimpan");
+    let key = secrets::get_key(ai::GROQ).ok().flatten().expect("API key belum tersimpan");
     let cfg = ProvidersConfig::default();
-    let http = groq::build_client();
+    let http = ai_http::build_client();
 
     // #1 model
-    match groq::list_models(&http, &key).await {
+    match ai_http::list_models(&http, GROQ_URL, Some(&key)).await {
         Ok(models) => {
             println!("== #1 model ==");
             println!("stt_model {} ada: {}", cfg.stt_model, models.contains(&cfg.stt_model));
@@ -41,7 +43,7 @@ async fn run() {
             .text("timestamp_granularities[]", "segment")
             .text("temperature", "0");
         let resp = http
-            .post(format!("{}/audio/transcriptions", groq::BASE_URL))
+            .post(format!("{}/audio/transcriptions", GROQ_URL))
             .bearer_auth(&key)
             .multipart(form)
             .send()
@@ -85,7 +87,7 @@ async fn run() {
             body["response_format"] = serde_json::json!({"type": "json_object"});
         }
         let resp = http
-            .post(format!("{}/chat/completions", groq::BASE_URL))
+            .post(format!("{}/chat/completions", GROQ_URL))
             .bearer_auth(&key)
             .json(&body)
             .send()
