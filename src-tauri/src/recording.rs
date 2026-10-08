@@ -177,6 +177,7 @@ impl RecordingService {
                 started_at: now,
                 language: language.as_str(),
                 source_app: source_app.as_deref(),
+                // Consent diminta pengguna di luar aplikasi; kolom diisi waktu mulai rekam.
                 consent_at: now,
             },
         )?;

@@ -51,7 +51,6 @@ pub async fn save_problem_report(app: AppHandle, state: State<'_, AppState>) -> 
     report.push_str(&format!("OS: {} {}\n", std::env::consts::OS, std::env::consts::ARCH));
     report.push_str(&format!("Dibuat: {}\n\n", chrono::Local::now().format("%Y-%m-%d %H:%M:%S %z")));
     let mut s = settings::load(&state.db.conn())?;
-    s.consent_message = format!("({} karakter)", s.consent_message.chars().count());
     s.user_display_name = "(disembunyikan)".into();
     report.push_str(&format!("Pengaturan: {}\n", serde_json::to_string(&s)?));
     report.push_str(&format!("Antrean dijeda: {}\n", state.worker.is_paused()));

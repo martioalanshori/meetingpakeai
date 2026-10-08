@@ -59,19 +59,14 @@ export const id = {
     interrupted: "Rekaman terputus",
   } satisfies Record<MeetingStatus, string>,
 
-  consent: {
-    autoCopied: "Pesan consent sudah disalin — tempel ke chat meeting.",
-    enterHint: "Centang lalu tekan Enter untuk mulai.",
-    title: "Sebelum merekam",
-    body: "Pastikan semua peserta tahu meeting ini direkam dan ditranskrip dengan AI. Audio akan dikirim ke Groq untuk diproses.",
-    messageLabel: "Pesan untuk ditempel ke chat meeting",
-    copy: "Salin pesan consent",
-    checkbox: "Saya sudah memberi tahu peserta meeting",
+  offer: {
+    text: (app: string) => `Meeting terdeteksi (${app}). Mulai rekam?`,
     start: "Mulai rekam",
+    dismiss: "Abaikan",
+    apps: { zoom: "Zoom", teams: "Microsoft Teams", browser: "browser" },
   },
 
   toast: {
-    copied: "Pesan disalin",
     tooShort: "Rekaman kurang dari 5 detik sehingga tidak disimpan.",
     saved: "Rekaman disimpan dan sedang diproses.",
     settingsSaved: "Pengaturan tersimpan",
@@ -208,7 +203,6 @@ export const id = {
     retentionNote: "Tanpa audio, fitur Putar audio dan Transkrip ulang tidak tersedia.",
     minimizeToTray: "Tutup ke tray",
     minimizeToTrayNote: "Tombol tutup menyembunyikan aplikasi ke tray; antrean tetap diproses.",
-    consentMessage: "Pesan consent",
     shortcut: "Shortcut Mulai/Stop rekam",
     shortcutHint: "Tekan kombinasi tombol di kolom ini (mis. Ctrl+Alt+R). Berlaku dari aplikasi mana pun. Kosongkan untuk mematikan.",
     shortcutClear: "Matikan",

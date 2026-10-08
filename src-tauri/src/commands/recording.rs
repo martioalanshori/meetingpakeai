@@ -1,7 +1,7 @@
 use serde::Serialize;
 use tauri::State;
 
-use crate::error::{AppError, AppResult, ErrorCode};
+use crate::error::{AppError, AppResult};
 use crate::recording::{RecordingState, StopReason};
 use crate::AppState;
 
@@ -17,16 +17,9 @@ pub struct StartResult {
     pub meeting_id: String,
 }
 
-/// `consentConfirmed` wajib `true` (PRD §12.3, F5).
+/// Mulai rekam langsung. Popup consent dihapus atas keputusan pemilik (consent diminta di luar aplikasi).
 #[tauri::command]
-pub async fn start_recording(
-    state: State<'_, AppState>,
-    consent_confirmed: bool,
-    source_app: Option<String>,
-) -> AppResult<StartResult> {
-    if !consent_confirmed {
-        return Err(AppError::new(ErrorCode::InvalidState));
-    }
+pub async fn start_recording(state: State<'_, AppState>, source_app: Option<String>) -> AppResult<StartResult> {
     let svc = state.recording.clone();
     // Membuka device WASAPI bisa memblok sebentar; jalankan di thread blocking.
     let meeting_id = tauri::async_runtime::spawn_blocking(move || svc.start(source_app))
@@ -78,19 +71,9 @@ pub async fn take_pending_meeting(state: State<'_, AppState>) -> AppResult<Optio
     Ok(state.bridge.take_pending_meeting())
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PendingConsent {
-    pub open: bool,
-    /// Jenis aplikasi dari deteksi meeting (`zoom` / `teams` / `browser`).
-    pub source_app: Option<String>,
-}
-
-/// Tambahan: jendela main (baru dibuat / mendapat fokus) menanyakan apakah popup consent perlu dibuka:
-/// dari menu tray / shortcut "Mulai rekam", atau dari notifikasi "Meeting terdeteksi".
+/// Tambahan: tawaran dari notifikasi "Meeting terdeteksi" (jenis aplikasi) untuk banner "Mulai rekam?"
+/// di jendela main. Tidak langsung merekam agar membuka jendela tidak memulai rekaman tanpa sengaja.
 #[tauri::command]
-pub async fn take_pending_consent(state: State<'_, AppState>) -> AppResult<PendingConsent> {
-    let from_tray = state.pending_consent.swap(false, std::sync::atomic::Ordering::SeqCst);
-    let source_app = state.bridge.take_pending_offer();
-    Ok(PendingConsent { open: from_tray || source_app.is_some(), source_app })
+pub async fn take_pending_offer(state: State<'_, AppState>) -> AppResult<Option<String>> {
+    Ok(state.bridge.take_pending_offer())
 }

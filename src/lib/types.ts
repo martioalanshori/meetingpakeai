@@ -126,7 +126,6 @@ export type Settings = {
   /** Retensi audio: hapus setelah transkrip / simpan 7 hari / selamanya. */
   audioRetention: AudioRetention;
   minimizeToTray: boolean;
-  consentMessage: string;
   /** Shortcut global Mulai/Stop rekam, mis. "Ctrl+Alt+R"; "" = mati. */
   globalShortcut: string;
   autostart: boolean;
@@ -135,8 +134,6 @@ export type Settings = {
 };
 
 export type UpdateInfo = { version: string; notes: string | null };
-
-export type PendingConsent = { open: boolean; sourceApp: string | null };
 
 export type AudioTestResult = {
   micOk: boolean;

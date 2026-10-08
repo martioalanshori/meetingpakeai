@@ -11,7 +11,7 @@ use crate::AppState;
 pub const ARG_MINIMIZED: &str = "--minimized";
 
 /// Handler semua shortcut global (hanya satu yang didaftarkan).
-/// Idle → popup consent (F5: tidak ada Start tanpa consent); merekam → Stop.
+/// Idle → langsung mulai rekam (tanpa membuka jendela); merekam → Stop.
 pub fn on_shortcut(app: &AppHandle, _shortcut: &Shortcut, event: ShortcutEvent) {
     if event.state != ShortcutState::Pressed {
         return;
@@ -20,7 +20,7 @@ pub fn on_shortcut(app: &AppHandle, _shortcut: &Shortcut, event: ShortcutEvent) 
     if recording {
         crate::stop_recording_in_background(app, false);
     } else {
-        crate::bridge::show_main_window(app, true);
+        crate::start_recording_in_background(app);
     }
 }
 

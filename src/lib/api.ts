@@ -14,7 +14,6 @@ import type {
   OnboardingStatus,
   SearchHit,
   TaskItem,
-  PendingConsent,
   QuotaToday,
   TemplateOption,
   RecordingState,
@@ -55,13 +54,13 @@ export const api = {
 
   // Rekaman
   startRecording: (sourceApp?: string) =>
-    call<{ meetingId: string }>("start_recording", { consentConfirmed: true, sourceApp }),
+    call<{ meetingId: string }>("start_recording", { sourceApp }),
   pauseRecording: () => call<RecordingState>("pause_recording"),
   resumeRecording: () => call<RecordingState>("resume_recording"),
   setMicMuted: (muted: boolean) => call<RecordingState>("set_mic_muted", { muted }),
   stopRecording: () => call<{ meetingId: string | null }>("stop_recording"),
   getRecordingState: () => call<RecordingState>("get_recording_state"),
-  takePendingConsent: () => call<PendingConsent>("take_pending_consent"),
+  takePendingOffer: () => call<string | null>("take_pending_offer"),
   takePendingMeeting: () => call<string | null>("take_pending_meeting"),
   respondAutoStop: (continueRecording: boolean) =>
     call<void>("respond_auto_stop", { continueRecording }),
@@ -110,8 +109,6 @@ export const events = {
   recordingWarning: (cb: (p: RecordingWarningPayload) => void) => on("recording://warning", cb),
   jobProgress: (cb: (p: JobProgressPayload) => void) => on("job://progress", cb),
   meetingUpdated: (cb: (p: MeetingUpdatedPayload) => void) => on("meeting://updated", cb),
-  /** Menu tray "Mulai rekam" → buka popup consent di jendela main. */
-  trayStartRecording: (cb: () => void) => on<null>("tray://start-recording", () => cb()),
   /** Ada tawaran rekam / meeting selesai untuk jendela main yang sedang fokus. */
   appPending: (cb: () => void) => on<null>("app://pending", () => cb()),
 };

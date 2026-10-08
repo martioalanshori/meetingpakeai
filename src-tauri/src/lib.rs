@@ -42,9 +42,6 @@ use crate::recording::{RecordingService, StopReason};
 /// usage_log lebih tua dari ini dihapus saat start (PRD §11).
 const USAGE_LOG_RETENTION_MS: i64 = 2 * 24 * 60 * 60 * 1000;
 
-/// Event ke jendela main: menu tray "Mulai rekam" → buka popup consent (tidak ada Start tanpa consent).
-pub const EV_TRAY_START_RECORDING: &str = "tray://start-recording";
-
 /// State global aplikasi.
 pub struct AppState {
     /// Root data: `%APPDATA%\com.meetingpakeai.desktop\`.
@@ -55,8 +52,6 @@ pub struct AppState {
     pub http: reqwest::Client,
     /// Cermin setting `minimize_to_tray` agar handler close tidak perlu query DB.
     pub minimize_to_tray: AtomicBool,
-    /// Jendela main baru dibuat dari menu tray "Mulai rekam": popup consent dibuka setelah halaman siap.
-    pub pending_consent: AtomicBool,
     pub bridge: Arc<TauriBridge>,
     pub recording: Arc<RecordingService>,
     /// Membangunkan worker antrean (meeting baru, retry, API key baru).
@@ -135,7 +130,6 @@ fn init_state(app: &AppHandle) -> Result<AppState, Box<dyn std::error::Error>> {
         providers,
         http,
         minimize_to_tray: AtomicBool::new(minimize_to_tray),
-        pending_consent: AtomicBool::new(false),
         bridge,
         recording,
         queue_wake,
@@ -145,7 +139,19 @@ fn init_state(app: &AppHandle) -> Result<AppState, Box<dyn std::error::Error>> {
 }
 
 pub fn show_main_window(app: &AppHandle) {
-    bridge::show_main_window(app, false);
+    bridge::show_main_window(app);
+}
+
+/// Mulai rekam dari tray / shortcut tanpa membuka jendela; gagal → notifikasi Windows.
+pub(crate) fn start_recording_in_background(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let Some(state) = app.try_state::<AppState>() else { return };
+        if let Err(e) = state.recording.start(None) {
+            tracing::warn!("mulai rekam dari tray/shortcut gagal: {}", e.message);
+            events::EventSink::notify(state.bridge.as_ref(), "Rekaman gagal dimulai", &e.message);
+        }
+    });
 }
 
 pub(crate) fn stop_recording_in_background(app: &AppHandle, then_exit: bool) {
@@ -201,8 +207,7 @@ fn build_tray(app: &AppHandle, bridge: &TauriBridge) -> tauri::Result<()> {
                 if recording {
                     stop_recording_in_background(app, false);
                 } else {
-                    // Start selalu lewat popup consent di jendela main.
-                    bridge::show_main_window(app, true);
+                    start_recording_in_background(app);
                 }
             }
             "quit" => request_quit(app),
@@ -301,7 +306,7 @@ pub fn run() {
             commands::recording::stop_recording,
             commands::recording::get_recording_state,
             commands::recording::respond_auto_stop,
-            commands::recording::take_pending_consent,
+            commands::recording::take_pending_offer,
             commands::recording::take_pending_meeting,
             commands::meetings::list_meetings,
             commands::meetings::search_meetings,

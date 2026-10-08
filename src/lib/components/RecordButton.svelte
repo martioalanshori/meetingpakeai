@@ -1,6 +1,6 @@
 <script lang="ts">
   import { id } from "$lib/i18n/id";
-  import { openConsent, rec, stopRecording } from "$lib/recording.svelte";
+  import { rec, startRecording, stopRecording } from "$lib/recording.svelte";
 
   const recording = $derived(rec.state.status !== "idle");
 </script>
@@ -12,7 +12,7 @@
     recording ? "bg-gray-800 hover:bg-gray-900" : "bg-red-600 hover:bg-red-700",
   ]}
   disabled={rec.busy}
-  onclick={() => (recording ? stopRecording() : openConsent())}
+  onclick={() => (recording ? stopRecording() : startRecording())}
 >
   {#if rec.busy}
     {recording ? id.home.stopping : id.home.starting}

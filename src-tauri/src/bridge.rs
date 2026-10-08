@@ -21,7 +21,7 @@ pub const TRAY_ICON_PROCESSING: &[u8] = include_bytes!("../icons/tray-processing
 const RECORDER_LABEL: &str = "recorder";
 /// Meeting dari notifikasi "Notulen siap" dibuka jika jendela main dibuka dalam waktu ini.
 const PENDING_MEETING_TTL: Duration = Duration::from_secs(60 * 60);
-/// Tawaran "Meeting terdeteksi" berlaku selama ini (lewat dari itu popup consent tidak dibuka otomatis).
+/// Tawaran "Meeting terdeteksi" berlaku selama ini (lewat dari itu banner tidak ditampilkan).
 const PENDING_OFFER_TTL: Duration = Duration::from_secs(5 * 60);
 /// Ada hal tertunda untuk jendela main yang sedang fokus (meeting selesai / tawaran rekam).
 pub const EV_APP_PENDING: &str = "app://pending";
@@ -44,23 +44,14 @@ pub struct TauriBridge {
 }
 
 /// Tampilkan jendela main; dibuat ulang dari konfigurasi jika sudah dihancurkan.
-/// `open_consent` → popup consent langsung dibuka (menu tray "Mulai rekam").
-pub fn show_main_window(app: &AppHandle, open_consent: bool) {
+pub fn show_main_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
-        if open_consent {
-            let _ = app.emit_to("main", crate::EV_TRAY_START_RECORDING, ());
-        }
         return;
     }
     let Some(cfg) = app.config().app.windows.iter().find(|w| w.label == "main").cloned() else { return };
-    if open_consent {
-        if let Some(state) = app.try_state::<crate::AppState>() {
-            state.pending_consent.store(true, std::sync::atomic::Ordering::SeqCst);
-        }
-    }
     match WebviewWindowBuilder::from_config(app, &cfg).and_then(|b| b.build()) {
         Ok(w) => {
             let _ = w.set_focus();
@@ -209,7 +200,7 @@ impl EventSink for TauriBridge {
             "browser" => "browser",
             other => other,
         };
-        self.notify(&format!("Meeting terdeteksi ({name})"), "Mulai rekam? Klik untuk membuka Meeting Pake AI.");
+        self.notify(&format!("Meeting terdeteksi ({name})"), "Mulai rekam? Klik untuk membuka Meeting Pake AI, atau tekan shortcut rekam.");
     }
 
     fn meeting_done(&self, meeting_id: &str, title: &str) {

@@ -156,11 +156,6 @@
         <span class="text-sm text-gray-500">{t.shortcutHint}</span>
       </div>
 
-      <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium">{t.consentMessage}</span>
-        <textarea class="rounded-lg border border-gray-300 p-3" rows="4" bind:value={form.consentMessage}></textarea>
-      </label>
-
       <button
         type="submit"
         class="self-start rounded-lg bg-indigo-600 px-5 py-2 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"

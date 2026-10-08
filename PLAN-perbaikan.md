@@ -163,10 +163,10 @@ Jalankan `cargo test --lib` (dari `src-tauri/`), lalu `npm run tauri build` dan 
 - [ ] Ikon widget (pause/play/mic/stop) tampil rapi.
 
 **Mulai/stop tanpa berpikir**
-- [ ] `Ctrl+Alt+R` dari Zoom/browser → jendela main + popup consent; saat merekam → Stop. Ganti shortcut di Pengaturan; shortcut bentrok → pesan error, yang lama tetap aktif.
-- [ ] Popup consent: pesan otomatis tersalin, centang + Enter langsung mulai.
+- [ ] `Ctrl+Alt+R` dari Zoom/browser → langsung merekam (widget muncul); saat merekam → Stop. Ganti shortcut di Pengaturan; shortcut bentrok → pesan error, yang lama tetap aktif.
+- [ ] Tombol Mulai rekam dan menu tray "Mulai rekam" langsung merekam tanpa popup.
 - [ ] Onboarding langkah akhir centang autostart → restart Windows → app jalan di tray tanpa jendela.
-- [ ] Buka Zoom/Teams/Meet (browser) dan mulai pakai mic → notifikasi "Meeting terdeteksi"; klik → popup consent; `source_app` tersimpan. Tidak muncul lagi di sesi mic yang sama. **Verifikasi di Windows 10.**
+- [ ] Buka Zoom/Teams/Meet (browser) dan mulai pakai mic → notifikasi "Meeting terdeteksi"; klik → banner "Mulai rekam?" di jendela main; klik Mulai → `source_app` tersimpan. Tidak muncul lagi di sesi mic yang sama. **Verifikasi di Windows 10.**
 - [ ] Saat merekam, tutup meeting (mic dilepas) → ±30 dtk → widget "Meeting sepertinya sudah selesai" + hitung mundur 60 dtk → Stop otomatis; "Lanjut" membatalkan.
 
 **Setelah meeting**

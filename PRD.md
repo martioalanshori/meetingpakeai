@@ -1062,7 +1062,7 @@ macOS (Core Audio taps, 14.2+), transkrip live, AEC, diarization, Accessibility 
 | Code signing | Tidak selama beta tertutup; sertifikat OV sebelum rilis publik |
 | Telemetri | Tidak ada; metrik dikumpulkan lewat survei beta + log diagnostik yang dikirim manual |
 | Bahasa UI | Indonesia saja, semua string di `src/lib/i18n/id.ts` |
-| Consent | Wajib setiap rekam, dengan checkbox |
+| Consent | ~~Wajib setiap rekam, dengan checkbox~~ → dihapus 2026-10-08 (keputusan pemilik): consent peserta diminta pengguna sebelum meeting di luar aplikasi; tombol/tray/shortcut langsung merekam. |
 | Edit ringkasan (2026-10-08) | Ringkasan, keputusan, topik, dan action item bisa diedit pengguna (feedback C3.4). Kolom `summaries.edited`; "Buat ulang ringkasan" minta konfirmasi jika sudah diedit. Edit transkrip tetap non-tujuan. |
 
 **Perubahan dari v1.1:** F6 lama (rename speaker tersimpan lintas meeting) dihapus karena tidak mungkin tanpa diarization, diganti nama "Saya" global + rename "Peserta lain" per meeting; daftar meeting & retensi dasar dipindah ke MVP; ditambah pause/mute, auto-stop, recovery crash, timeline padding, offset map VAD, filter halusinasi, algoritma dedup, prompt map-reduce, skema DB, kontrak command, state machine, acceptance criteria; enkripsi at-rest diturunkan ke Beta; metrik "ringkasan tidak diedit" dihapus.

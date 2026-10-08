@@ -6,21 +6,21 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { api, events } from "$lib/api";
-  import ConsentDialog from "$lib/components/ConsentDialog.svelte";
+  import MeetingOfferBanner from "$lib/components/MeetingOfferBanner.svelte";
   import Toaster from "$lib/components/Toaster.svelte";
-  import { initRecording, openConsent, rec } from "$lib/recording.svelte";
+  import { initRecording, rec } from "$lib/recording.svelte";
 
   let { children } = $props();
 
   // Jendela widget rekaman memakai halaman /recorder tanpa elemen jendela main.
   const isRecorderWindow = $derived(page.url.pathname.startsWith("/recorder"));
 
-  /** Notifikasi diklik / jendela dibuka: buka meeting yang baru selesai, atau popup consent dari tawaran rekam. */
+  /** Notifikasi diklik / jendela dibuka: buka meeting yang baru selesai, atau banner tawaran rekam. */
   async function openPending() {
     const meetingId = await api.takePendingMeeting().catch(() => null);
     if (meetingId) await goto(`/meeting/${meetingId}`);
-    const consent = await api.takePendingConsent().catch(() => null);
-    if (consent?.open) openConsent(consent.sourceApp);
+    const offer = await api.takePendingOffer().catch(() => null);
+    if (offer && rec.state.status === "idle") rec.offer = offer;
   }
 
   const unlisten: UnlistenFn[] = [];
@@ -38,7 +38,7 @@
     try {
       const s = await api.getOnboardingStatus();
       if (!s.completed && !page.url.pathname.startsWith("/onboarding")) await goto("/onboarding");
-      // Jendela dibuat dari menu tray / shortcut / notifikasi → popup consent atau detail meeting.
+      // Jendela dibuat dari notifikasi → banner tawaran rekam atau detail meeting.
       else await openPending();
     } catch {
       /* tetap di halaman sekarang */
@@ -49,8 +49,6 @@
 {@render children()}
 
 {#if !isRecorderWindow}
-  {#if rec.consentOpen}
-    <ConsentDialog />
-  {/if}
+  <MeetingOfferBanner />
   <Toaster />
 {/if}

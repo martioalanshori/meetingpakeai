@@ -1,4 +1,4 @@
-// State rekaman bersama untuk jendela main (tombol Mulai/Stop, popup consent).
+// State rekaman bersama untuk jendela main (tombol Mulai/Stop, banner "Meeting terdeteksi").
 import { api, events } from "./api";
 import { id } from "./i18n/id";
 import { showToast } from "./toast.svelte";
@@ -14,9 +14,8 @@ export const rec = $state({
     systemAlive: true,
   } as RecordingState,
   busy: false,
-  consentOpen: false,
-  /** Aplikasi meeting yang terdeteksi (zoom/teams/browser) untuk kolom source_app. */
-  sourceApp: null as string | null,
+  /** Tawaran dari deteksi meeting: jenis aplikasi (zoom/teams/browser), null jika tidak ada. */
+  offer: null as string | null,
 });
 
 let initialized = false;
@@ -25,8 +24,10 @@ let initialized = false;
 export async function initRecording() {
   if (initialized) return;
   initialized = true;
-  await events.recordingState((s) => (rec.state = s));
-  await events.trayStartRecording(() => openConsent());
+  await events.recordingState((s) => {
+    rec.state = s;
+    if (s.status !== "idle") rec.offer = null;
+  });
   try {
     rec.state = await api.getRecordingState();
   } catch {
@@ -34,18 +35,12 @@ export async function initRecording() {
   }
 }
 
-export function openConsent(sourceApp: string | null = null) {
-  if (rec.state.status !== "idle") return;
-  rec.sourceApp = sourceApp;
-  rec.consentOpen = true;
-}
-
-/** Dipanggil popup consent setelah checkbox dicentang. */
-export async function startRecording() {
+/** Mulai rekam langsung (consent diminta pengguna di luar aplikasi). */
+export async function startRecording(sourceApp: string | null = null) {
   rec.busy = true;
+  rec.offer = null;
   try {
-    await api.startRecording(rec.sourceApp ?? undefined);
-    rec.consentOpen = false;
+    await api.startRecording(sourceApp ?? undefined);
     rec.state = await api.getRecordingState();
   } catch (e) {
     showToast((e as AppError).message, "error", 6000);
