@@ -34,13 +34,13 @@
 <div class="flex items-center gap-2">
   <input
     readonly
-    class="w-48 rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:border-indigo-500"
+    class="field tabular w-48 text-sm font-semibold"
     {value}
     placeholder="—"
     onkeydown={onKeydown}
   />
   {#if value}
-    <button type="button" class="rounded-lg px-3 py-2 text-sm hover:bg-gray-100" onclick={() => (value = "")}>
+    <button type="button" class="btn btn-quiet" onclick={() => (value = "")}>
       {id.settings.shortcutClear}
     </button>
   {/if}

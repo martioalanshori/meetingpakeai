@@ -6,6 +6,7 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { api, events } from "$lib/api";
+  import AppRail from "$lib/components/AppRail.svelte";
   import MeetingOfferBanner from "$lib/components/MeetingOfferBanner.svelte";
   import Toaster from "$lib/components/Toaster.svelte";
   import { initRecording, rec } from "$lib/recording.svelte";
@@ -14,6 +15,7 @@
 
   // Jendela widget rekaman memakai halaman /recorder tanpa elemen jendela main.
   const isRecorderWindow = $derived(page.url.pathname.startsWith("/recorder"));
+  const isOnboarding = $derived(page.url.pathname.startsWith("/onboarding"));
 
   /** Notifikasi diklik / jendela dibuka: buka meeting yang baru selesai, atau banner tawaran rekam. */
   async function openPending() {
@@ -46,7 +48,16 @@
   });
 </script>
 
-{@render children()}
+{#if isRecorderWindow || isOnboarding}
+  {@render children()}
+{:else}
+  <div class="flex h-full print:block">
+    <div class="contents print:hidden"><AppRail /></div>
+    <div class="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
+      {@render children()}
+    </div>
+  </div>
+{/if}
 
 {#if !isRecorderWindow}
   <MeetingOfferBanner />

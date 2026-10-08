@@ -75,10 +75,11 @@
   }
 </script>
 
-<section class="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5">
-  <div class="flex items-center justify-between">
-    <h2 class="font-semibold">{t.heading}</h2>
-    <span class={apiKeySet ? "text-sm text-emerald-700" : "text-sm text-gray-500"}>
+<div class="flex flex-col gap-4">
+  <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+    <h2 class="text-lg font-bold">{t.heading}</h2>
+    <span class={["flex items-center gap-1.5 text-sm", apiKeySet ? "text-ok" : "text-ink-soft"]}>
+      <span class={["h-2 w-2 rounded-full", apiKeySet ? "bg-ok" : "bg-ink-faint"]} aria-hidden="true"></span>
       {apiKeySet ? t.saved : t.notSaved}
     </span>
   </div>
@@ -100,14 +101,14 @@
           type="password"
           autocomplete="off"
           spellcheck="false"
-          class="rounded-lg border border-gray-300 px-3 py-2 font-mono"
+          class="field font-mono"
           placeholder={t.inputPlaceholder}
           bind:value={keyInput}
         />
       </label>
       <button
         type="submit"
-        class="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        class="btn btn-ink"
         disabled={busy || keyInput.trim() === ""}
       >
         {busy ? t.testing : t.testAndSave}
@@ -115,7 +116,7 @@
       {#if apiKeySet}
         <button
           type="button"
-          class="rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-100"
+          class="btn btn-quiet"
           onclick={() => {
             editing = false;
             keyInput = "";
@@ -129,14 +130,14 @@
     <div class="flex flex-wrap gap-2">
       <button
         type="button"
-        class="rounded-lg border border-gray-300 px-4 py-2 hover:bg-gray-50"
+        class="btn btn-line"
         onclick={() => (editing = true)}
       >
         {t.change}
       </button>
       <button
         type="button"
-        class="rounded-lg border border-gray-300 px-4 py-2 hover:bg-gray-50 disabled:opacity-50"
+        class="btn btn-line"
         disabled={busy}
         onclick={testSaved}
       >
@@ -144,7 +145,7 @@
       </button>
       <button
         type="button"
-        class="rounded-lg px-4 py-2 text-red-700 hover:bg-red-50"
+        class="btn btn-danger"
         onclick={remove}
       >
         {t.remove}
@@ -157,12 +158,12 @@
       role="status"
       class={{
         "text-sm": true,
-        "text-emerald-700": message.kind === "ok",
-        "text-amber-700": message.kind === "warn",
-        "text-red-700": message.kind === "error",
+        "text-ok": message.kind === "ok",
+        "text-warn": message.kind === "warn",
+        "text-bad": message.kind === "error",
       }}
     >
       {message.text}
     </p>
   {/if}
-</section>
+</div>

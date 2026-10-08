@@ -3,9 +3,8 @@
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { api, events } from "$lib/api";
   import Icon from "$lib/components/Icon.svelte";
-  import RecordButton from "$lib/components/RecordButton.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
-  import { formatDateTime, formatDuration } from "$lib/format";
+  import { dayLabel, formatDateTime, formatDuration, formatTime } from "$lib/format";
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
   import Highlight from "$lib/components/Highlight.svelte";
@@ -24,6 +23,18 @@
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
   const interrupted = $derived(items.filter((m) => m.status === "interrupted"));
+
+  /** Kelompok per hari kalender lokal, urutan daftar dipertahankan. */
+  const groups = $derived.by(() => {
+    const out: { label: string; items: MeetingListItem[] }[] = [];
+    for (const m of items) {
+      const label = dayLabel(m.startedAt);
+      const last = out.at(-1);
+      if (last && last.label === label) last.items.push(m);
+      else out.push({ label, items: [m] });
+    }
+    return out;
+  });
 
   /** Status dari worker (A9): tidak bergantung pada halaman daftar yang sudah dimuat. */
   async function refreshQueuePaused() {
@@ -123,59 +134,36 @@
   });
 </script>
 
-<main class="mx-auto flex min-h-full max-w-4xl flex-col gap-5 p-6">
-  <header class="flex items-center justify-between gap-4">
-    <h1 class="text-xl font-semibold">{id.appName}</h1>
-    <div class="flex items-center gap-2">
-      <RecordButton />
-      <a href="/tasks" class="rounded-lg px-3 py-2.5 text-gray-700 hover:bg-gray-200">{id.home.tasks}</a>
-      <a
-        href="/settings"
-        class="rounded-lg p-2.5 text-gray-700 hover:bg-gray-200"
-        aria-label={id.home.settings}
-        title={id.home.settings}
-      >
-        <Icon name="settings" size={20} />
-      </a>
-    </div>
-  </header>
-
-  <label class="relative flex items-center">
-    <span class="sr-only">{id.home.searchLabel}</span>
-    <Icon name="search" size={18} class="pointer-events-none absolute left-3 text-gray-400" />
-    <input
-      type="search"
-      class="w-full rounded-xl border border-gray-300 bg-white py-2.5 pr-3 pl-10"
-      placeholder={id.home.searchPlaceholder}
-      bind:value={query}
-      oninput={onSearchInput}
-    />
-  </label>
+<main class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-8 pt-7 pb-12">
+  <div class="flex flex-col gap-4">
+    <h1 class="text-2xl font-bold tracking-[-0.02em]">{id.nav.meetings}</h1>
+    <label class="relative flex items-center">
+      <span class="sr-only">{id.home.searchLabel}</span>
+      <Icon name="search" size={18} class="pointer-events-none absolute left-3.5 text-ink-faint" />
+      <input
+        type="search"
+        class="field w-full py-2.5 pl-10"
+        placeholder={id.home.searchPlaceholder}
+        bind:value={query}
+        oninput={onSearchInput}
+      />
+    </label>
+  </div>
 
   {#if queuePaused}
-    <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">
-      <span class="flex-1">{id.home.queuePaused}</span>
-      <a href="/settings" class="rounded-lg bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800">
-        {id.home.openSettings}
-      </a>
+    <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl bg-bad-wash px-4 py-3 text-bad">
+      <span class="flex-1 text-sm font-medium">{id.home.queuePaused}</span>
+      <a href="/settings" class="btn btn-ink">{id.home.openSettings}</a>
     </div>
   {/if}
 
   {#each interrupted as m (m.id)}
-    <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
-      <span class="flex-1">{id.home.interrupted(m.title)}</span>
-      <button
-        type="button"
-        class="rounded-lg bg-amber-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-800"
-        onclick={() => resolve(m.id, "process")}
-      >
+    <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl bg-warn-wash px-4 py-3 text-warn">
+      <span class="flex-1 text-sm font-medium">{id.home.interrupted(m.title)}</span>
+      <button type="button" class="btn btn-ink" onclick={() => resolve(m.id, "process")}>
         {id.home.interruptedProcess}
       </button>
-      <button
-        type="button"
-        class="rounded-lg px-3 py-1.5 text-sm text-amber-900 hover:bg-amber-100"
-        onclick={() => resolve(m.id, "discard")}
-      >
+      <button type="button" class="btn btn-quiet" onclick={() => resolve(m.id, "discard")}>
         {id.home.interruptedDiscard}
       </button>
     </div>
@@ -183,50 +171,61 @@
 
   {#if hits !== null}
     {#if hits.length === 0}
-      <p class="text-gray-600">{id.home.noResults}</p>
+      <p class="text-ink-soft">{id.home.noResults}</p>
     {:else}
-      <ul class="flex flex-col divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <ul class="flex flex-col">
         {#each hits as h, i (i)}
-          <li>
-            <a href={hitHref(h)} class="flex flex-col gap-0.5 px-4 py-3 hover:bg-gray-50">
-              <span class="text-sm text-gray-500">
-                {h.title} · {formatDateTime(h.startedAt)} · {id.home.hitKind[h.kind]}{#if h.startMs !== null}
-                  [{formatTimestamp(h.startMs)}]{/if}
+          <li class="border-b border-line-soft last:border-b-0">
+            <a href={hitHref(h)} class="-mx-3 flex flex-col gap-1 rounded-lg px-3 py-3 hover:bg-sheet">
+              <span class="flex flex-wrap items-baseline gap-x-3 text-sm text-ink-soft">
+                <span class="font-semibold text-ink">{h.title}</span>
+                <span class="tabular">{formatDateTime(h.startedAt)}</span>
+                <span>{id.home.hitKind[h.kind]}{#if h.startMs !== null}&nbsp;<span class="tabular">{formatTimestamp(h.startMs)}</span>{/if}</span>
               </span>
-              <span class="text-gray-900"><Highlight text={h.snippet} /></span>
+              <span class="leading-relaxed"><Highlight text={h.snippet} /></span>
             </a>
           </li>
         {/each}
       </ul>
     {/if}
   {:else if !loaded}
-    <p class="text-gray-500">{id.common.loading}</p>
+    <p class="text-ink-soft">{id.common.loading}</p>
   {:else if items.length === 0}
-    <section
-      class="flex flex-1 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center text-gray-600"
-    >
-      {id.home.empty}
+    <section class="flex flex-col items-start gap-2 rounded-xl border border-dashed border-line px-6 py-10">
+      <p class="text-lg font-semibold">{id.home.emptyTitle}</p>
+      <p class="max-w-prose text-ink-soft">{id.home.empty}</p>
     </section>
   {:else}
-    <ul class="flex flex-col divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
-      {#each items as m (m.id)}
-        <li>
-          <a href={`/meeting/${m.id}`} class="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 focus-visible:bg-gray-50">
-            <div class="flex min-w-0 flex-1 flex-col">
-              <span class="truncate font-medium">{m.title}</span>
-              <span class="text-sm text-gray-500">
-                {formatDateTime(m.startedAt)}{#if m.durationMs > 0}&nbsp;· {formatDuration(m.durationMs)}{/if}
-              </span>
-            </div>
-            <StatusBadge status={m.status} progressDone={m.progressDone} progressTotal={m.progressTotal} />
-          </a>
-        </li>
+    <div class="flex flex-col gap-6">
+      {#each groups as g (g.label)}
+        <section aria-label={g.label}>
+          <h2 class="sticky top-0 z-10 -mx-3 bg-paper/95 px-3 py-1.5 text-sm font-semibold text-ink-soft backdrop-blur-sm">
+            {g.label}
+          </h2>
+          <ul class="flex flex-col">
+            {#each g.items as m (m.id)}
+              <li>
+                <a
+                  href={`/meeting/${m.id}`}
+                  class="-mx-3 grid grid-cols-[3.5rem_1fr_auto] items-baseline gap-x-4 rounded-lg px-3 py-3 hover:bg-sheet"
+                >
+                  <span class="tabular text-sm text-ink-soft">{formatTime(m.startedAt)}</span>
+                  <span class="flex min-w-0 flex-col gap-0.5">
+                    <span class="truncate font-semibold">{m.title}</span>
+                    {#if m.durationMs > 0}
+                      <span class="tabular text-sm text-ink-faint">{formatDuration(m.durationMs)}</span>
+                    {/if}
+                  </span>
+                  <StatusBadge status={m.status} progressDone={m.progressDone} progressTotal={m.progressTotal} />
+                </a>
+              </li>
+            {/each}
+          </ul>
+        </section>
       {/each}
-    </ul>
+    </div>
     {#if hasMore}
-      <button type="button" class="self-center rounded-lg px-4 py-2 text-indigo-700 hover:bg-indigo-50" onclick={loadMore}>
-        {id.home.loadMore}
-      </button>
+      <button type="button" class="btn btn-line self-start" onclick={loadMore}>{id.home.loadMore}</button>
     {/if}
   {/if}
 </main>

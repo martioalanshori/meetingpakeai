@@ -10,13 +10,27 @@ export const id = {
     close: "Tutup",
   },
 
+  nav: {
+    label: "Navigasi",
+    meetings: "Meeting",
+    tasks: "Tugas",
+    settings: "Pengaturan",
+  },
+
+  rail: {
+    recording: "Merekam",
+    paused: "Dijeda",
+    shortcutHint: (sc: string) => `Tekan ${sc} untuk mulai atau berhenti merekam dari aplikasi mana pun.`,
+  },
+
   home: {
-    startRecording: "● Mulai rekam",
-    stopRecording: "■ Stop rekam",
+    startRecording: "Mulai rekam",
+    stopRecording: "Stop rekam",
     starting: "Memulai…",
     stopping: "Menghentikan…",
     settings: "Pengaturan",
-    empty: "Belum ada meeting. Klik Mulai rekam saat meeting dimulai.",
+    emptyTitle: "Belum ada meeting",
+    empty: "Tekan Mulai rekam di kiri saat meeting dimulai. Notulen muncul di sini beberapa menit setelah Anda menekan Stop.",
     loadMore: "Muat lebih banyak",
     interrupted: (title: string) =>
       `Rekaman "${title}" terputus karena aplikasi tertutup tidak normal. Audio sampai sebelum terputus masih bisa diproses.`,
@@ -39,10 +53,11 @@ export const id = {
   },
 
   tasks: {
-    title: "Tugas dari semua meeting",
+    title: "Tugas",
     onlyMine: (name: string) => `Hanya untuk saya (PJ: ${name})`,
     showDone: "Tampilkan yang sudah selesai",
-    empty: "Tidak ada tugas.",
+    emptyTitle: "Tidak ada tugas",
+    empty: "Action item dari notulen yang selesai akan muncul di sini. Ubah filter di atas untuk melihat tugas orang lain atau yang sudah selesai.",
   },
 
   status: {
@@ -83,8 +98,8 @@ export const id = {
     unmute: "Nyalakan mikrofon",
     stop: "Stop rekam",
     openMain: "Buka Meeting Pake AI",
-    mic: "Mic",
-    system: "Sistem",
+    mic: "Mikrofon",
+    system: "Audio komputer",
     deviceLost: (channel: Channel) =>
       channel === "mic"
         ? "Mikrofon terputus. Rekaman lanjut tanpa mikrofon."
@@ -118,7 +133,8 @@ export const id = {
     assignee: "PJ:",
     due: "Tenggat:",
     emptyTranscript: "Tidak ada transkrip.",
-    playFrom: "Putar audio dari titik ini",
+    playFrom: "Putar audio dari",
+    clickToPlay: "Klik kalimat untuk memutar audionya.",
     preparingAudio: "Menyiapkan audio…",
     editTitle: "Klik untuk mengubah judul",
     interruptedNote: "Rekaman ini terputus. Pilih Proses untuk mentranskrip audio yang tersimpan.",
@@ -190,6 +206,9 @@ export const id = {
         `Model berikut tidak tersedia di akun Groq Anda: ${models.join(", ")}. Periksa providers.json.`,
     },
     general: "Umum",
+    sectionRecording: "Rekaman",
+    sectionApp: "Aplikasi",
+    sectionHelp: "Bantuan & versi",
     displayName: "Nama Anda",
     displayNameHint: 'Label suara Anda di transkrip (menggantikan "Saya").',
     language: "Bahasa transkrip",
@@ -233,6 +252,7 @@ export const id = {
 
   onboarding: {
     welcomeTitle: "Selamat datang di Meeting Pake AI",
+    stepOf: (n: number, total: number) => `Langkah ${n} dari ${total}`,
     privacy:
       "Meeting Pake AI merekam suara mikrofon dan audio komputer Anda selama meeting. Rekaman dan transkrip disimpan di komputer ini tanpa enkripsi tambahan. Untuk diproses, audio dan transkrip dikirim ke layanan Groq menggunakan API key milik Anda. Anda bertanggung jawab memberi tahu dan meminta izin peserta meeting sebelum merekam.",
     understand: "Saya mengerti, lanjut",

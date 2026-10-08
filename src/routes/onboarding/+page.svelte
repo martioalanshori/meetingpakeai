@@ -5,6 +5,7 @@
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { api, events } from "$lib/api";
   import ClipboardKeyHint from "$lib/components/ClipboardKeyHint.svelte";
+  import Wordmark from "$lib/components/Wordmark.svelte";
   import { id } from "$lib/i18n/id";
   import type { AppError, AudioTestResult, MicPermission } from "$lib/types";
 
@@ -101,30 +102,35 @@
     return `${Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}%`;
   }
 
-  const primary =
-    "rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50";
-  const secondary = "rounded-lg border border-gray-300 px-4 py-2 hover:bg-gray-50 disabled:opacity-50";
+  const primary = "btn btn-ink px-5 py-2.5";
+  const secondary = "btn btn-line";
 </script>
 
-<main class="mx-auto flex min-h-full max-w-2xl flex-col justify-center gap-6 p-8">
-  <ol class="flex gap-2" aria-label="Langkah">
+<main class="mx-auto flex min-h-full w-full max-w-xl flex-col justify-center gap-8 px-8 py-10">
+  <div class="flex items-center justify-between gap-4">
+    <Wordmark />
+    <span class="tabular text-sm text-ink-soft">{id.onboarding.stepOf(step, 4)}</span>
+  </div>
+  <ol class="flex gap-1.5" aria-hidden="true">
     {#each [1, 2, 3, 4] as n (n)}
-      <li class={["h-1.5 flex-1 rounded", n <= step ? "bg-indigo-600" : "bg-gray-200"]}></li>
+      <li class={["h-1 flex-1 rounded-full", n <= step ? "bg-ink" : "bg-line"]}></li>
     {/each}
   </ol>
 
   {#if step === 1}
     <section class="flex flex-col gap-5">
-      <h1 class="text-2xl font-semibold">{t.welcomeTitle}</h1>
-      <p class="leading-relaxed text-gray-700">{t.privacy}</p>
+      <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.welcomeTitle}</h1>
+      <p class="text-[1.0625rem] leading-[1.75]">{t.privacy}</p>
       <button type="button" class={[primary, "self-start"]} onclick={() => (step = 2)}>{t.understand}</button>
     </section>
   {:else if step === 2}
     <section class="flex flex-col gap-5">
-      <h1 class="text-2xl font-semibold">{t.apiKeyTitle}</h1>
-      <ol class="list-decimal space-y-1 pl-6 text-gray-700">
-        {#each t.apiKeySteps as s (s)}
-          <li>{s}</li>
+      <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.apiKeyTitle}</h1>
+      <ol class="flex flex-col gap-3">
+        {#each t.apiKeySteps as s, i (s)}
+          <li class="grid grid-cols-[1.75rem_1fr] items-baseline leading-relaxed">
+            <span class="tabular font-bold text-ink-faint">{i + 1}</span>{s}
+          </li>
         {/each}
       </ol>
       <button type="button" class={[secondary, "self-start"]} onclick={() => openUrl("https://console.groq.com/keys")}>
@@ -151,7 +157,7 @@
             type="password"
             autocomplete="off"
             spellcheck="false"
-            class="rounded-lg border border-gray-300 px-3 py-2 font-mono"
+            class="field font-mono"
             placeholder={id.settings.apiKey.inputPlaceholder}
             bind:value={keyInput}
           />
@@ -165,15 +171,15 @@
           role="status"
           class={[
             "text-sm",
-            keyMessage.kind === "ok" && "text-emerald-700",
-            keyMessage.kind === "warn" && "text-amber-700",
-            keyMessage.kind === "error" && "text-red-700",
+            keyMessage.kind === "ok" && "text-ok",
+            keyMessage.kind === "warn" && "text-warn",
+            keyMessage.kind === "error" && "text-bad",
           ]}
         >
           {keyMessage.text}
         </p>
       {:else if keyOk}
-        <p class="text-sm text-emerald-700">{id.settings.apiKey.saved}</p>
+        <p class="text-sm text-ok">{id.settings.apiKey.saved}</p>
       {/if}
       <button type="button" class={[primary, "self-start"]} disabled={!keyOk} onclick={() => (step = 3)}>
         {t.next}
@@ -181,13 +187,13 @@
     </section>
   {:else if step === 3}
     <section class="flex flex-col gap-5">
-      <h1 class="text-2xl font-semibold">{t.micTitle}</h1>
+      <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.micTitle}</h1>
       <div class="flex flex-wrap items-center gap-3">
         <p
           class={[
-            permission === "allowed" && "text-emerald-700",
-            permission === "denied" && "text-red-700",
-            permission === "unknown" && "text-gray-700",
+            permission === "allowed" && "text-ok",
+            permission === "denied" && "text-bad",
+            permission === "unknown" && "text-ink-soft",
           ]}
         >
           {permission === "allowed" ? t.permAllowed : permission === "denied" ? t.permDenied : t.permUnknown}
@@ -198,31 +204,31 @@
         {/if}
       </div>
 
-      <div class="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5">
+      <div class="flex flex-col gap-3 panel p-5">
         <button type="button" class={[primary, "self-start"]} disabled={testing} onclick={runTest}>
           {t.startTest}
         </button>
         {#if testing}
-          <p class="text-gray-700">{t.testing}</p>
+          <p class="text-ink-soft">{t.testing}</p>
         {/if}
-        <div class="grid grid-cols-[4rem_1fr] items-center gap-2 text-sm" aria-hidden="true">
-          <span>{id.recorder.mic}</span>
-          <div class="h-2 overflow-hidden rounded bg-gray-200">
-            <div class="h-full bg-sky-500 transition-[width] duration-100" style:width={meterWidth(micDb)}></div>
+        <div class="grid grid-cols-[7.5rem_1fr] items-center gap-x-3 gap-y-2 text-sm" aria-hidden="true">
+          <span class="font-semibold text-mic">{id.recorder.mic}</span>
+          <div class="h-1.5 overflow-hidden rounded-full bg-line-soft">
+            <div class="h-full rounded-full bg-mic transition-[width] duration-100" style:width={meterWidth(micDb)}></div>
           </div>
-          <span>{id.recorder.system}</span>
-          <div class="h-2 overflow-hidden rounded bg-gray-200">
-            <div class="h-full bg-emerald-500 transition-[width] duration-100" style:width={meterWidth(sysDb)}></div>
+          <span class="font-semibold text-system">{id.recorder.system}</span>
+          <div class="h-1.5 overflow-hidden rounded-full bg-line-soft">
+            <div class="h-full rounded-full bg-system transition-[width] duration-100" style:width={meterWidth(sysDb)}></div>
           </div>
         </div>
         {#if result}
-          <p class={result.micOk ? "text-emerald-700" : "text-red-700"}>{result.micOk ? t.micOk : t.micFail}</p>
-          <p class={result.systemOk ? "text-emerald-700" : "text-amber-700"}>
+          <p class={result.micOk ? "text-ok" : "text-bad"}>{result.micOk ? t.micOk : t.micFail}</p>
+          <p class={result.systemOk ? "text-ok" : "text-warn"}>
             {result.systemOk ? t.systemOk : t.systemFail}
           </p>
         {/if}
         {#if testError}
-          <p class="text-red-700">{testError}</p>
+          <p class="text-bad">{testError}</p>
         {/if}
       </div>
 
@@ -232,10 +238,10 @@
     </section>
   {:else}
     <section class="flex flex-col gap-5">
-      <h1 class="text-2xl font-semibold">{t.doneTitle}</h1>
-      <p class="text-gray-700">🎧 {t.tip}</p>
+      <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.doneTitle}</h1>
+      <p class="leading-relaxed">{t.tip}</p>
       {#if shortcut}
-        <p class="text-gray-700">⌨ {t.shortcutTip(shortcut)}</p>
+        <p class="leading-relaxed">{t.shortcutTip(shortcut)}</p>
       {/if}
       <label class="flex items-center gap-2">
         <input type="checkbox" class="h-4 w-4" bind:checked={autostart} />
@@ -243,7 +249,7 @@
       </label>
       <button type="button" class={[primary, "self-start"]} onclick={finish}>{t.start}</button>
       {#if testError}
-        <p class="text-red-700">{testError}</p>
+        <p class="text-bad">{testError}</p>
       {/if}
     </section>
   {/if}

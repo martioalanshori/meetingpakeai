@@ -5,7 +5,6 @@
   import { page } from "$app/state";
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { api, events } from "$lib/api";
-  import Icon from "$lib/components/Icon.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import SummaryEditor from "$lib/components/SummaryEditor.svelte";
   import CopyButton from "$lib/components/CopyButton.svelte";
@@ -227,6 +226,18 @@
     return ch === "mic" ? meeting!.labels.mic : meeting!.labels.system;
   }
 
+  /** Giliran bicara: segment berurutan dari channel yang sama digabung (dibaca seperti naskah). */
+  type Turn = { key: number; channel: "mic" | "system"; startMs: number; segments: TranscriptSegment[] };
+  const turns = $derived.by(() => {
+    const out: Turn[] = [];
+    for (const s of transcript) {
+      const last = out.at(-1);
+      if (last && last.channel === s.channel) last.segments.push(s);
+      else out.push({ key: s.id, channel: s.channel, startMs: s.startMs, segments: [s] });
+    }
+    return out;
+  });
+
   const tabs: { key: Tab; text: string }[] = [
     { key: "summary", text: t.detail.tabSummary },
     { key: "actions", text: t.detail.tabActionItems },
@@ -252,22 +263,21 @@
     )}</pre>
 {/if}
 
-<main class="mx-auto flex min-h-full max-w-4xl flex-col gap-5 p-6 print:hidden">
-  <a href="/" class="text-sm text-indigo-700 hover:underline">{t.common.back}</a>
-
+<main class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-8 pt-7 pb-16 print:hidden">
   {#if notFound}
-    <p class="text-gray-700">{t.errors.NOT_FOUND}</p>
+    <p class="text-ink-soft">{t.errors.NOT_FOUND}</p>
   {:else if !meeting}
-    <p class="text-gray-500">{t.common.loading}</p>
+    <p class="text-ink-soft">{t.common.loading}</p>
   {:else}
-    <header class="flex flex-col gap-2">
-      <div class="flex items-start gap-3">
+    <header class="flex flex-col gap-3">
+      <div class="flex items-start gap-2">
         {#if editing}
           <input
             bind:this={titleInput}
             bind:value={titleDraft}
             maxlength="100"
-            class="min-w-0 flex-1 rounded-lg border border-indigo-400 px-2 py-1 text-xl font-semibold"
+            aria-label={t.detail.editTitle}
+            class="field min-w-0 flex-1 px-2 py-1 text-2xl font-bold tracking-[-0.02em]"
             onkeydown={(e) => {
               if (e.key === "Enter") saveTitle();
               if (e.key === "Escape") editing = false;
@@ -277,7 +287,7 @@
         {:else}
           <button
             type="button"
-            class="min-w-0 flex-1 rounded-lg px-2 py-1 text-left text-xl font-semibold hover:bg-gray-100"
+            class="-ml-2 min-w-0 flex-1 rounded-lg px-2 py-1 text-left text-2xl leading-tight font-bold tracking-[-0.02em] hover:bg-wash"
             title={t.detail.editTitle}
             onclick={startEdit}
           >
@@ -289,30 +299,25 @@
           <div class="relative">
             <button
               type="button"
-              class="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-gray-100"
+              class="btn btn-line"
               aria-haspopup="menu"
               aria-expanded={copyOpen}
-              onclick={() => (copyOpen = !copyOpen)}
+              onclick={() => {
+                copyOpen = !copyOpen;
+                menuOpen = false;
+              }}
             >
-              {t.minutes.menu} ▾
+              {t.minutes.menu}
             </button>
             {#if copyOpen}
-              <div
-                role="menu"
-                class="absolute right-0 z-20 mt-1 flex w-56 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="px-4 py-2 text-left hover:bg-gray-100"
-                  onclick={() => exportFile("markdown")}
-                >
+              <div role="menu" class="menu">
+                <button type="button" role="menuitem" class="menu-item" onclick={() => exportFile("markdown")}>
                   {t.minutes.exportMd}
                 </button>
-                <button type="button" role="menuitem" class="px-4 py-2 text-left hover:bg-gray-100" onclick={() => exportFile("text")}>
+                <button type="button" role="menuitem" class="menu-item" onclick={() => exportFile("text")}>
                   {t.minutes.exportTxt}
                 </button>
-                <button type="button" role="menuitem" class="px-4 py-2 text-left hover:bg-gray-100" onclick={printMinutes}>
+                <button type="button" role="menuitem" class="menu-item" onclick={printMinutes}>
                   {t.minutes.print}
                 </button>
               </div>
@@ -323,7 +328,7 @@
         <div class="relative">
           <button
             type="button"
-            class="rounded-lg px-3 py-1.5 text-xl leading-none hover:bg-gray-200"
+            class="btn btn-quiet px-2.5 text-lg leading-5"
             aria-label={t.detail.menu}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
@@ -335,34 +340,24 @@
             ⋯
           </button>
           {#if menuOpen}
-            <div
-              role="menu"
-              class="absolute right-0 z-20 mt-1 flex w-56 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-            >
-              <button
-                type="button"
-                role="menuitem"
-                class="px-4 py-2 text-left hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400"
-                disabled={!canRegenerate}
-                onclick={requestRegenerate}
-              >
+            <div role="menu" class="menu">
+              <button type="button" role="menuitem" class="menu-item" disabled={!canRegenerate} onclick={requestRegenerate}>
                 {t.detail.regenerate}
               </button>
               <button
                 type="button"
                 role="menuitem"
-                class="px-4 py-2 text-left hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400"
+                class="menu-item"
                 disabled={!canRetranscribe}
-                title={meeting.audioDeleted ? t.detail.audioDeleted : undefined}
                 onclick={() => act(() => api.retranscribe(meetingId), t.toast.requeued)}
               >
                 {t.detail.retranscribe}
-                {#if meeting.audioDeleted}<span class="block text-xs text-gray-400">{t.detail.audioDeleted}</span>{/if}
+                {#if meeting.audioDeleted}<span class="block text-xs text-ink-faint">{t.detail.audioDeleted}</span>{/if}
               </button>
               <button
                 type="button"
                 role="menuitem"
-                class="px-4 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-400"
+                class="menu-item text-bad"
                 disabled={meeting.status === "recording"}
                 onclick={() => {
                   menuOpen = false;
@@ -375,26 +370,27 @@
           {/if}
         </div>
       </div>
-      <div class="flex flex-wrap items-center gap-3 px-2 text-sm text-gray-600">
-        <span>
+
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-ink-soft">
+        <span class="tabular">
           {formatDateTime(meeting.startedAt)}{#if meeting.endedAt}–{formatTime(meeting.endedAt)}{/if}
         </span>
-        {#if meeting.durationMs > 0}<span>· {formatDuration(meeting.durationMs)}</span>{/if}
+        {#if meeting.durationMs > 0}<span class="tabular">{formatDuration(meeting.durationMs)}</span>{/if}
         <StatusBadge status={meeting.status} progressDone={meeting.progressDone} progressTotal={meeting.progressTotal} />
       </div>
     </header>
 
     {#if processing}
-      <div class="flex flex-col gap-2 rounded-xl border border-indigo-100 bg-indigo-50 p-4" role="status">
-        <span class="text-sm text-indigo-900">
-          {t.status[meeting.status]}{#if meeting.status === "waiting_quota" || meeting.status === "waiting_network"} — {meeting.status ===
+      <div class="flex flex-col gap-2" role="status">
+        <span class="text-sm text-ink">
+          {t.status[meeting.status]}{#if meeting.status === "waiting_quota" || meeting.status === "waiting_network"}. {meeting.status ===
             "waiting_quota"
               ? t.errors.RATE_LIMITED
               : t.errors.NETWORK}{/if}
         </span>
-        <div class="h-2 overflow-hidden rounded bg-indigo-100">
+        <div class="h-1.5 overflow-hidden rounded-full bg-line-soft">
           <div
-            class={["h-full bg-indigo-600 transition-[width]", meeting.progressTotal === 0 && "animate-pulse"]}
+            class={["h-full rounded-full bg-ink transition-[width] duration-500", meeting.progressTotal === 0 && "motion-safe:animate-pulse"]}
             style:width={meeting.progressTotal > 0 ? `${progressPct}%` : "100%"}
           ></div>
         </div>
@@ -402,24 +398,20 @@
     {/if}
 
     {#if meeting.status === "failed"}
-      <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">
-        <span class="flex-1">{meeting.errorMessage ?? t.errors.INTERNAL}</span>
-        <button
-          type="button"
-          class="rounded-lg bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800"
-          onclick={() => act(() => api.retryJob(meetingId), t.toast.requeued)}
-        >
+      <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl bg-bad-wash px-4 py-3 text-bad">
+        <span class="flex-1 text-sm font-medium">{meeting.errorMessage ?? t.errors.INTERNAL}</span>
+        <button type="button" class="btn btn-ink" onclick={() => act(() => api.retryJob(meetingId), t.toast.requeued)}>
           {t.detail.retry}
         </button>
       </div>
     {/if}
 
     {#if meeting.status === "interrupted"}
-      <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
-        <span class="flex-1">{t.detail.interruptedNote}</span>
+      <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl bg-warn-wash px-4 py-3 text-warn">
+        <span class="flex-1 text-sm font-medium">{t.detail.interruptedNote}</span>
         <button
           type="button"
-          class="rounded-lg bg-amber-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-800"
+          class="btn btn-ink"
           onclick={() => act(() => api.resolveInterrupted(meetingId, "process"), t.toast.requeued)}
         >
           {t.home.interruptedProcess}
@@ -427,165 +419,181 @@
       </div>
     {/if}
 
-    <div role="tablist" class="flex gap-1 border-b border-gray-200">
+    <div role="tablist" class="flex gap-6 border-b border-line">
       {#each tabs as tb (tb.key)}
         <button
           type="button"
           role="tab"
           aria-selected={tab === tb.key}
           class={[
-            "-mb-px border-b-2 px-4 py-2 font-medium",
-            tab === tb.key ? "border-indigo-600 text-indigo-700" : "border-transparent text-gray-600 hover:text-gray-900",
+            "-mb-px border-b-2 pt-1 pb-2.5 text-[0.9375rem]",
+            tab === tb.key ? "border-ink font-semibold text-ink" : "border-transparent text-ink-soft hover:text-ink",
           ]}
           onclick={() => (tab = tb.key)}
         >
-          {tb.text}
+          {tb.text}{#if tb.key === "actions" && meeting.actionItems.length > 0}<span class="tabular ml-1.5 text-ink-faint"
+              >{meeting.actionItems.length}</span
+            >{/if}
         </button>
       {/each}
     </div>
 
-    <section role="tabpanel" class="flex flex-col gap-4">
+    <section role="tabpanel" class="flex flex-col gap-6">
       {#if (tab === "summary" || tab === "actions") && editingSummary && meeting.summary}
         <SummaryEditor {meeting} onsave={saveSummary} oncancel={() => (editingSummary = false)} />
       {:else if tab === "summary"}
         {#if !meeting.summary}
-          <p class="text-gray-500">{processing ? t.detail.processing : "—"}</p>
+          <p class="text-ink-soft">{processing ? t.detail.processing : "—"}</p>
         {:else if meeting.summary.status === "empty"}
-          <p class="text-gray-600">{t.summary.noSpeech}</p>
+          <p class="text-ink-soft">{t.summary.noSpeech}</p>
         {:else}
-          <div class="flex flex-col gap-2">
-            <div class="flex items-center gap-3">
-              <h2 class="font-semibold">{t.detail.summary}</h2>
-              {#if meeting.summary.edited}
-                <span class="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-700">{t.edit.edited}</span>
-              {/if}
-              {#if meeting.status === "done" && templates.length > 0}
-                <label class="flex items-center gap-1.5 text-sm text-gray-600">
-                  {t.edit.template}
-                  <select class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm" onchange={changeTemplate}>
-                    <option value="" selected={!meeting.summaryTemplate}>
-                      {meeting.summary.template && !meeting.summaryTemplate
-                        ? t.edit.templateAutoDetected(templateLabel(meeting.summary.template))
-                        : t.edit.templateAuto}
-                    </option>
-                    {#each templates as tp (tp.key)}
-                      <option value={tp.key} selected={meeting.summaryTemplate === tp.key}>{tp.label}</option>
-                    {/each}
-                  </select>
-                </label>
-              {/if}
-              <div class="ml-auto flex items-center gap-1.5">
-                <CopyButton text={(style) => formatSummaryTab(meeting!, style)} />
-                {#if meeting.status === "done"}
-                  <button
-                    type="button"
-                    class="rounded-lg px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-50"
-                    onclick={() => (editingSummary = true)}
-                  >
-                    {t.edit.button}
-                  </button>
-                {/if}
-              </div>
-            </div>
-            <p class="leading-relaxed whitespace-pre-line text-gray-800">{meeting.summary.summary}</p>
-          </div>
-          <div class="flex flex-col gap-2">
-            <h2 class="font-semibold">{t.detail.decisions}</h2>
-            {#if meeting.summary.decisions.length === 0}
-              <p class="text-gray-500">{t.detail.noDecisions}</p>
-            {:else}
-              <ul class="list-disc space-y-1 pl-6 text-gray-800">
-                {#each meeting.summary.decisions as d, i (i)}<li>{d}</li>{/each}
-              </ul>
+          <div class="flex flex-wrap items-center gap-2">
+            {#if meeting.status === "done" && templates.length > 0}
+              <label class="flex items-center gap-2 text-sm text-ink-soft">
+                {t.edit.template}
+                <select class="field py-1 pr-7 text-sm" onchange={changeTemplate}>
+                  <option value="" selected={!meeting.summaryTemplate}>
+                    {meeting.summary.template && !meeting.summaryTemplate
+                      ? t.edit.templateAutoDetected(templateLabel(meeting.summary.template))
+                      : t.edit.templateAuto}
+                  </option>
+                  {#each templates as tp (tp.key)}
+                    <option value={tp.key} selected={meeting.summaryTemplate === tp.key}>{tp.label}</option>
+                  {/each}
+                </select>
+              </label>
             {/if}
-          </div>
-          {#if meeting.summary.topics.length > 0}
-            <div class="flex flex-col gap-2">
-              <h2 class="font-semibold">{t.detail.topics}</h2>
-              <div class="flex flex-wrap gap-2">
-                {#each meeting.summary.topics as tp, i (i)}
-                  <span class="rounded-full bg-gray-200 px-3 py-1 text-sm text-gray-800">{tp}</span>
-                {/each}
-              </div>
+            {#if meeting.summary.edited}
+              <span class="text-sm text-ink-faint">{t.edit.edited}</span>
+            {/if}
+            <div class="ml-auto flex items-center gap-1.5">
+              <CopyButton text={(style) => formatSummaryTab(meeting!, style)} />
+              {#if meeting.status === "done"}
+                <button type="button" class="btn btn-quiet" onclick={() => (editingSummary = true)}>{t.edit.button}</button>
+              {/if}
             </div>
-          {/if}
+          </div>
+
+          <article class="flex max-w-[68ch] flex-col gap-7">
+            <div class="flex flex-col gap-2">
+              <h2 class="text-lg font-bold">{t.detail.summary}</h2>
+              <p class="text-[1.0625rem] leading-[1.75] whitespace-pre-line">{meeting.summary.summary}</p>
+            </div>
+            <div class="flex flex-col gap-2">
+              <h2 class="text-lg font-bold">{t.detail.decisions}</h2>
+              {#if meeting.summary.decisions.length === 0}
+                <p class="text-ink-soft">{t.detail.noDecisions}</p>
+              {:else}
+                <ul class="flex flex-col gap-2">
+                  {#each meeting.summary.decisions as d, i (i)}
+                    <li class="grid grid-cols-[1rem_1fr] text-[1.0625rem] leading-relaxed">
+                      <span class="mt-[0.7em] h-1.5 w-1.5 rounded-full bg-ink" aria-hidden="true"></span>{d}
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+            {#if meeting.summary.topics.length > 0}
+              <div class="flex flex-col gap-2">
+                <h2 class="text-lg font-bold">{t.detail.topics}</h2>
+                <ul class="flex flex-wrap gap-1.5">
+                  {#each meeting.summary.topics as tp, i (i)}
+                    <li class="rounded-md bg-wash px-2.5 py-1 text-sm">{tp}</li>
+                  {/each}
+                </ul>
+              </div>
+            {/if}
+          </article>
         {/if}
       {:else if tab === "actions"}
         {#if !meeting.summary}
-          <p class="text-gray-500">{processing ? t.detail.processing : "—"}</p>
+          <p class="text-ink-soft">{processing ? t.detail.processing : "—"}</p>
         {:else}
           <div class="flex items-center justify-end gap-1.5">
             {#if meeting.actionItems.length > 0}
               <CopyButton text={(style) => formatActionItems(meeting!, style)} okText={t.minutes.actionsCopied} />
             {/if}
             {#if meeting.status === "done"}
-              <button
-                type="button"
-                class="rounded-lg px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-50"
-                onclick={() => (editingSummary = true)}
-              >
-                {t.edit.button}
-              </button>
+              <button type="button" class="btn btn-quiet" onclick={() => (editingSummary = true)}>{t.edit.button}</button>
             {/if}
           </div>
           {#if meeting.actionItems.length === 0}
-            <p class="text-gray-600">{t.detail.noActionItems}</p>
+            <p class="text-ink-soft">{t.detail.noActionItems}</p>
           {:else}
-          <ul class="flex flex-col divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white">
-            {#each meeting.actionItems as a (a.id)}
-              <li class="flex items-start gap-3 px-4 py-3">
-                <input
-                  type="checkbox"
-                  class="mt-1 h-4 w-4 shrink-0"
-                  aria-label={a.task}
-                  bind:checked={a.done}
-                  onchange={() => toggleItem(a.id, a.done)}
-                />
-                <div class="flex flex-col">
-                  <span class={a.done ? "text-gray-400 line-through" : "text-gray-900"}>{a.task}</span>
-                  {#if a.assignee || a.due}
-                    <span class="text-sm text-gray-500">
-                      {#if a.assignee}{t.detail.assignee} {a.assignee}{/if}{#if a.assignee && a.due}&nbsp;·&nbsp;{/if}{#if a.due}{t.detail.due}
-                        {a.due}{/if}
-                    </span>
-                  {/if}
-                </div>
-              </li>
-            {/each}
-          </ul>
+            <ul class="flex flex-col">
+              {#each meeting.actionItems as a (a.id)}
+                <li class="flex items-start gap-3 border-b border-line-soft py-3 last:border-b-0">
+                  <input
+                    type="checkbox"
+                    class="mt-1 h-4 w-4 shrink-0 accent-ink"
+                    aria-label={a.task}
+                    bind:checked={a.done}
+                    onchange={() => toggleItem(a.id, a.done)}
+                  />
+                  <div class="flex min-w-0 flex-col gap-0.5">
+                    <span class={a.done ? "text-ink-faint line-through" : "font-medium"}>{a.task}</span>
+                    {#if a.assignee || a.due}
+                      <span class="flex flex-wrap gap-x-4 text-sm text-ink-soft">
+                        {#if a.assignee}<span>{t.detail.assignee} <span class="text-ink">{a.assignee}</span></span>{/if}
+                        {#if a.due}<span>{t.detail.due} <span class="text-ink">{a.due}</span></span>{/if}
+                      </span>
+                    {/if}
+                  </div>
+                </li>
+              {/each}
+            </ul>
           {/if}
         {/if}
       {:else if transcript.length === 0}
-        <p class="text-gray-500">{processing ? t.detail.processing : t.detail.emptyTranscript}</p>
+        <p class="text-ink-soft">{processing ? t.detail.processing : t.detail.emptyTranscript}</p>
       {:else}
-        <div class="flex justify-end">
-          <CopyButton text={() => formatTranscript(meeting!, transcript)} okText={t.minutes.transcriptCopied} />
+        <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <span class="flex items-center gap-2 text-sm font-semibold text-mic">
+            <span class="h-3 w-1 rounded-full bg-mic" aria-hidden="true"></span>{meeting.labels.mic}
+          </span>
+          <span class="flex items-center gap-2 text-sm font-semibold text-system">
+            <span class="h-3 w-1 rounded-full bg-system" aria-hidden="true"></span>{meeting.labels.system}
+          </span>
+          {#if !meeting.audioDeleted}<span class="text-sm text-ink-faint">{t.detail.clickToPlay}</span>{/if}
+          <div class="ml-auto">
+            <CopyButton text={() => formatTranscript(meeting!, transcript)} okText={t.minutes.transcriptCopied} />
+          </div>
         </div>
+
         {#if audioSrc || audioLoading}
-          <div class="sticky top-0 z-10 flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
-            {#if audioLoading && !audioSrc}<span class="text-sm text-gray-600">{t.detail.preparingAudio}</span>{/if}
+          <div class="sticky top-2 z-10 rounded-xl border border-line bg-sheet p-2 shadow-[0_8px_24px_-12px_rgb(30_36_51/0.3)]">
+            {#if audioLoading && !audioSrc}<span class="px-2 text-sm text-ink-soft">{t.detail.preparingAudio}</span>{/if}
             {#if audioSrc}
               <audio bind:this={audioEl} src={audioSrc} controls preload="auto" class="h-9 w-full"></audio>
             {/if}
           </div>
         {/if}
-        <ol class={["flex flex-col gap-1.5", transcript.length > 500 && "virtualized"]}>
-          {#each transcript as s (s.id)}
-            <li class="segment leading-relaxed">
-              {#if meeting.audioDeleted}
-                <span class="font-mono text-xs text-gray-500">[{formatTimestamp(s.startMs)}]</span>
-              {:else}
-                <button
-                  type="button"
-                  class="rounded font-mono text-xs text-indigo-700 hover:bg-indigo-50 hover:underline"
-                  title={t.detail.playFrom}
-                  onclick={() => playAt(s.startMs)}
-                >
-                  [{formatTimestamp(s.startMs)}]
-                </button>
-              {/if}
-              <span class={["font-semibold", s.channel === "mic" ? "text-mic" : "text-system"]}>{label(s.channel)}:</span>
-              <span class="text-gray-800">{s.text}</span>
+
+        <ol class={["flex flex-col gap-4", turns.length > 200 && "virtualized"]}>
+          {#each turns as turn (turn.key)}
+            <li class="turn grid grid-cols-[4.25rem_1fr] gap-x-3">
+              <span class="tabular pt-0.5 text-sm text-ink-faint">{formatTimestamp(turn.startMs)}</span>
+              <div
+                class={["flex flex-col gap-1 border-l-[3px] pl-3.5", turn.channel === "mic" ? "border-mic" : "border-system"]}
+              >
+                <span class={["text-sm font-bold", turn.channel === "mic" ? "text-mic" : "text-system"]}>
+                  {label(turn.channel)}
+                </span>
+                <p class="max-w-[70ch] leading-[1.7]">
+                  {#each turn.segments as s (s.id)}
+                    {#if meeting.audioDeleted}
+                      <span>{s.text} </span>
+                    {:else}
+                      <button
+                        type="button"
+                        class="inline rounded-sm text-left hover:bg-wash focus-visible:bg-wash"
+                        title={`${t.detail.playFrom} ${formatTimestamp(s.startMs)}`}
+                        onclick={() => playAt(s.startMs)}>{s.text}</button
+                      >{" "}
+                    {/if}
+                  {/each}
+                </p>
+              </div>
             </li>
           {/each}
         </ol>
@@ -594,42 +602,26 @@
   {/if}
 </main>
 
-<dialog
-  bind:this={deleteDialog}
-  class="m-auto w-full max-w-md rounded-xl p-0 shadow-2xl backdrop:bg-black/40"
-  aria-labelledby="delete-title"
->
-  <div class="flex flex-col gap-4 p-6">
-    <p id="delete-title" class="text-gray-800">{t.detail.deleteConfirm}</p>
+<dialog bind:this={deleteDialog} class="sheet-dialog" aria-labelledby="delete-title">
+  <div class="flex flex-col gap-5 p-6">
+    <p id="delete-title" class="leading-relaxed">{t.detail.deleteConfirm}</p>
     <div class="flex justify-end gap-2">
-      <button type="button" class="rounded-lg px-4 py-2 hover:bg-gray-100" onclick={() => deleteDialog?.close()}>
-        {t.common.cancel}
-      </button>
-      <button
-        type="button"
-        class="rounded-lg bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700"
-        onclick={confirmDelete}
-      >
+      <button type="button" class="btn btn-quiet" onclick={() => deleteDialog?.close()}>{t.common.cancel}</button>
+      <button type="button" class="btn bg-bad text-white hover:bg-[#931c13]" onclick={confirmDelete}>
         {t.detail.deleteButton}
       </button>
     </div>
   </div>
 </dialog>
 
-<dialog
-  bind:this={regenerateDialog}
-  class="m-auto w-full max-w-md rounded-xl p-0 shadow-2xl backdrop:bg-black/40"
-  aria-labelledby="regen-title"
->
-  <div class="flex flex-col gap-4 p-6">
-    <p id="regen-title" class="text-gray-800">{t.edit.regenerateConfirm}</p>
+<dialog bind:this={regenerateDialog} class="sheet-dialog" aria-labelledby="regen-title">
+  <div class="flex flex-col gap-5 p-6">
+    <p id="regen-title" class="leading-relaxed">{t.edit.regenerateConfirm}</p>
     <div class="flex justify-end gap-2">
-      <button type="button" class="rounded-lg px-4 py-2 hover:bg-gray-100" onclick={() => regenerateDialog?.close()}>
-        {t.common.cancel}
-      </button>
+      <button type="button" class="btn btn-quiet" onclick={() => regenerateDialog?.close()}>{t.common.cancel}</button>
       <button
         type="button"
-        class="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700"
+        class="btn btn-ink"
         onclick={() => {
           regenerateDialog?.close();
           act(() => api.regenerateSummary(meetingId), t.toast.requeued);
@@ -642,9 +634,9 @@
 </dialog>
 
 <style>
-  /* > 500 segment: browser hanya me-render baris yang terlihat (PRD §14.5). */
-  .virtualized .segment {
+  /* Transkrip panjang: browser hanya me-render giliran yang terlihat (PRD §14.5). */
+  .virtualized .turn {
     content-visibility: auto;
-    contain-intrinsic-size: auto 1.75rem;
+    contain-intrinsic-size: auto 5rem;
   }
 </style>

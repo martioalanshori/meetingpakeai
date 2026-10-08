@@ -9,4 +9,4 @@
   );
 </script>
 
-{#each parts as p, i (i)}{#if p.mark}<mark class="rounded bg-yellow-200 px-0.5">{p.text}</mark>{:else}{p.text}{/if}{/each}
+{#each parts as p, i (i)}{#if p.mark}<mark class="rounded bg-mic-wash px-0.5">{p.text}</mark>{:else}{p.text}{/if}{/each}

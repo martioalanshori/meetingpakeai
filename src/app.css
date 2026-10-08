@@ -1,21 +1,220 @@
 @import "tailwindcss";
+@import "@fontsource-variable/plus-jakarta-sans";
 
+/*
+  Sistem desain "Dua suara".
+  Identitas aplikasi = dua suara yang direkam: mic ("Saya", teal) dan audio sistem ("Peserta lain", kunyit).
+  Kedua warna itu hanya dipakai di tempat suara muncul (meter, transkrip, label). Sisanya tinta di atas kertas.
+  Merah rekam hanya untuk status merekam.
+*/
 @theme {
-  --color-mic: #2563eb;
-  --color-system: #047857;
+  --font-sans: "Plus Jakarta Sans Variable", "Segoe UI", system-ui, sans-serif;
+
+  --color-paper: #eef1ec;
+  --color-sheet: #ffffff;
+  --color-ink: #1e2433;
+  --color-ink-soft: #5a6270;
+  --color-ink-faint: #8a919c;
+  --color-line: #d5dbd3;
+  --color-line-soft: #e4e8e2;
+  --color-wash: #e3e8e1;
+
+  /* Dua suara (kontras ≥ 4.5:1 di atas putih). */
+  --color-mic: #0e6b6b;
+  --color-mic-wash: #dcefed;
+  --color-system: #a3450f;
+  --color-system-wash: #f6e6da;
+  /* Varian terang untuk meter di atas latar tinta (widget rekaman). */
+  --color-mic-bright: #4cc3bd;
+  --color-system-bright: #f0995a;
+
+  --color-rec: #d92d20;
+  --color-ok: #2f6b3a;
+  --color-warn: #8a5a00;
+  --color-warn-wash: #f7eed8;
+  --color-bad: #b42318;
+  --color-bad-wash: #f9e3e0;
+
+  /* Skala huruf ±1.25: 13 / 15 / 17 / 22 / 28. */
+  --text-xs: 0.8125rem;
+  --text-sm: 0.875rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
 }
 
 html,
 body {
   margin: 0;
   height: 100%;
-  font-family:
-    "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  color: var(--color-gray-900);
-  background: var(--color-gray-50);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  color: var(--color-ink);
+  background: var(--color-paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Waktu & durasi selalu rata digit. */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-indigo-600);
+  outline: 2px solid var(--color-ink);
   outline-offset: 2px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--color-ink);
+}
+
+::selection {
+  background: var(--color-mic-wash);
+}
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.875rem;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: 1.25rem;
+    white-space: nowrap;
+    transition: background-color 120ms, border-color 120ms, color 120ms;
+  }
+  .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  /* Aksi utama: tinta penuh. */
+  .btn-ink {
+    background: var(--color-ink);
+    color: #fff;
+  }
+  .btn-ink:not(:disabled):hover {
+    background: #2e3650;
+  }
+  /* Aksi sekunder: garis. */
+  .btn-line {
+    border: 1px solid var(--color-line);
+    background: var(--color-sheet);
+    color: var(--color-ink);
+  }
+  .btn-line:not(:disabled):hover {
+    border-color: var(--color-ink-faint);
+  }
+  /* Aksi ringan di dalam teks / toolbar. */
+  .btn-quiet {
+    color: var(--color-ink-soft);
+    padding: 0.375rem 0.625rem;
+  }
+  .btn-quiet:not(:disabled):hover {
+    background: var(--color-wash);
+    color: var(--color-ink);
+  }
+  .btn-rec {
+    background: var(--color-rec);
+    color: #fff;
+  }
+  .btn-rec:not(:disabled):hover {
+    background: #b9241a;
+  }
+  .btn-danger {
+    color: var(--color-bad);
+  }
+  .btn-danger:not(:disabled):hover {
+    background: var(--color-bad-wash);
+  }
+
+  .field {
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+    background: var(--color-sheet);
+    padding: 0.5rem 0.75rem;
+    font-size: var(--text-base);
+    color: var(--color-ink);
+  }
+  .field::placeholder {
+    color: var(--color-ink-faint);
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--color-ink);
+    box-shadow: 0 0 0 1px var(--color-ink);
+  }
+
+  /* Satu bidang putih; dipakai untuk kelompok isian, bukan untuk membungkus setiap item. */
+  .panel {
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    background: var(--color-sheet);
+  }
+
+  .link {
+    color: var(--color-ink);
+    text-decoration: underline;
+    text-decoration-color: var(--color-line);
+    text-underline-offset: 3px;
+  }
+  .link:hover {
+    text-decoration-color: var(--color-ink);
+  }
+
+  .menu {
+    position: absolute;
+    right: 0;
+    z-index: 20;
+    margin-top: 0.25rem;
+    display: flex;
+    min-width: 14rem;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--color-line);
+    border-radius: 0.625rem;
+    background: var(--color-sheet);
+    padding: 0.25rem;
+    box-shadow: 0 12px 32px -12px rgb(30 36 51 / 0.28);
+  }
+  .menu-item {
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-size: var(--text-sm);
+  }
+  .menu-item:not(:disabled):hover {
+    background: var(--color-wash);
+  }
+  .menu-item:disabled {
+    color: var(--color-ink-faint);
+    cursor: not-allowed;
+  }
+
+  dialog.sheet-dialog {
+    margin: auto;
+    width: min(28rem, calc(100% - 2rem));
+    border-radius: 0.875rem;
+    border: 1px solid var(--color-line);
+    padding: 0;
+    color: var(--color-ink);
+    box-shadow: 0 24px 64px -16px rgb(30 36 51 / 0.35);
+  }
+  dialog.sheet-dialog::backdrop {
+    background: rgb(30 36 51 / 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

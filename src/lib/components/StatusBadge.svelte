@@ -2,6 +2,7 @@
   import { id } from "$lib/i18n/id";
   import type { MeetingStatus } from "$lib/types";
 
+  // Status sebagai teks + titik warna (bukan pil berwarna): daftar tetap tenang, yang perlu perhatian menonjol.
   let {
     status,
     progressDone = 0,
@@ -10,25 +11,24 @@
 
   const withCount = $derived(
     (status === "transcribing" || status === "summarizing") && progressTotal > 0
-      ? ` (${progressDone}/${progressTotal})`
+      ? ` ${progressDone}/${progressTotal}`
       : "",
   );
 
-  const color = $derived(
+  const tone = $derived(
     status === "done"
-      ? "bg-emerald-100 text-emerald-800"
+      ? { dot: "bg-ok", text: "text-ink-soft" }
       : status === "failed"
-        ? "bg-red-100 text-red-800"
+        ? { dot: "bg-bad", text: "text-bad font-semibold" }
         : status === "recording"
-          ? "bg-red-600 text-white"
-          : status === "interrupted"
-            ? "bg-amber-100 text-amber-900"
-            : status === "waiting_quota" || status === "waiting_network"
-              ? "bg-orange-100 text-orange-900"
-              : "bg-indigo-100 text-indigo-800",
+          ? { dot: "bg-rec motion-safe:animate-pulse", text: "text-rec font-semibold" }
+          : status === "interrupted" || status === "waiting_quota" || status === "waiting_network"
+            ? { dot: "bg-warn", text: "text-warn font-semibold" }
+            : { dot: "bg-ink motion-safe:animate-pulse", text: "text-ink font-medium" },
   );
 </script>
 
-<span class={["inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap", color]}>
+<span class={["tabular inline-flex shrink-0 items-center gap-1.5 text-sm whitespace-nowrap", tone.text]}>
+  <span class={["h-2 w-2 rounded-full", tone.dot]} aria-hidden="true"></span>
   {id.status[status]}{withCount}
 </span>

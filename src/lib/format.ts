@@ -30,3 +30,17 @@ export function formatTimestamp(ms: number): string {
   const total = Math.floor(ms / 1000);
   return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
 }
+
+const DAYS = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+
+/** Judul kelompok hari: "Hari ini", "Kemarin", "Senin, 5 Okt" (tahun ditulis jika bukan tahun ini). */
+export function dayLabel(ms: number, now = Date.now()): string {
+  const d = new Date(ms);
+  const today = new Date(now);
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOf(today) - startOf(d)) / 86_400_000);
+  if (diffDays === 0) return "Hari ini";
+  if (diffDays === 1) return "Kemarin";
+  const year = d.getFullYear() === today.getFullYear() ? "" : ` ${d.getFullYear()}`;
+  return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}${year}`;
+}

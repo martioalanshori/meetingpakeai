@@ -20,6 +20,7 @@ Sumber kebenaran: **`PRD.md`**. Baca §0 sebelum mengerjakan apa pun. Kerjakan s
 | tauri-plugin-updater (langkah 25) | 2.13.2 |
 | tokio (time, sync, macros, rt, rt-multi-thread) | 1.53.2 |
 | @tauri-apps/plugin-dialog | (npm) |
+| @fontsource-variable/plus-jakarta-sans (redesain UI) | 5.3.0 |
 | tracing / tracing-appender / tracing-subscriber (env-filter) | 0.1.44 / 0.2.5 / 0.3.23 |
 | Node / npm | 22.17.0 / 10.9.2 |
 | @tauri-apps/api / cli | 2.12.1 / 2.12.1 |
@@ -92,7 +93,8 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | `retry_job` di step preprocessing dengan audio terhapus | Ditolak `AUDIO_NOT_AVAILABLE`. |
 | Merge perantara | Prompt `MERGE_INTERMEDIATE` (format CHUNK) di `llm/prompts.rs` untuk merge bertingkat (§10.4). |
 | Virtualized list > 500 segment | Memakai CSS `content-visibility: auto` per baris (browser hanya me-render baris terlihat), tanpa library tambahan. |
-| Warna label transkrip | mic `#2563eb`, system `#047857` (kontras ≥ 4.5:1 di latar putih). |
+| Sistem desain "Dua suara" (redesain 2026-10-08) | Token di `src/app.css` (`@theme`): kertas `#EEF1EC`, lembar `#FFFFFF`, tinta `#1E2433` (teks & tombol utama), garis `#D5DBD3`; suara Saya/mic `#0E6B6B`, suara Peserta/system `#A3450F` (kontras ≥ 4.5:1; varian terang `mic-bright`/`system-bright` untuk meter di widget gelap); merah rekam `#D92D20` hanya untuk status merekam. Font tunggal Plus Jakarta Sans (Tokotype, Indonesia) dibundel lokal lewat `@fontsource-variable` (CSP `'self'`); angka waktu `.tabular`. Kelas komponen: `btn btn-ink/-line/-quiet/-rec/-danger`, `field`, `panel`, `menu`, `menu-item`, `sheet-dialog`. Shell: rel kiri `AppRail.svelte` (logo dua batang, tombol Rekam + timer, navigasi Meeting/Tugas/Pengaturan, petunjuk shortcut); onboarding & widget tanpa rel. Daftar meeting dikelompokkan per hari (`dayLabel`). Transkrip ditampilkan per giliran bicara (segment berurutan satu channel digabung) dengan rel warna suara; tiap kalimat bisa diklik untuk memutar audio. Hindari: label huruf kapital, meta dipisah titik tengah, font mono, warna indigo/gray bawaan Tailwind. |
+| Warna label transkrip | Diganti token suara di atas: mic `#0E6B6B`, system `#A3450F`. |
 | Banner antrean dijeda | Dihitung di Beranda dari meeting `failed` dengan `errorCode` INVALID_API_KEY / NO_API_KEY. |
 | Jendela on-demand (NFR RAM) | Widget `recorder` dibuat saat mulai rekam dan dihancurkan saat Stop (tidak ada di tauri.conf.json). Jendela main dihancurkan saat ditutup ke tray dan dibuat ulang dari konfigurasi saat dibuka (tray / instance kedua). `RunEvent::ExitRequested { code: None }` dicegah agar app tetap hidup di tray. |
 | Contoh uji manual | `src-tauri/examples/record_mic.rs`, `record_both.rs`, `repair_wav.rs`, `record_service.rs`, `groq_probe.rs`, `audio_test.rs`, `e2e.rs` — alat uji, bukan bagian app. |

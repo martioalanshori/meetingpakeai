@@ -136,33 +136,33 @@
   }
 </script>
 
-<div class="flex h-screen select-none flex-col bg-gray-900 text-white">
+<div class="flex h-screen select-none flex-col bg-ink text-white">
   <div data-tauri-drag-region class="flex h-16 shrink-0 items-center gap-2 px-3">
     <span
       class={[
         "h-3 w-3 shrink-0 rounded-full",
-        rs.status === "paused" ? "bg-yellow-400" : "animate-pulse bg-red-500",
+        rs.status === "paused" ? "bg-[#f0b43c]" : "bg-rec motion-safe:animate-pulse",
       ]}
       aria-hidden="true"
     ></span>
     <button
       type="button"
-      class="flex flex-col items-start rounded px-1 font-mono text-sm tabular-nums hover:bg-white/10"
+      class="tabular flex flex-col items-start rounded px-1 text-[0.9375rem] font-semibold hover:bg-white/10"
       title={id.recorder.openMain}
       onclick={focusMain}
     >
       {formatTimestamp(elapsed)}
       {#if rs.status === "paused"}
-        <span class="font-sans text-[10px] leading-none text-yellow-300">{id.recorder.paused}</span>
+        <span class="text-[10px] leading-none font-medium text-[#f0b43c]">{id.recorder.paused}</span>
       {/if}
     </button>
 
     <div data-tauri-drag-region class="flex min-w-0 flex-1 flex-col gap-1.5" aria-hidden="true">
-      <div data-tauri-drag-region class="h-1.5 overflow-hidden rounded bg-white/15" title={id.recorder.mic}>
-        <div class="h-full bg-sky-400 transition-[width] duration-100" style:width={meterWidth(micDb)}></div>
+      <div data-tauri-drag-region class="h-1.5 overflow-hidden rounded-full bg-white/12" title={id.recorder.mic}>
+        <div class="h-full rounded-full bg-mic-bright transition-[width] duration-100" style:width={meterWidth(micDb)}></div>
       </div>
-      <div data-tauri-drag-region class="h-1.5 overflow-hidden rounded bg-white/15" title={id.recorder.system}>
-        <div class="h-full bg-emerald-400 transition-[width] duration-100" style:width={meterWidth(sysDb)}></div>
+      <div data-tauri-drag-region class="h-1.5 overflow-hidden rounded-full bg-white/12" title={id.recorder.system}>
+        <div class="h-full rounded-full bg-system-bright transition-[width] duration-100" style:width={meterWidth(sysDb)}></div>
       </div>
     </div>
 
@@ -178,7 +178,7 @@
     </button>
     <button
       type="button"
-      class={["rounded p-1.5 hover:bg-white/15 disabled:opacity-50", rs.micMuted && "bg-red-600/60"]}
+      class={["rounded p-1.5 hover:bg-white/15 disabled:opacity-50", rs.micMuted && "bg-rec/70"]}
       title={rs.micMuted ? id.recorder.unmute : id.recorder.mute}
       aria-label={rs.micMuted ? id.recorder.unmute : id.recorder.mute}
       aria-pressed={rs.micMuted}
@@ -195,33 +195,33 @@
       disabled={busy}
       onclick={stop}
     >
-      <Icon name="stop" size={16} class="text-red-400" />
+      <Icon name="stop" size={16} class="text-[#ff7a6e]" />
     </button>
   </div>
 
   {#each lostChannels as ch (ch)}
-    <div class="flex h-11 items-center bg-amber-600/90 px-3 text-xs">{id.recorder.deviceLost(ch)}</div>
+    <div class="flex h-11 items-center border-t border-white/10 bg-[#4a3410] px-3 text-xs text-[#f7d58c]">{id.recorder.deviceLost(ch)}</div>
   {/each}
 
   {#if systemSilent && !lostChannels.includes("system")}
-    <div class="flex h-11 items-center bg-amber-600/90 px-3 text-xs leading-tight">{id.recorder.systemSilent}</div>
+    <div class="flex h-11 items-center border-t border-white/10 bg-[#4a3410] px-3 text-xs leading-tight text-[#f7d58c]">{id.recorder.systemSilent}</div>
   {/if}
 
   {#if autoStopDeadline !== null}
-    <div class="flex h-11 items-center gap-2 bg-gray-800 px-3 text-xs">
+    <div class="flex h-11 items-center gap-2 border-t border-white/10 px-3 text-xs">
       <span class="flex-1 leading-tight">
-        {autoStopReason === "meeting_ended" ? id.recorder.meetingEnded : id.recorder.autoStop}<br /><span class="text-gray-400">{id.recorder.autoStopCountdown(secondsLeft)}</span>
+        {autoStopReason === "meeting_ended" ? id.recorder.meetingEnded : id.recorder.autoStop}<br /><span class="tabular text-white/60">{id.recorder.autoStopCountdown(secondsLeft)}</span>
       </span>
-      <button type="button" class="rounded bg-red-600 px-2 py-1" onclick={() => respondAutoStop(false)}>
+      <button type="button" class="rounded-md bg-rec px-2 py-1 font-semibold" onclick={() => respondAutoStop(false)}>
         {id.recorder.autoStopStop}
       </button>
-      <button type="button" class="rounded bg-white/15 px-2 py-1" onclick={() => respondAutoStop(true)}>
+      <button type="button" class="rounded-md bg-white/15 px-2 py-1 font-semibold" onclick={() => respondAutoStop(true)}>
         {id.recorder.autoStopContinue}
       </button>
     </div>
   {/if}
 
   {#if error}
-    <div class="flex h-11 items-center bg-red-700 px-3 text-xs">{error}</div>
+    <div class="flex h-11 items-center border-t border-white/10 bg-[#5c1a14] px-3 text-xs">{error}</div>
   {/if}
 </div>

@@ -23,11 +23,11 @@
 <svelte:window onfocus={check} />
 
 {#if found && found !== dismissed}
-  <div class="flex flex-wrap items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-950" role="status">
+  <div class="flex flex-wrap items-center gap-3 rounded-xl bg-mic-wash px-4 py-3 text-sm text-ink" role="status">
     <span class="flex-1">{id.settings.apiKey.clipboardFound(masked)}</span>
     <button
       type="button"
-      class="rounded-lg bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-700"
+      class="btn btn-ink"
       onclick={() => {
         if (found) onuse(found);
         dismissed = found;
@@ -35,7 +35,7 @@
     >
       {id.settings.apiKey.clipboardUse}
     </button>
-    <button type="button" class="rounded-lg px-3 py-1.5 hover:bg-indigo-100" onclick={() => (dismissed = found)}>
+    <button type="button" class="btn btn-quiet" onclick={() => (dismissed = found)}>
       {id.common.close}
     </button>
   </div>

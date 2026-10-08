@@ -52,11 +52,10 @@
   onDestroy(() => unlisten.forEach((u) => u()));
 </script>
 
-<main class="mx-auto flex max-w-4xl flex-col gap-4 p-6">
-  <a href="/" class="text-sm text-indigo-700 hover:underline">{id.common.back}</a>
-  <h1 class="text-xl font-semibold">{t.title}</h1>
+<main class="mx-auto flex w-full max-w-3xl flex-col gap-5 px-8 pt-7 pb-12">
+  <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
 
-  <div class="flex flex-wrap gap-4 text-sm">
+  <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
     <label class="flex items-center gap-2">
       <input type="checkbox" class="h-4 w-4" bind:checked={onlyMine} />
       {t.onlyMine(myName)}
@@ -68,13 +67,16 @@
   </div>
 
   {#if !loaded}
-    <p class="text-gray-500">{id.common.loading}</p>
+    <p class="text-ink-soft">{id.common.loading}</p>
   {:else if visible.length === 0}
-    <p class="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-600">{t.empty}</p>
+    <section class="flex flex-col items-start gap-2 rounded-xl border border-dashed border-line px-6 py-10">
+      <p class="text-lg font-semibold">{t.emptyTitle}</p>
+      <p class="max-w-prose text-ink-soft">{t.empty}</p>
+    </section>
   {:else}
-    <ul class="flex flex-col divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white">
+    <ul class="flex flex-col">
       {#each visible as a (a.id)}
-        <li class="flex items-start gap-3 px-4 py-3">
+        <li class="flex items-start gap-3 border-b border-line-soft py-3 last:border-b-0">
           <input
             type="checkbox"
             class="mt-1 h-4 w-4 shrink-0"
@@ -82,12 +84,13 @@
             bind:checked={a.done}
             onchange={() => toggle(a)}
           />
-          <div class="flex min-w-0 flex-col">
-            <span class={a.done ? "text-gray-400 line-through" : "text-gray-900"}>{a.task}</span>
-            <span class="text-sm text-gray-500">
-              {#if a.assignee}{id.detail.assignee} {a.assignee} · {/if}{#if a.due}{id.detail.due} {a.due} · {/if}
-              <a href={`/meeting/${a.meetingId}`} class="text-indigo-700 hover:underline">{a.meetingTitle}</a>
-              ({formatDateTime(a.startedAt)})
+          <div class="flex min-w-0 flex-col gap-0.5">
+            <span class={a.done ? "text-ink-faint line-through" : "font-medium"}>{a.task}</span>
+            <span class="flex flex-wrap gap-x-4 text-sm text-ink-soft">
+              {#if a.assignee}<span>{id.detail.assignee} <span class="text-ink">{a.assignee}</span></span>{/if}
+              {#if a.due}<span>{id.detail.due} <span class="text-ink">{a.due}</span></span>{/if}
+              <a href={`/meeting/${a.meetingId}?tab=actions`} class="link">{a.meetingTitle}</a>
+              <span class="tabular">{formatDateTime(a.startedAt)}</span>
             </span>
           </div>
         </li>
