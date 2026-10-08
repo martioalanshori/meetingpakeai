@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { api, events } from "$lib/api";
+  import Icon from "$lib/components/Icon.svelte";
   import RecordButton from "$lib/components/RecordButton.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import { formatDateTime, formatDuration } from "$lib/format";
@@ -54,9 +55,13 @@
     }
   }
 
+  // Pause/mute juga memicu recording://state; daftar hanya berubah saat mulai/berhenti merekam.
+  let lastRecordingStatus = "idle";
+
   const unlisten: UnlistenFn[] = [];
   onMount(async () => {
     await reload();
+    lastRecordingStatus = await api.getRecordingState().then((r) => r.status, () => "idle");
     unlisten.push(
       // Progres real-time tanpa refresh (AC F6.1).
       await events.jobProgress((p) => {
@@ -68,7 +73,11 @@
         }
       }),
       await events.meetingUpdated(() => reload()),
-      await events.recordingState(() => reload()),
+      await events.recordingState((s) => {
+        const wasIdle = lastRecordingStatus === "idle";
+        lastRecordingStatus = s.status;
+        if (wasIdle !== (s.status === "idle")) reload();
+      }),
     );
   });
   onDestroy(() => unlisten.forEach((u) => u()));
@@ -81,11 +90,11 @@
       <RecordButton />
       <a
         href="/settings"
-        class="rounded-lg px-3 py-2.5 text-lg text-gray-700 hover:bg-gray-200"
+        class="rounded-lg p-2.5 text-gray-700 hover:bg-gray-200"
         aria-label={id.home.settings}
         title={id.home.settings}
       >
-        ⚙
+        <Icon name="settings" size={20} />
       </a>
     </div>
   </header>

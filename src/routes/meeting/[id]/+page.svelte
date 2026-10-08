@@ -99,7 +99,8 @@
   }
 
   async function saveTitle() {
-    if (!meeting) return;
+    // Enter lalu blur memanggil ini dua kali; hanya yang pertama menyimpan.
+    if (!meeting || !editing) return;
     const title = titleDraft.trim();
     editing = false;
     if (title === "" || title === meeting.title) return;

@@ -16,6 +16,9 @@ pub const TRAY_ID: &str = "main-tray";
 pub const TRAY_ICON_IDLE: &[u8] = include_bytes!("../icons/tray-idle.png");
 pub const TRAY_ICON_RECORDING: &[u8] = include_bytes!("../icons/tray-recording.png");
 const RECORDER_LABEL: &str = "recorder";
+const RECORDER_WIDTH: f64 = 300.0;
+/// Jarak widget dari tepi layar (logical px).
+const RECORDER_MARGIN: f64 = 16.0;
 
 pub struct TauriBridge {
     app: AppHandle,
@@ -61,24 +64,48 @@ impl TauriBridge {
         }
         let mut b = WebviewWindowBuilder::new(&self.app, RECORDER_LABEL, WebviewUrl::App("recorder".into()))
             .title("Meeting Pake AI - Rekaman")
-            .inner_size(300.0, 64.0)
+            .inner_size(RECORDER_WIDTH, 64.0)
             .resizable(false)
             .decorations(false)
             .always_on_top(true)
             .skip_taskbar(true)
             .focused(false);
-        let saved = settings::recorder_position(&self.db.conn()).ok().flatten();
-        if saved.is_none() {
+        // Posisi tersimpan bisa berada di monitor yang sudah dilepas → pakai pojok kanan atas monitor utama.
+        let saved = settings::recorder_position(&self.db.conn()).ok().flatten().filter(|p| self.on_screen(*p));
+        let pos = saved.or_else(|| self.default_recorder_position());
+        if pos.is_none() {
             b = b.center();
         }
         match b.build() {
             Ok(w) => {
-                if let Some(pos) = saved {
+                if let Some(pos) = pos {
                     let _ = w.set_position(PhysicalPosition::new(pos.x, pos.y));
                 }
             }
             Err(e) => tracing::error!("widget rekaman gagal dibuat: {e}"),
         }
+    }
+
+    /// Pojok kiri-atas widget (+ sedikit ruang untuk diklik) ada di area kerja salah satu monitor.
+    fn on_screen(&self, p: WindowPosition) -> bool {
+        const GRAB: i64 = 40;
+        let Ok(monitors) = self.app.available_monitors() else { return true };
+        monitors.iter().any(|m| {
+            let wa = m.work_area();
+            let (x0, y0) = (i64::from(wa.position.x), i64::from(wa.position.y));
+            let (x1, y1) = (x0 + i64::from(wa.size.width), y0 + i64::from(wa.size.height));
+            let (px, py) = (i64::from(p.x), i64::from(p.y));
+            px + GRAB >= x0 && px + GRAB <= x1 && py >= y0 && py + GRAB <= y1
+        })
+    }
+
+    fn default_recorder_position(&self) -> Option<WindowPosition> {
+        let m = self.app.primary_monitor().ok().flatten()?;
+        let wa = m.work_area();
+        let scale = m.scale_factor();
+        let width = ((RECORDER_WIDTH + RECORDER_MARGIN) * scale) as i32;
+        let margin = (RECORDER_MARGIN * scale) as i32;
+        Some(WindowPosition { x: wa.position.x + wa.size.width as i32 - width, y: wa.position.y + margin })
     }
 
     fn close_recorder(&self) {

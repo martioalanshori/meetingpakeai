@@ -5,6 +5,7 @@
   import { sendNotification } from "@tauri-apps/plugin-notification";
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { api, events } from "$lib/api";
+  import Icon from "$lib/components/Icon.svelte";
   import { formatTimestamp } from "$lib/format";
   import { id } from "$lib/i18n/id";
   import type { AppError, Channel, RecordingState } from "$lib/types";
@@ -163,7 +164,7 @@
       disabled={busy}
       onclick={togglePause}
     >
-      {rs.status === "paused" ? "▶" : "⏸"}
+      <Icon name={rs.status === "paused" ? "play" : "pause"} />
     </button>
     <button
       type="button"
@@ -174,7 +175,7 @@
       disabled={busy}
       onclick={toggleMute}
     >
-      {rs.micMuted ? "🔇" : "🎤"}
+      <Icon name={rs.micMuted ? "mic-off" : "mic"} />
     </button>
     <button
       type="button"
@@ -184,7 +185,7 @@
       disabled={busy}
       onclick={stop}
     >
-      ■
+      <Icon name="stop" size={16} class="text-red-400" />
     </button>
   </div>
 

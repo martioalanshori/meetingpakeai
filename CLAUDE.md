@@ -96,6 +96,9 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Command tambahan `take_pending_consent` | Jendela main yang baru dibuat dari menu tray "Mulai rekam" menanyakan flag ini lalu membuka popup consent. |
 | Contoh uji manual | `src-tauri/examples/record_mic.rs`, `record_both.rs`, `repair_wav.rs`, `record_service.rs`, `groq_probe.rs`, `audio_test.rs`, `e2e.rs` — alat uji, bukan bagian app. |
 | Rute dinamis `meeting/[id]` | `prerender = false` (dilayani lewat fallback SPA `index.html`). |
+| CSP (langkah 17) | `default-src 'self'; connect-src ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' data:`. Hash script inline SvelteKit ditambahkan otomatis oleh Tauri. |
+| Posisi widget (langkah 17) | Posisi tersimpan dipakai hanya jika pojok kiri-atas (+40 px) ada di `work_area` salah satu monitor; selain itu pojok kanan atas monitor utama (margin 16 px). |
+| Ikon UI (langkah 17) | `src/lib/components/Icon.svelte`: path SVG Lucide (ISC) disalin inline, tanpa dependensi npm. |
 
 ## Hasil verifikasi §21
 
