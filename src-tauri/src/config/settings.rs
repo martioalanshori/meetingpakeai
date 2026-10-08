@@ -120,7 +120,9 @@ pub fn load(conn: &Connection) -> AppResult<Settings> {
     Ok(Settings {
         user_display_name: repo_settings::get(conn, KEY_USER_DISPLAY_NAME)?
             .unwrap_or_else(|| DEFAULT_USER_DISPLAY_NAME.to_string()),
-        stt_language: repo_settings::get(conn, KEY_STT_LANGUAGE)?.unwrap_or(SttLanguage::Id),
+        // Bahasa transkrip selalu otomatis (pilihan dihapus atas permintaan pemilik, 2026-10-08);
+        // nilai lama yang tersimpan diabaikan.
+        stt_language: SttLanguage::Auto,
         audio_retention: match repo_settings::get(conn, KEY_AUDIO_RETENTION)? {
             Some(r) => r,
             // Pilihan eksplisit dari versi lama dipertahankan; default baru = 7 hari.
