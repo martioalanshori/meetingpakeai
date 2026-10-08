@@ -43,11 +43,14 @@ function titleLine(m: MeetingDetail, style: MinutesStyle): string {
 export function formatSummaryTab(m: MeetingDetail, style: MinutesStyle): string {
   const out = [titleLine(m, style), dateLine(m, style), ""];
   const s = m.summary;
+  if (s && s.keyPoints.length > 0) out.push(heading(t.detail.keyPoints, style), ...s.keyPoints.map((p) => bullet(style) + p), "");
   out.push(heading(t.detail.summary, style));
   out.push(s?.status === "ok" && s.summary ? s.summary : s?.status === "empty" ? t.summary.noSpeech : "—", "");
   out.push(heading(t.detail.decisions, style));
   if (!s || s.decisions.length === 0) out.push(t.detail.noDecisions);
   else out.push(...s.decisions.map((d) => bullet(style) + d));
+  if (s && s.openQuestions.length > 0)
+    out.push("", heading(t.detail.openQuestions, style), ...s.openQuestions.map((q) => bullet(style) + q));
   if (s && s.topics.length > 0) out.push("", heading(t.detail.topics, style), s.topics.join(", "));
   return out.join("\n").trimEnd() + "\n";
 }
@@ -76,6 +79,7 @@ export function formatMinutes(m: MeetingDetail, style: MinutesStyle, transcript?
   out.push(dateLine(m, style), "");
 
   const s = m.summary;
+  if (s && s.keyPoints.length > 0) out.push(heading(t.detail.keyPoints, style), ...s.keyPoints.map((p) => bullet(style) + p), "");
   out.push(heading(t.detail.summary, style));
   out.push(s?.status === "ok" && s.summary ? s.summary : s?.status === "empty" ? t.summary.noSpeech : "—", "");
 
@@ -83,6 +87,10 @@ export function formatMinutes(m: MeetingDetail, style: MinutesStyle, transcript?
   if (!s || s.decisions.length === 0) out.push(t.detail.noDecisions);
   else out.push(...s.decisions.map((d) => bullet(style) + d));
   out.push("");
+
+  if (s && s.openQuestions.length > 0) {
+    out.push(heading(t.detail.openQuestions, style), ...s.openQuestions.map((q) => bullet(style) + q), "");
+  }
 
   out.push(heading(t.detail.tabActionItems, style));
   if (m.actionItems.length === 0) out.push(t.detail.noActionItems);

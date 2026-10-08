@@ -25,8 +25,12 @@ pub struct Decision {
 #[derive(Debug, Clone, Serialize)]
 pub struct FinalNotes {
     pub judul: String,
+    /// Intisari 3 poin (langkah 50).
+    pub intisari: Vec<String>,
     pub ringkasan: String,
     pub keputusan: Vec<Decision>,
+    /// Belum diputuskan / pertanyaan terbuka (langkah 50).
+    pub pertanyaan_terbuka: Vec<Decision>,
     pub action_items: Vec<ActionItem>,
     pub topik: Vec<String>,
 }
@@ -36,6 +40,7 @@ pub struct FinalNotes {
 pub struct PartialNotes {
     pub ringkasan_bagian: String,
     pub keputusan: Vec<Decision>,
+    pub pertanyaan_terbuka: Vec<Decision>,
     pub action_items: Vec<ActionItem>,
     pub topik: Vec<String>,
 }
@@ -143,8 +148,10 @@ pub fn parse_final(raw: &str) -> Result<FinalNotes, String> {
     let ringkasan = opt_string(v.get("ringkasan")).ok_or("ringkasan kosong")?;
     Ok(FinalNotes {
         judul: truncate_chars(&judul, 100),
+        intisari: string_list(v.get("intisari")).unwrap_or_default().into_iter().take(5).collect(),
         ringkasan,
         keputusan: decisions(v.get("keputusan"))?,
+        pertanyaan_terbuka: decisions(v.get("pertanyaan_terbuka")).unwrap_or_default(),
         action_items: action_items(v.get("action_items"))?,
         topik: string_list(v.get("topik"))?.into_iter().take(8).collect(),
     })
@@ -158,6 +165,7 @@ pub fn parse_partial(raw: &str) -> Result<PartialNotes, String> {
     Ok(PartialNotes {
         ringkasan_bagian,
         keputusan: decisions(v.get("keputusan"))?,
+        pertanyaan_terbuka: decisions(v.get("pertanyaan_terbuka")).unwrap_or_default(),
         action_items: action_items(v.get("action_items"))?,
         topik: string_list(v.get("topik"))?,
     })

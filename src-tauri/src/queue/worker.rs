@@ -741,6 +741,8 @@ impl Worker {
         let (input, model) = {
             let conn = self.db.conn();
             let label_saya = settings::load(&conn)?.user_display_name;
+            let (instruksi, bahasa_meeting) = repo_meetings::summary_prefs(&conn, id)?;
+            let bahasa = bahasa_meeting.unwrap_or_else(|| settings::load(&conn).map(|s| s.notes_language).unwrap_or_default());
             // LLM selalu melihat label default; nama hasil kenali (1:1) disimpan setelahnya.
             let label_peserta = DEFAULT_SYSTEM_LABEL.to_string();
             let segments = repo_segments::list_visible(&conn, id)?;
@@ -766,6 +768,8 @@ impl Worker {
                     ejaan: settings::glossary_terms(&settings::load(&conn)?.stt_glossary),
                     momen: crate::db::repo_bookmarks::list(&conn, id)?.into_iter().map(hhmmss).collect(),
                     catatan: crate::db::repo_notes::get(&conn, id)?,
+                    bahasa: bahasa.clone(),
+                    instruksi: instruksi.clone().unwrap_or_default(),
                 },
                 llm_endpoint.model.clone(),
             )

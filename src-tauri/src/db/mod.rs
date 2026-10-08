@@ -31,6 +31,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/008_follow_up.sql"),
     include_str!("migrations/009_bookmarks.sql"),
     include_str!("migrations/010_notes.sql"),
+    include_str!("migrations/011_summary_extras.sql"),
 ];
 
 pub struct Db {

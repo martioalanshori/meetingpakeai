@@ -191,16 +191,21 @@
     await act(() => api.renameMeeting(meetingId, title), t.toast.titleSaved);
   }
 
-  async function requestRegenerate() {
-    if (meeting?.summary?.edited) {
-      const ok = await confirmDialog({
-        title: t.edit.regenerateTitle,
-        message: t.edit.regenerateConfirm,
-        confirmText: t.edit.regenerateButton,
-      });
-      if (!ok) return;
-    }
-    act(() => api.regenerateSummary(meetingId), t.toast.requeued);
+  // Buat ulang dengan permintaan tambahan & bahasa (feedback3 C4/C5): panel di atas isi tab.
+  let regenOpen = $state(false);
+  let regenInstruction = $state("");
+  let regenLang = $state<"" | "id" | "en" | "auto">("");
+
+  function requestRegenerate() {
+    regenOpen = true;
+    tab = "summary";
+  }
+
+  async function submitRegenerate() {
+    regenOpen = false;
+    const instruction = regenInstruction.trim() || undefined;
+    await act(() => api.regenerateSummary(meetingId, instruction, regenLang || null), t.toast.requeued);
+    regenInstruction = "";
   }
 
   async function requestDelete() {
@@ -491,6 +496,10 @@
       {#if meeting.summary.decisions.length === 0}<p>{t.detail.noDecisions}</p>{:else}
         <ul>{#each meeting.summary.decisions as d, i (i)}<li>{d}</li>{/each}</ul>
       {/if}
+      {#if meeting.summary.openQuestions.length > 0}
+        <h2>{t.detail.openQuestions}</h2>
+        <ul>{#each meeting.summary.openQuestions as q, i (i)}<li>{q}</li>{/each}</ul>
+      {/if}
       <h2>{t.detail.tabActionItems}</h2>
       {#if meeting.actionItems.length === 0}<p>{t.detail.noActionItems}</p>{:else}
         <table>
@@ -700,6 +709,41 @@
     </div>
 
     <div id="detail-panel" role="tabpanel" aria-labelledby={`tab-${tab}`} class="flex flex-col gap-6">
+      {#if regenOpen}
+        <form
+          class="flex flex-col gap-3 rounded-xl border border-line bg-paper/60 p-4"
+          onsubmit={(e) => {
+            e.preventDefault();
+            submitRegenerate();
+          }}
+        >
+          <div class="flex items-center gap-2">
+            <h2 class="flex-1 font-bold">{t.detail.regenTitle}</h2>
+            <button
+              type="button"
+              class="btn btn-quiet btn-icon btn-sm"
+              aria-label={t.common.close}
+              onclick={() => (regenOpen = false)}><Icon name="x" size={16} /></button
+            >
+          </div>
+          <label class="flex flex-col gap-1.5">
+            <span class="label">{t.detail.regenInstruction}</span>
+            <textarea class="field resize-y" rows="2" maxlength="500" placeholder={t.detail.regenPlaceholder} bind:value={regenInstruction}
+            ></textarea>
+          </label>
+          <label class="flex flex-wrap items-center gap-3">
+            <span class="label">{t.detail.regenLanguage}</span>
+            <select class="field w-auto py-1.5" bind:value={regenLang}>
+              <option value="">{t.detail.regenLangDefault}</option>
+              <option value="id">{t.settings.notesLangId}</option>
+              <option value="en">{t.settings.notesLangEn}</option>
+              <option value="auto">{t.settings.notesLangAuto}</option>
+            </select>
+          </label>
+          {#if meeting.summary?.edited}<p class="hint text-warn">{t.detail.regenEdited}</p>{/if}
+          <div><button type="submit" class="btn btn-ink btn-sm"><Icon name="refresh" size={14} />{t.detail.regenStart}</button></div>
+        </form>
+      {/if}
       {#if (tab === "summary" || tab === "actions") && editingSummary && meeting.summary}
         <SummaryEditor {meeting} onsave={saveSummary} oncancel={() => (editingSummary = false)} />
       {:else if tab === "summary" || tab === "actions"}
@@ -722,6 +766,19 @@
             class="flex flex-col gap-8 @min-[60rem]:grid @min-[60rem]:grid-cols-[minmax(0,68ch)_minmax(15rem,22rem)] @min-[60rem]:items-start @min-[60rem]:gap-10"
           >
             <article class="flex max-w-[68ch] flex-col gap-7">
+              {#if meeting.summary.keyPoints.length > 0}
+                <!-- Intisari 3 poin untuk pembaca sibuk (feedback3 C2). -->
+                <div class="flex flex-col gap-2 rounded-xl bg-paper/70 px-4 py-3.5">
+                  <h2 class="section-title">{t.detail.keyPoints}</h2>
+                  <ul class="flex flex-col gap-1.5">
+                    {#each meeting.summary.keyPoints as p, i (i)}
+                      <li class="grid grid-cols-[1.25rem_1fr] text-lg leading-relaxed font-medium">
+                        <span class="tabular text-ink-faint">{i + 1}.</span>{p}
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
               <div class="flex flex-col gap-2">
                 <h2 class="section-title">{t.detail.summary}</h2>
                 <p class="text-lg leading-[1.75] whitespace-pre-line">{meeting.summary.summary}</p>
@@ -741,6 +798,19 @@
                   </ul>
                 {/if}
               </div>
+              {#if meeting.summary.openQuestions.length > 0}
+                <div class="flex flex-col gap-2">
+                  <h2 class="section-title">{t.detail.openQuestions}</h2>
+                  <ul class="flex flex-col gap-2">
+                    {#each meeting.summary.openQuestions as q, i (i)}
+                      <li class="grid grid-cols-[1rem_1fr] text-lg leading-relaxed">
+                        <span class="mt-[0.55em] text-warn" aria-hidden="true">?</span>
+                        <span>{q}{@render sourceChip(meeting.summary.openQuestionSources[i])}</span>
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
               <details class="group flex flex-col gap-2" open={notesOpen}>
                 <summary class="section-title flex cursor-pointer list-none items-center gap-1.5">
                   <Icon name="pencil" size={15} />{t.detail.myNotes}

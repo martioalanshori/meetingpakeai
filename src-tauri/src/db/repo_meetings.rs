@@ -176,6 +176,23 @@ pub fn recent_assignees(conn: &Connection, since: i64, limit: i64) -> AppResult<
     Ok(rows)
 }
 
+/// Instruksi & bahasa buat ulang ringkasan per meeting (langkah 50).
+pub fn summary_prefs(conn: &Connection, id: &str) -> AppResult<(Option<String>, Option<String>)> {
+    Ok(conn.query_row(
+        "SELECT summary_instruction, summary_language FROM meetings WHERE id = ?1",
+        [id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?)
+}
+
+pub fn set_summary_prefs(conn: &Connection, id: &str, instruction: Option<&str>, language: Option<&str>) -> AppResult<()> {
+    conn.execute(
+        "UPDATE meetings SET summary_instruction = ?2, summary_language = ?3 WHERE id = ?1",
+        params![id, instruction, language],
+    )?;
+    Ok(())
+}
+
 /// Judul dari pengguna: set `title_edited = 1`.
 pub fn rename(conn: &Connection, id: &str, title: &str) -> AppResult<()> {
     let n = conn.execute(

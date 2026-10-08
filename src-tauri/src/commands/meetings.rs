@@ -413,13 +413,22 @@ pub async fn retry_job(state: State<'_, AppState>, id: String) -> AppResult<()> 
 
 /// Hanya jika `done` atau `failed` di `summarizing`.
 #[tauri::command]
-pub async fn regenerate_summary(state: State<'_, AppState>, id: String) -> AppResult<()> {
+pub async fn regenerate_summary(
+    state: State<'_, AppState>,
+    id: String,
+    instruction: Option<String>,
+    language: Option<String>,
+) -> AppResult<()> {
     let m = repo_meetings::get(&state.db.conn(), &id)?;
     let allowed = m.status == MeetingStatus::Done
         || (m.status == MeetingStatus::Failed && m.failed_step.as_deref() == Some("summarizing"));
     if !allowed {
         return Err(AppError::new(ErrorCode::InvalidState));
     }
+    // Langkah 50 (feedback3 C4/C5): instruksi & bahasa disimpan per meeting dan dipakai worker.
+    let instruction = instruction.map(|s| s.trim().chars().take(500).collect::<String>()).filter(|s| !s.is_empty());
+    let language = language.filter(|l| matches!(l.as_str(), "id" | "en" | "auto"));
+    repo_meetings::set_summary_prefs(&state.db.conn(), &id, instruction.as_deref(), language.as_deref())?;
     requeue(&state, &id, MeetingStatus::Summarizing)
 }
 
@@ -448,6 +457,12 @@ pub async fn generate_follow_up(
         notulen.push_str("Keputusan:\n");
         for d in &summary.decisions {
             notulen.push_str(&format!("- {d}\n"));
+        }
+        if !summary.open_questions.is_empty() {
+            notulen.push_str("Belum diputuskan:\n");
+            for q in &summary.open_questions {
+                notulen.push_str(&format!("- {q}\n"));
+            }
         }
         notulen.push_str("Tugas:\n");
         for a in &items {

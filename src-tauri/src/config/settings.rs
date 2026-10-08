@@ -22,6 +22,7 @@ pub const KEY_MEETING_DETECTION: &str = "meeting_detection";
 pub const KEY_STT_GLOSSARY: &str = "stt_glossary";
 pub const KEY_BOOKMARK_SHORTCUT: &str = "bookmark_shortcut";
 pub const KEY_AUTO_RECORD: &str = "auto_record";
+pub const KEY_NOTES_LANGUAGE: &str = "notes_language";
 pub const DEFAULT_BOOKMARK_SHORTCUT: &str = "Ctrl+Alt+B";
 /// Batas glosarium (= batas prompt STT).
 pub const GLOSSARY_MAX_CHARS: usize = 800;
@@ -77,6 +78,8 @@ pub struct Settings {
     pub bookmark_shortcut: String,
     /// Rekam otomatis (hitung mundur 10 dtk) saat Zoom/Teams/Google Meet terdeteksi; default mati.
     pub auto_record: bool,
+    /// Bahasa notulen: `id` (default) / `en` / `auto` (ikuti bahasa meeting), langkah 50.
+    pub notes_language: String,
 }
 
 /// `Partial<Settings>` dari `update_settings`.
@@ -93,6 +96,7 @@ pub struct SettingsPatch {
     pub stt_glossary: Option<String>,
     pub bookmark_shortcut: Option<String>,
     pub auto_record: Option<bool>,
+    pub notes_language: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -124,6 +128,7 @@ pub fn load(conn: &Connection) -> AppResult<Settings> {
         bookmark_shortcut: repo_settings::get(conn, KEY_BOOKMARK_SHORTCUT)?
             .unwrap_or_else(|| DEFAULT_BOOKMARK_SHORTCUT.to_string()),
         auto_record: repo_settings::get(conn, KEY_AUTO_RECORD)?.unwrap_or(false),
+        notes_language: repo_settings::get(conn, KEY_NOTES_LANGUAGE)?.unwrap_or_else(|| "id".to_string()),
     })
 }
 
@@ -152,6 +157,10 @@ pub fn apply_patch(conn: &Connection, patch: SettingsPatch) -> AppResult<Setting
     }
     if let Some(v) = patch.meeting_detection {
         repo_settings::set(conn, KEY_MEETING_DETECTION, &v)?;
+    }
+    if let Some(v) = patch.notes_language {
+        let v = if matches!(v.as_str(), "id" | "en" | "auto") { v } else { "id".to_string() };
+        repo_settings::set(conn, KEY_NOTES_LANGUAGE, &v)?;
     }
     if let Some(v) = patch.auto_record {
         repo_settings::set(conn, KEY_AUTO_RECORD, &v)?;

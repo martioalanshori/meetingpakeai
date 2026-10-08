@@ -77,6 +77,11 @@ export type MeetingSummary = {
   decisions: string[];
   /** Sejajar `decisions`. */
   decisionSources: (number | null)[];
+  /** Intisari 3 poin. */
+  keyPoints: string[];
+  /** Belum diputuskan / pertanyaan terbuka + sumber waktu (sejajar). */
+  openQuestions: string[];
+  openQuestionSources: (number | null)[];
   /** Draf pesan tindak lanjut; null = belum dibuat. */
   followUp: FollowUp | null;
   topics: string[];
@@ -130,6 +135,8 @@ export type Settings = {
   bookmarkShortcut: string;
   /** Rekam otomatis (hitung mundur) saat Zoom/Teams/Google Meet terdeteksi. */
   autoRecord: boolean;
+  /** Bahasa notulen: Indonesia / Inggris / ikuti bahasa meeting. */
+  notesLanguage: "id" | "en" | "auto";
 };
 
 export type UpdateInfo = { version: string; notes: string | null };

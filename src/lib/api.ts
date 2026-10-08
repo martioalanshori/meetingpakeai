@@ -88,7 +88,8 @@ export const api = {
   saveExport: (fileName: string, contents: string) => call<boolean>("save_export", { fileName, contents }),
   updateSummary: (id: string, edit: SummaryEdit) => call<void>("update_summary", { id, edit }),
   retryJob: (id: string) => call<void>("retry_job", { id }),
-  regenerateSummary: (id: string) => call<void>("regenerate_summary", { id }),
+  regenerateSummary: (id: string, instruction?: string, language?: "id" | "en" | "auto" | null) =>
+    call<void>("regenerate_summary", { id, instruction: instruction ?? null, language: language ?? null }),
   importRecording: (path?: string) => call<string | null>("import_recording", { path: path ?? null }),
   summarizeSoFar: (id: string) => call<string[]>("summarize_so_far", { id }),
   getNotes: (id: string) => call<string>("get_notes", { id }),

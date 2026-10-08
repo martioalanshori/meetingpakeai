@@ -15,6 +15,11 @@ pub struct SummaryView {
     pub decisions: Vec<String>,
     /// Sejajar `decisions`: ms dari awal meeting tempat keputusan dibahas (langkah 42).
     pub decision_sources: Vec<Option<i64>>,
+    /// Intisari 3 poin (langkah 50).
+    pub key_points: Vec<String>,
+    /// Belum diputuskan / pertanyaan terbuka + sumber waktunya (langkah 50).
+    pub open_questions: Vec<String>,
+    pub open_question_sources: Vec<Option<i64>>,
     pub topics: Vec<String>,
     /// Sudah diubah pengguna (langkah 23).
     pub edited: bool,
@@ -98,9 +103,13 @@ pub fn save(
             let texts: Vec<&str> = n.keputusan.iter().map(|d| d.teks.as_str()).collect();
             let sources: Vec<Option<i64>> =
                 n.keputusan.iter().map(|d| source_ms(d.sumber.as_deref(), duration_ms)).collect();
+            let open: Vec<&str> = n.pertanyaan_terbuka.iter().map(|d| d.teks.as_str()).collect();
+            let open_sources: Vec<Option<i64>> =
+                n.pertanyaan_terbuka.iter().map(|d| source_ms(d.sumber.as_deref(), duration_ms)).collect();
             tx.execute(
-                "INSERT INTO summaries (meeting_id, status, summary, decisions, decision_sources, topics, model, created_at)
-                 VALUES (?1, 'ok', ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO summaries (meeting_id, status, summary, decisions, decision_sources, topics, model, created_at,
+                                        key_points, open_questions, open_question_sources)
+                 VALUES (?1, 'ok', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 params![
                     meeting_id,
                     n.ringkasan,
@@ -108,7 +117,10 @@ pub fn save(
                     serde_json::to_string(&sources)?,
                     serde_json::to_string(&n.topik)?,
                     model,
-                    now_ms()
+                    now_ms(),
+                    serde_json::to_string(&n.intisari)?,
+                    serde_json::to_string(&open)?,
+                    serde_json::to_string(&open_sources)?
                 ],
             )?;
             let mut stmt = tx.prepare(
@@ -127,7 +139,9 @@ pub fn save(
 pub fn get(conn: &Connection, meeting_id: &str) -> AppResult<Option<SummaryView>> {
     let row = conn
         .query_row(
-            "SELECT status, summary, decisions, topics, edited, decision_sources, follow_up FROM summaries WHERE meeting_id = ?1",
+            "SELECT status, summary, decisions, topics, edited, decision_sources, follow_up, key_points, open_questions,
+                    open_question_sources
+             FROM summaries WHERE meeting_id = ?1",
             [meeting_id],
             |r| {
                 Ok((
@@ -138,15 +152,22 @@ pub fn get(conn: &Connection, meeting_id: &str) -> AppResult<Option<SummaryView>
                     r.get::<_, bool>(4)?,
                     r.get::<_, String>(5)?,
                     r.get::<_, Option<String>>(6)?,
+                    (r.get::<_, String>(7)?, r.get::<_, String>(8)?, r.get::<_, String>(9)?),
                 ))
             },
         )
         .optional()?;
-    Ok(row.map(|(status, summary, decisions, topics, edited, sources, follow_up)| {
+    Ok(row.map(|(status, summary, decisions, topics, edited, sources, follow_up, (key_points, open, open_src))| {
         let decisions: Vec<String> = serde_json::from_str(&decisions).unwrap_or_default();
         let mut decision_sources: Vec<Option<i64>> = serde_json::from_str(&sources).unwrap_or_default();
         decision_sources.resize(decisions.len(), None);
+        let open_questions: Vec<String> = serde_json::from_str(&open).unwrap_or_default();
+        let mut open_question_sources: Vec<Option<i64>> = serde_json::from_str(&open_src).unwrap_or_default();
+        open_question_sources.resize(open_questions.len(), None);
         SummaryView {
+            key_points: serde_json::from_str(&key_points).unwrap_or_default(),
+            open_questions,
+            open_question_sources,
             status,
             summary,
             decisions,

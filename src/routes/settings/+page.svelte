@@ -190,6 +190,19 @@
         />
       </div>
       <div class="flex flex-col gap-2.5 py-5">
+        <span class="label">{t.notesLanguage}</span>
+        <ChoiceCards
+          name="notes-lang"
+          value={form.notesLanguage}
+          options={[
+            { value: "id", label: t.notesLangId, hint: t.notesLangIdHint },
+            { value: "en", label: t.notesLangEn, hint: t.notesLangEnHint },
+            { value: "auto", label: t.notesLangAuto, hint: t.notesLangAutoHint },
+          ]}
+          onchange={(v) => patch({ notesLanguage: v })}
+        />
+      </div>
+      <div class="flex flex-col gap-2.5 py-5">
         <span class="label">{t.retention}</span>
         <ChoiceCards
           name="retention"
