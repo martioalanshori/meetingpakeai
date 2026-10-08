@@ -77,12 +77,14 @@ export type HomeOverview = {
   attentionCount: number;
   attentionId: string | null;
   queuePaused: boolean;
-  recent: { id: string; title: string; startedAt: number; line: string | null }[];
+  recent: { id: string; title: string; startedAt: number; line: string | null; lineKind: "decision" | "summary" | null }[];
   urgentTasks: TaskItem[];
   openTasks: number;
   hasMeetings: boolean;
   meetingDetection: boolean;
   autostart: boolean;
+  /** Contoh pertanyaan dari meeting pengguna sendiri. */
+  suggestions: string[];
 };
 
 export type AskAllResult = {

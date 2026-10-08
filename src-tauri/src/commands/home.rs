@@ -15,8 +15,10 @@ pub struct HomeMeeting {
     pub id: String,
     pub title: String,
     pub started_at: i64,
-    /// Satu kalimat inti: poin intisari pertama, atau kalimat pertama ringkasan.
+    /// Satu kalimat inti: keputusan pertama, poin intisari pertama, atau kalimat pertama ringkasan.
     pub line: Option<String>,
+    /// `decision` | `summary` — awalan yang ditampilkan ("Diputuskan:" / "Ringkasan:").
+    pub line_kind: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -45,6 +47,8 @@ pub struct HomeOverview {
     pub has_meetings: bool,
     pub meeting_detection: bool,
     pub autostart: bool,
+    /// 2–3 contoh pertanyaan dari meeting pengguna sendiri (evaluasi Beranda P2).
+    pub suggestions: Vec<String>,
 }
 
 fn first_sentence(text: &str) -> String {
@@ -78,15 +82,27 @@ pub async fn home_overview(state: State<'_, AppState>) -> AppResult<HomeOverview
         .collect();
 
     let mut recent = Vec::new();
+    let mut topics: Vec<String> = Vec::new();
     for m in recent_rows.iter().filter(|m| m.status == MeetingStatus::Done).take(3) {
-        let line = repo_summary::get(&conn, &m.id)?.and_then(|sum| {
-            sum.key_points
-                .first()
-                .cloned()
-                .or_else(|| sum.summary.as_deref().map(first_sentence))
-                .filter(|l| !l.is_empty())
+        let sum = repo_summary::get(&conn, &m.id)?;
+        let (line, kind) = match &sum {
+            Some(s) if !s.decisions.is_empty() => (Some(s.decisions[0].clone()), Some("decision")),
+            Some(s) => (
+                s.key_points.first().cloned().or_else(|| s.summary.as_deref().map(first_sentence)).filter(|l| !l.is_empty()),
+                Some("summary"),
+            ),
+            None => (None, None),
+        };
+        if let Some(s) = &sum {
+            topics.extend(s.topics.iter().take(2).cloned());
+        }
+        recent.push(HomeMeeting {
+            id: m.id.clone(),
+            title: m.title.clone(),
+            started_at: m.started_at,
+            line_kind: line.as_ref().and(kind).map(str::to_string),
+            line,
         });
-        recent.push(HomeMeeting { id: m.id.clone(), title: m.title.clone(), started_at: m.started_at, line });
     }
 
     let open: Vec<TaskView> = repo_summary::all_action_items(&conn)?.into_iter().filter(|t| !t.done).collect();
@@ -104,6 +120,22 @@ pub async fn home_overview(state: State<'_, AppState>) -> AppResult<HomeOverview
         }
     }
 
+    // Contoh pertanyaan dari isi meeting pengguna sendiri: keputusan meeting terakhir, satu topik, satu tugas.
+    let short = |s: &str, n: usize| -> String {
+        let t: String = s.chars().take(n).collect();
+        if s.chars().count() > n { format!("{}…", t.trim_end()) } else { t }
+    };
+    let mut suggestions: Vec<String> = Vec::new();
+    if let Some(m) = recent.first() {
+        suggestions.push(format!("Apa keputusan di {}?", short(&m.title, 40)));
+    }
+    if let Some(topic) = topics.first() {
+        suggestions.push(format!("Apa saja yang dibahas soal {}?", short(&topic.to_lowercase(), 40)));
+    }
+    if let Some(task) = urgent.first() {
+        suggestions.push(format!("Kenapa perlu {}?", short(&task.task.to_lowercase(), 48)));
+    }
+
     Ok(HomeOverview {
         processing,
         attention_count: attention.len() as i64,
@@ -115,5 +147,6 @@ pub async fn home_overview(state: State<'_, AppState>) -> AppResult<HomeOverview
         has_meetings,
         meeting_detection: s.meeting_detection,
         autostart: s.autostart,
+        suggestions,
     })
 }

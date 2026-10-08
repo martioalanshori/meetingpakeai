@@ -1,33 +1,39 @@
 <script lang="ts">
-  // Beranda (PLAN-beranda.md): tampilan pertama, sengaja sederhana — tanya, status, notulen terbaru, tugas mendesak.
+  // Beranda (PLAN-beranda.md + PLAN-evaluasi-beranda.md): satu hal yang menonjol — kolom Tanya; sisanya tenang.
+  // Dua kelompok: "sekarang" (sapaan, Tanya, status) lalu "sebelumnya" (notulen terbaru, tugas mendesak).
   import { onDestroy, onMount } from "svelte";
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { goto } from "$app/navigation";
   import { api, events } from "$lib/api";
+  import { lastAsk } from "$lib/ask.svelte";
   import Icon from "$lib/components/Icon.svelte";
-  import { formatDateTime, formatTimestamp } from "$lib/format";
+  import { formatDateTime, formatTime, formatTimestamp } from "$lib/format";
   import { id } from "$lib/i18n/id";
   import { rec } from "$lib/recording.svelte";
   import { showToast } from "$lib/toast.svelte";
-  import type { AppError, AskAllResult, HomeOverview, TaskItem } from "$lib/types";
+  import type { AppError, HomeOverview, TaskItem } from "$lib/types";
 
   const t = id.beranda;
+  /** Tugas yang baru dicentang tetap tampil (tercoret) selama ini agar bisa diurungkan. */
+  const UNDO_MS = 4000;
 
   let data = $state<HomeOverview | null>(null);
   let name = $state("");
   let question = $state("");
-  let asked = $state("");
-  let answer = $state<AskAllResult | null>(null);
   let asking = $state(false);
   let importing = $state(false);
+  let input = $state<HTMLInputElement | null>(null);
+  /** id tugas → timer simpan "selesai" (urungkan membatalkan timer). */
+  let pendingDone = $state<Record<number, ReturnType<typeof setTimeout>>>({});
 
   const greeting = $derived.by(() => {
     const h = new Date().getHours();
-    const part = h < 11 ? t.morning : h < 15 ? t.noon : h < 19 ? t.afternoon : t.evening;
+    const part = h < 11 ? t.morning : h < 15 ? t.noon : h < 18 ? t.afternoon : t.evening;
     return name && name !== "Saya" ? `${part}, ${name}` : part;
   });
 
   const recording = $derived(rec.state.status === "recording" || rec.state.status === "paused");
+  const suggestions = $derived(data && data.suggestions.length > 0 ? data.suggestions : t.genericSuggestions);
 
   async function load() {
     try {
@@ -37,14 +43,15 @@
     }
   }
 
-  async function ask() {
-    const q = question.trim();
-    if (!q || asking) return;
+  async function ask(q = question) {
+    const text = q.trim();
+    if (!text || asking) return;
+    question = text;
     asking = true;
-    asked = q;
-    answer = null;
+    lastAsk.question = text;
+    lastAsk.answer = null;
     try {
-      answer = await api.askAllMeetings(q);
+      lastAsk.answer = await api.askAllMeetings(text);
     } catch (e) {
       showToast((e as AppError).message, "error");
     } finally {
@@ -52,13 +59,30 @@
     }
   }
 
-  async function toggleTask(task: TaskItem) {
-    try {
-      await api.setActionItemDone(task.id, task.done);
+  function closeAnswer() {
+    lastAsk.question = "";
+    lastAsk.answer = null;
+    question = "";
+    input?.focus();
+  }
+
+  /** Centang: tercoret dulu dengan tombol Urungkan, baru disimpan setelah 4 dtk. */
+  function checkTask(task: TaskItem) {
+    if (pendingDone[task.id]) return;
+    pendingDone[task.id] = setTimeout(async () => {
+      delete pendingDone[task.id];
+      try {
+        await api.setActionItemDone(task.id, true);
+      } catch (e) {
+        showToast((e as AppError).message, "error");
+      }
       await load();
-    } catch (e) {
-      showToast((e as AppError).message, "error");
-    }
+    }, UNDO_MS);
+  }
+
+  function undoTask(task: TaskItem) {
+    clearTimeout(pendingDone[task.id]);
+    delete pendingDone[task.id];
   }
 
   async function enableAutostart() {
@@ -99,16 +123,15 @@
     return { text: new Date(y, m - 1, d).toLocaleDateString("id-ID", { day: "numeric", month: "short" }), tone: null };
   }
 
-  /** "Sel 14.00" untuk 6 hari terakhir, selain itu tanggal lengkap. */
+  /** "Sel 14.00" untuk 6 hari terakhir, selain itu tanggal lengkap (jam dari `formatTime`). */
   function when(ms: number): string {
-    const d = new Date(ms);
-    const time = `${String(d.getHours()).padStart(2, "0")}.${String(d.getMinutes()).padStart(2, "0")}`;
-    if ((Date.now() - ms) / 86_400_000 < 6) return `${d.toLocaleDateString("id-ID", { weekday: "short" })} ${time}`;
+    if ((Date.now() - ms) / 86_400_000 < 6) return `${new Date(ms).toLocaleDateString("id-ID", { weekday: "short" })} ${formatTime(ms)}`;
     return formatDateTime(ms);
   }
 
   const unlisten: UnlistenFn[] = [];
   onMount(async () => {
+    question = lastAsk.question;
     name = await api.getSettings().then((s) => s.userDisplayName, () => "");
     await load();
     unlisten.push(
@@ -124,119 +147,140 @@
       }),
     );
   });
-  onDestroy(() => unlisten.forEach((u) => u()));
+  onDestroy(() => {
+    unlisten.forEach((u) => u());
+    // Centang yang belum tersimpan tetap disimpan saat meninggalkan Beranda.
+    for (const [taskId, timer] of Object.entries(pendingDone)) {
+      clearTimeout(timer);
+      api.setActionItemDone(Number(taskId), true).catch(() => {});
+    }
+  });
 </script>
 
-<main class="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 pt-10 pb-16">
-  <header class="flex flex-col gap-1">
-    <h1 class="text-2xl font-bold tracking-[-0.02em]">{greeting}</h1>
-    {#if data}
-      {#if !data.meetingDetection}
-        <p class="text-sm text-warn">{t.detectionOff}&ensp;<a href="/settings" class="link">{t.openSettings}</a></p>
-      {:else if !data.autostart}
-        <p class="text-sm text-ink-soft">
-          {t.readyNoAutostart}&ensp;<button type="button" class="link" onclick={enableAutostart}>{t.enableAutostart}</button>
-        </p>
-      {:else}
-        <p class="flex items-center gap-1.5 text-sm text-ink-soft">
-          <span class="h-1.5 w-1.5 rounded-full bg-ok" aria-hidden="true"></span>{t.ready}
-        </p>
-      {/if}
-    {/if}
-  </header>
+<main class="mx-auto flex w-full max-w-2xl flex-col px-6 pt-12 pb-16">
+  <h1 class="sr-only">{t.title}</h1>
 
-  <!-- Tanya semua meeting. -->
+  <!-- Sekarang: sapaan → Tanya → status. -->
   <section class="flex flex-col gap-3" aria-label={t.askLabel}>
+    <p class="text-ink-soft">{greeting}</p>
+
     <form
-      class="flex items-center gap-2 rounded-2xl border border-line bg-sheet p-1.5 pl-4 shadow-[0_8px_24px_-16px_rgb(30_36_51/0.35)] focus-within:border-ink-faint"
+      class="flex items-center gap-3 rounded-2xl border-2 border-line bg-sheet py-2 pr-2 pl-5 transition-colors focus-within:border-ink-strong"
       onsubmit={(e) => {
         e.preventDefault();
         ask();
       }}
     >
-      <Icon name="search" size={18} class="shrink-0 text-ink-faint" />
       <input
-        class="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
+        bind:this={input}
+        class="min-w-0 flex-1 bg-transparent py-2.5 text-xl font-medium tracking-[-0.01em] outline-none placeholder:font-normal placeholder:text-ink-faint"
         placeholder={t.askPlaceholder}
         aria-label={t.askLabel}
         maxlength="500"
         bind:value={question}
       />
-      <button type="submit" class="btn btn-ink btn-icon" disabled={asking || question.trim() === ""} aria-label={t.ask} title={t.ask}>
-        <Icon name="send" size={16} />
+      <button type="submit" class="btn btn-ink btn-icon h-11 w-11" disabled={asking || question.trim() === ""} aria-label={t.ask} title={t.ask}>
+        <Icon name="send" size={18} />
       </button>
     </form>
+
     {#if asking}
-      <p class="hint motion-safe:animate-pulse" role="status">{t.asking}</p>
-    {:else if answer && asked}
-      <div class="flex flex-col gap-2 px-1" role="status">
-        <p class="leading-relaxed whitespace-pre-line">{answer.answer}</p>
-        {#if answer.refs.length > 0}
-          <ul class="flex flex-col gap-0.5">
-            {#each answer.refs as r, i (i)}
+      <p class="px-1 text-ink-soft" role="status">{t.asking}</p>
+    {:else if lastAsk.answer && lastAsk.question}
+      <div class="flex flex-col gap-2.5 px-1" role="status">
+        <div class="flex items-start gap-2">
+          <p class="flex-1 text-lg leading-relaxed whitespace-pre-line">{lastAsk.answer.answer}</p>
+          <button type="button" class="btn btn-quiet btn-icon btn-sm shrink-0" aria-label={t.closeAnswer} title={t.closeAnswer} onclick={closeAnswer}>
+            <Icon name="x" size={16} />
+          </button>
+        </div>
+        {#if lastAsk.answer.refs.length > 0}
+          <ul class="flex flex-wrap gap-1.5">
+            {#each lastAsk.answer.refs as r, i (i)}
               <li>
-                <a class="link text-sm" href={`/meeting/${r.meetingId}${r.atMs !== null ? `?tab=transcript&at=${r.atMs}` : ""}`}>
-                  {r.title}<span class="tabular text-ink-faint">&ensp;{when(r.startedAt)}{#if r.atMs !== null}&ensp;{formatTimestamp(r.atMs)}{/if}</span>
+                <a
+                  href={`/meeting/${r.meetingId}${r.atMs !== null ? `?tab=transcript&at=${r.atMs}` : ""}`}
+                  class="inline-flex items-center gap-1.5 rounded-md bg-wash px-2 py-1 text-sm hover:bg-line-soft"
+                >
+                  {#if r.atMs !== null}<Icon name="play" size={10} class="text-ink-soft" />{/if}
+                  <span class="max-w-56 truncate">{r.title}</span>
+                  <span class="tabular text-ink-faint">{r.atMs !== null ? formatTimestamp(r.atMs) : when(r.startedAt)}</span>
                 </a>
               </li>
             {/each}
           </ul>
         {/if}
       </div>
+    {:else if data}
+      <!-- Contoh pertanyaan dari meeting pengguna sendiri. -->
+      <div class="flex flex-wrap items-center gap-x-1 gap-y-1.5 px-1 text-sm">
+        <span class="mr-1 text-ink-faint">{t.tryAsking}</span>
+        {#each suggestions as s (s)}
+          <button type="button" class="rounded-full px-2.5 py-1 text-ink-soft hover:bg-wash hover:text-ink" onclick={() => ask(s)}>{s}</button>
+        {/each}
+      </div>
+    {/if}
+
+    <!-- Status: satu kalimat dengan penanda kecil; hanya titik rekam yang bergerak. -->
+    {#if data}
+      <div class="mt-2 px-1 text-sm">
+        {#if recording}
+          <a href={rec.state.meetingId ? `/meeting/${rec.state.meetingId}?tab=transcript` : "/meetings"} class="group flex items-center gap-2">
+            <span class="h-2 w-2 shrink-0 rounded-full bg-rec motion-safe:animate-pulse" aria-hidden="true"></span>
+            <span class="font-semibold">{rec.state.status === "paused" ? t.paused : t.recording}</span>
+            <span class="text-ink-soft group-hover:underline">{t.viewTranscript}</span>
+          </a>
+        {:else if data.processing}
+          {@const p = data.processing}
+          <a href={`/meeting/${p.id}`} class="group flex items-center gap-2">
+            <Icon name="refresh" size={14} class="shrink-0 text-ink-soft" />
+            <span class="min-w-0 truncate group-hover:underline">{t.processing(p.title)}</span>
+            {#if p.progressTotal > 0}<span class="tabular text-ink-faint">{Math.round((p.progressDone / p.progressTotal) * 100)}%</span>{/if}
+          </a>
+        {:else if data.queuePaused}
+          <a href="/settings?tab=ai" class="block border-l-2 border-bad pl-3 font-medium text-bad hover:underline">{t.queuePaused}</a>
+        {:else if data.attentionCount > 0 && data.attentionId}
+          <a href={`/meeting/${data.attentionId}`} class="block border-l-2 border-warn pl-3 font-medium text-warn hover:underline">
+            {t.attention(data.attentionCount)}
+          </a>
+        {:else if !data.meetingDetection}
+          <p class="text-warn">{t.detectionOff}&ensp;<a href="/settings" class="link">{t.openSettings}</a></p>
+        {:else if !data.autostart}
+          <p class="text-ink-soft">
+            {t.readyNoAutostart}&ensp;<button type="button" class="link" onclick={enableAutostart}>{t.enableAutostart}</button>
+          </p>
+        {:else}
+          <p class="flex items-center gap-2 text-ink-soft">
+            <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" aria-hidden="true"></span>{t.ready}
+          </p>
+        {/if}
+      </div>
     {/if}
   </section>
 
+  <!-- Sebelumnya: notulen terbaru → tugas mendesak (jarak besar memisahkan dari "sekarang"). -->
   {#if !data}
-    <div class="flex flex-col gap-3 motion-safe:animate-pulse" aria-hidden="true">
+    <div class="mt-14 flex flex-col gap-3 motion-safe:animate-pulse" aria-hidden="true">
       <div class="h-4 w-40 rounded bg-line-soft"></div>
       <div class="h-12 rounded-lg bg-line-soft"></div>
       <div class="h-12 rounded-lg bg-line-soft"></div>
     </div>
+  {:else if !data.hasMeetings}
+    <section class="mt-14 flex flex-col gap-3 border-t border-line pt-8">
+      <h2 class="section-title">{t.newTitle}</h2>
+      <p class="max-w-prose text-ink-soft">{t.newRecord}</p>
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="text-ink-soft">{t.newImport}</span>
+        <button type="button" class="btn btn-line btn-sm" disabled={importing} onclick={importFile}>
+          <Icon name="download" size={14} />{importing ? id.home.importing : id.home.importButton}
+        </button>
+      </div>
+    </section>
   {:else}
-    <!-- Satu baris status, hanya jika ada. -->
-    {#if recording}
-      <a
-        href={rec.state.meetingId ? `/meeting/${rec.state.meetingId}?tab=transcript` : "/meetings"}
-        class="flex items-center gap-2.5 rounded-xl bg-wash px-4 py-3 hover:bg-line-soft"
-      >
-        <span class="h-2.5 w-2.5 rounded-full bg-rec motion-safe:animate-pulse" aria-hidden="true"></span>
-        <span class="flex-1 font-medium">{rec.state.status === "paused" ? t.paused : t.recording}</span>
-        <span class="text-sm text-ink-soft">{t.viewTranscript}</span>
-      </a>
-    {:else if data.processing}
-      {@const p = data.processing}
-      <a href={`/meeting/${p.id}`} class="flex items-center gap-2.5 rounded-xl bg-wash px-4 py-3 hover:bg-line-soft">
-        <Icon name="refresh" size={16} class="shrink-0 text-ink-soft motion-safe:animate-spin" />
-        <span class="min-w-0 flex-1 truncate">{t.processing(p.title)}</span>
-        {#if p.progressTotal > 0}<span class="tabular text-sm text-ink-soft">{Math.round((p.progressDone / p.progressTotal) * 100)}%</span>{/if}
-      </a>
-    {:else if data.queuePaused}
-      <a href="/settings?tab=ai" class="flex items-center gap-2.5 rounded-xl bg-bad-wash px-4 py-3 text-bad">
-        <Icon name="alert-circle" size={16} class="shrink-0" /><span class="flex-1 font-medium">{t.queuePaused}</span>
-      </a>
-    {:else if data.attentionCount > 0 && data.attentionId}
-      <a href={`/meeting/${data.attentionId}`} class="flex items-center gap-2.5 rounded-xl bg-warn-wash px-4 py-3 text-warn">
-        <Icon name="alert-circle" size={16} class="shrink-0" /><span class="flex-1 font-medium">{t.attention(data.attentionCount)}</span>
-        <span class="text-sm">{t.view}</span>
-      </a>
-    {/if}
-
-    {#if !data.hasMeetings}
-      <!-- Pengguna baru. -->
-      <section class="flex flex-col gap-3 rounded-xl border border-dashed border-line px-5 py-6">
-        <p class="font-semibold">{t.newTitle}</p>
-        <p class="text-ink-soft">{t.newRecord}</p>
-        <div class="flex flex-wrap items-center gap-3">
-          <span class="text-ink-soft">{t.newImport}</span>
-          <button type="button" class="btn btn-line btn-sm" disabled={importing} onclick={importFile}>
-            <Icon name="download" size={14} />{importing ? id.home.importing : id.home.importButton}
-          </button>
-        </div>
-      </section>
-    {:else}
+    <div class="mt-14 flex flex-col gap-10 border-t border-line pt-8">
       {#if data.recent.length > 0}
-        <section class="flex flex-col gap-1" aria-labelledby="recent-title">
-          <h2 id="recent-title" class="section-title mb-1">{t.recent}</h2>
+        <section class="flex flex-col" aria-labelledby="recent-title">
+          <h2 id="recent-title" class="section-title mb-2">{t.recent}</h2>
           <ul class="flex flex-col">
             {#each data.recent as m (m.id)}
               <li>
@@ -245,31 +289,40 @@
                     <span class="min-w-0 flex-1 truncate font-semibold">{m.title}</span>
                     <span class="tabular shrink-0 text-sm text-ink-faint">{when(m.startedAt)}</span>
                   </span>
-                  {#if m.line}<span class="line-clamp-2 text-ink-soft">{m.line}</span>{/if}
+                  {#if m.line}
+                    <span class="line-clamp-2 text-ink-soft">
+                      <span class="text-ink-faint">{m.lineKind === "decision" ? t.decided : t.summaryPrefix}</span>
+                      {m.line}
+                    </span>
+                  {/if}
                 </a>
               </li>
             {/each}
           </ul>
-          <a href="/meetings" class="link mt-1 self-start text-sm">{t.allMeetings}</a>
+          <a href="/meetings" class="link mt-2 self-start text-sm">{t.allMeetings}</a>
         </section>
       {/if}
 
       {#if data.urgentTasks.length > 0}
-        <section class="flex flex-col gap-1" aria-labelledby="tasks-title">
-          <h2 id="tasks-title" class="section-title mb-1">{t.urgent}</h2>
+        <section class="flex flex-col" aria-labelledby="tasks-title">
+          <h2 id="tasks-title" class="section-title mb-2">{t.urgent}</h2>
           <ul class="flex flex-col">
             {#each data.urgentTasks as task (task.id)}
               {@const due = dueLabel(task)}
+              {@const pending = task.id in pendingDone}
               <li class="flex items-start gap-3 py-2">
                 <input
                   type="checkbox"
                   class="mt-1 h-4 w-4 shrink-0"
                   aria-label={id.tasks.markDone(task.task)}
-                  bind:checked={task.done}
-                  onchange={() => toggleTask(task)}
+                  checked={pending}
+                  disabled={pending}
+                  onchange={() => checkTask(task)}
                 />
-                <span class="min-w-0 flex-1">{task.task}</span>
-                {#if due}
+                <span class={["min-w-0 flex-1 transition-colors", pending && "text-ink-faint line-through"]}>{task.task}</span>
+                {#if pending}
+                  <button type="button" class="link shrink-0 text-sm" onclick={() => undoTask(task)}>{t.undo}</button>
+                {:else if due}
                   <span
                     class={[
                       "shrink-0 text-sm",
@@ -280,9 +333,9 @@
               </li>
             {/each}
           </ul>
-          <a href="/tasks" class="link mt-1 self-start text-sm">{t.allTasks(data.openTasks)}</a>
+          <a href="/tasks" class="link mt-2 self-start text-sm">{t.allTasks(data.openTasks)}</a>
         </section>
       {/if}
-    {/if}
+    </div>
   {/if}
 </main>
