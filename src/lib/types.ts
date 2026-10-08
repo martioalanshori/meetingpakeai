@@ -74,6 +74,21 @@ export type MeetingSummary = {
   topics: string[];
   /** Sudah diubah pengguna. */
   edited: boolean;
+  /** Template yang dipakai / jenis meeting yang dikenali. */
+  template: string | null;
+};
+
+export type TemplateOption = { key: string; label: string };
+
+export type QuotaToday = {
+  sttAudioSecUsed: number;
+  sttAudioSecLimit: number;
+  sttRequestsUsed: number;
+  sttRequestsLimit: number;
+  llmTokensUsed: number;
+  llmTokensLimit: number;
+  llmRequestsUsed: number;
+  llmRequestsLimit: number;
 };
 
 export type SummaryEdit = {
@@ -89,6 +104,8 @@ export type MeetingDetail = MeetingListItem & {
   failedStep: string | null;
   audioDeleted: boolean;
   labels: { mic: string; system: string };
+  /** Template pilihan pengguna; null = otomatis. */
+  summaryTemplate: string | null;
   summary: MeetingSummary | null;
   actionItems: ActionItem[];
 };

@@ -12,7 +12,14 @@
   import { formatDateTime, formatDuration, formatTime, formatTimestamp } from "$lib/format";
   import { id as t } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
-  import type { AppError, MeetingDetail, MeetingStatus, SummaryEdit, TranscriptSegment } from "$lib/types";
+  import type {
+    AppError,
+    MeetingDetail,
+    MeetingStatus,
+    SummaryEdit,
+    TemplateOption,
+    TranscriptSegment,
+  } from "$lib/types";
 
   type Tab = "summary" | "actions" | "transcript";
 
@@ -34,6 +41,7 @@
   let audioSrc = $state<string | null>(null);
   let audioEl = $state<HTMLAudioElement | null>(null);
   let audioLoading = $state(false);
+  let templates = $state<TemplateOption[]>([]);
 
   const PROCESSING: MeetingStatus[] = [
     "queued",
@@ -76,6 +84,7 @@
 
   const unlisten: UnlistenFn[] = [];
   onMount(async () => {
+    templates = await api.listSummaryTemplates().catch(() => []);
     await load();
     unlisten.push(
       await events.jobProgress((p) => {
@@ -126,6 +135,19 @@
     if (meeting?.summary?.edited) regenerateDialog?.showModal();
     else act(() => api.regenerateSummary(meetingId), t.toast.requeued);
   }
+
+  /** Template dipilih → ringkasan dibuat ulang ("" = otomatis). */
+  async function changeTemplate(e: Event) {
+    const select = e.currentTarget as HTMLSelectElement;
+    const value = select.value === "" ? null : select.value;
+    if (meeting?.summary?.edited && !confirm(t.edit.templateConfirm)) {
+      select.value = meeting.summary.template ?? "";
+      return;
+    }
+    await act(() => api.setSummaryTemplate(meetingId, value), t.toast.requeued);
+  }
+
+  const templateLabel = (key: string | null) => templates.find((x) => x.key === key)?.label ?? key ?? "";
 
   async function saveSummary(edit: SummaryEdit) {
     try {
@@ -471,6 +493,21 @@
               <h2 class="font-semibold">{t.detail.summary}</h2>
               {#if meeting.summary.edited}
                 <span class="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-700">{t.edit.edited}</span>
+              {/if}
+              {#if meeting.status === "done" && templates.length > 0}
+                <label class="flex items-center gap-1.5 text-sm text-gray-600">
+                  {t.edit.template}
+                  <select class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm" onchange={changeTemplate}>
+                    <option value="" selected={!meeting.summaryTemplate}>
+                      {meeting.summary.template && !meeting.summaryTemplate
+                        ? t.edit.templateAutoDetected(templateLabel(meeting.summary.template))
+                        : t.edit.templateAuto}
+                    </option>
+                    {#each templates as tp (tp.key)}
+                      <option value={tp.key} selected={meeting.summaryTemplate === tp.key}>{tp.label}</option>
+                    {/each}
+                  </select>
+                </label>
               {/if}
               {#if meeting.status === "done"}
                 <button

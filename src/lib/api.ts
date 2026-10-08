@@ -15,6 +15,8 @@ import type {
   SearchHit,
   TaskItem,
   PendingConsent,
+  QuotaToday,
+  TemplateOption,
   RecordingState,
   RecordingWarningPayload,
   Settings,
@@ -81,6 +83,9 @@ export const api = {
   setSpeakerName: (id: string, name: string) => call<void>("set_speaker_name", { id, name }),
   retryJob: (id: string) => call<void>("retry_job", { id }),
   regenerateSummary: (id: string) => call<void>("regenerate_summary", { id }),
+  listSummaryTemplates: () => call<TemplateOption[]>("list_summary_templates"),
+  setSummaryTemplate: (id: string, template: string | null) =>
+    call<void>("set_summary_template", { id, template }),
   retranscribe: (id: string) => call<void>("retranscribe", { id }),
   resolveInterrupted: (id: string, action: "process" | "discard") =>
     call<void>("resolve_interrupted", { id, action }),
@@ -89,6 +94,8 @@ export const api = {
   getSettings: () => call<Settings>("get_settings"),
   updateSettings: (patch: Partial<Settings>) => call<Settings>("update_settings", { patch }),
   checkUpdate: () => call<UpdateInfo | null>("check_update"),
+  getQuotaToday: () => call<QuotaToday>("get_quota_today"),
+  saveProblemReport: () => call<boolean>("save_problem_report"),
   installUpdate: () => call<void>("install_update"),
 };
 

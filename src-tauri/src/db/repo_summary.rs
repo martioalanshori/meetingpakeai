@@ -16,6 +16,8 @@ pub struct SummaryView {
     pub topics: Vec<String>,
     /// Sudah diubah pengguna (langkah 23).
     pub edited: bool,
+    /// Jenis/template yang dipakai (langkah 29).
+    pub template: Option<String>,
 }
 
 /// Isi edit pengguna (`update_summary`).
@@ -49,7 +51,14 @@ pub struct ActionItemView {
 
 /// Simpan hasil ringkasan; row lama (summary + action items) diganti dalam satu transaksi (PRD §11).
 /// `notes = None` → `status = 'empty'`.
-pub fn save(conn: &mut Connection, meeting_id: &str, notes: Option<&FinalNotes>, model: &str) -> AppResult<()> {
+/// `template` = template yang dipakai (pilihan pengguna atau dikenali LLM).
+pub fn save(
+    conn: &mut Connection,
+    meeting_id: &str,
+    notes: Option<&FinalNotes>,
+    model: &str,
+    template: Option<&str>,
+) -> AppResult<()> {
     let tx = conn.transaction()?;
     tx.execute("DELETE FROM summaries WHERE meeting_id = ?1", [meeting_id])?;
     tx.execute("DELETE FROM action_items WHERE meeting_id = ?1", [meeting_id])?;
@@ -62,15 +71,16 @@ pub fn save(conn: &mut Connection, meeting_id: &str, notes: Option<&FinalNotes>,
         }
         Some(n) => {
             tx.execute(
-                "INSERT INTO summaries (meeting_id, status, summary, decisions, topics, model, created_at)
-                 VALUES (?1, 'ok', ?2, ?3, ?4, ?5, ?6)",
+                "INSERT INTO summaries (meeting_id, status, summary, decisions, topics, model, created_at, template)
+                 VALUES (?1, 'ok', ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
                     meeting_id,
                     n.ringkasan,
                     serde_json::to_string(&n.keputusan)?,
                     serde_json::to_string(&n.topik)?,
                     model,
-                    now_ms()
+                    now_ms(),
+                    template
                 ],
             )?;
             let mut stmt = tx.prepare(
@@ -88,7 +98,7 @@ pub fn save(conn: &mut Connection, meeting_id: &str, notes: Option<&FinalNotes>,
 pub fn get(conn: &Connection, meeting_id: &str) -> AppResult<Option<SummaryView>> {
     let row = conn
         .query_row(
-            "SELECT status, summary, decisions, topics, edited FROM summaries WHERE meeting_id = ?1",
+            "SELECT status, summary, decisions, topics, edited, template FROM summaries WHERE meeting_id = ?1",
             [meeting_id],
             |r| {
                 Ok((
@@ -97,16 +107,18 @@ pub fn get(conn: &Connection, meeting_id: &str) -> AppResult<Option<SummaryView>
                     r.get::<_, String>(2)?,
                     r.get::<_, String>(3)?,
                     r.get::<_, bool>(4)?,
+                    r.get::<_, Option<String>>(5)?,
                 ))
             },
         )
         .optional()?;
-    Ok(row.map(|(status, summary, decisions, topics, edited)| SummaryView {
+    Ok(row.map(|(status, summary, decisions, topics, edited, template)| SummaryView {
         status,
         summary,
         decisions: serde_json::from_str(&decisions).unwrap_or_default(),
         topics: serde_json::from_str(&topics).unwrap_or_default(),
         edited,
+        template,
     }))
 }
 

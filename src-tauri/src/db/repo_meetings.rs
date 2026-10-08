@@ -178,6 +178,22 @@ pub fn rename(conn: &Connection, id: &str, title: &str) -> AppResult<()> {
 }
 
 /// Judul dari LLM: hanya jika pengguna belum pernah mengubah judul (PRD §8.6).
+/// Template ringkasan pilihan pengguna (`None` = otomatis).
+pub fn summary_template(conn: &Connection, id: &str) -> AppResult<Option<String>> {
+    Ok(conn.query_row("SELECT summary_template FROM meetings WHERE id = ?1", [id], |r| r.get(0))?)
+}
+
+pub fn set_summary_template(conn: &Connection, id: &str, template: Option<&str>) -> AppResult<()> {
+    let n = conn.execute(
+        "UPDATE meetings SET summary_template = ?2, updated_at = ?3 WHERE id = ?1",
+        params![id, template, now_ms()],
+    )?;
+    if n == 0 {
+        return Err(ErrorCode::NotFound.into());
+    }
+    Ok(())
+}
+
 pub fn set_generated_title(conn: &Connection, id: &str, title: &str) -> AppResult<()> {
     conn.execute(
         "UPDATE meetings SET title = ?2, updated_at = ?3 WHERE id = ?1 AND title_edited = 0",

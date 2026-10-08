@@ -94,6 +94,37 @@ pub fn check(conn: &Connection, limits: &Limits, cost: Cost, now_ms: i64) -> App
     })
 }
 
+/// Pemakaian hari ini (sejak 00:00 lokal) vs batas × safety (langkah 29, estimasi kuota di Pengaturan).
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuotaToday {
+    pub stt_audio_sec_used: f64,
+    pub stt_audio_sec_limit: f64,
+    pub stt_requests_used: i64,
+    pub stt_requests_limit: f64,
+    pub llm_tokens_used: i64,
+    pub llm_tokens_limit: f64,
+    pub llm_requests_used: i64,
+    pub llm_requests_limit: f64,
+}
+
+pub fn quota_today(conn: &Connection, limits: &Limits, now_ms: i64) -> AppResult<QuotaToday> {
+    let since = local_midnight_ms(now_ms);
+    let stt = repo_usage::totals_since(conn, UsageKind::Stt, since)?;
+    let llm = repo_usage::totals_since(conn, UsageKind::Llm, since)?;
+    let sf = limits.safety_factor;
+    Ok(QuotaToday {
+        stt_audio_sec_used: stt.audio_sec,
+        stt_audio_sec_limit: f64::from(limits.stt_audio_sec_per_day) * sf,
+        stt_requests_used: stt.requests,
+        stt_requests_limit: f64::from(limits.stt_rpd) * sf,
+        llm_tokens_used: llm.tokens,
+        llm_tokens_limit: f64::from(limits.llm_tpd) * sf,
+        llm_requests_used: llm.requests,
+        llm_requests_limit: f64::from(limits.llm_rpd) * sf,
+    })
+}
+
 /// Catat pemakaian setelah request selesai (sukses maupun gagal yang sudah terkirim).
 pub fn record(conn: &Connection, cost: Cost, actual_tokens: Option<i64>, now_ms: i64) -> AppResult<()> {
     match cost {

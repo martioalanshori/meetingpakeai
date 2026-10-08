@@ -6,13 +6,27 @@
   import ShortcutInput from "$lib/components/ShortcutInput.svelte";
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
-  import type { AppError, Settings, UpdateInfo } from "$lib/types";
+  import type { AppError, QuotaToday, Settings, UpdateInfo } from "$lib/types";
 
   const t = id.settings;
 
   let form = $state<Settings | null>(null);
   let saving = $state(false);
   let version = $state("");
+  let quota = $state<QuotaToday | null>(null);
+
+  // ±1 jam meeting ≈ 1 jam audio terkirim (dua channel, hanya bagian bersuara).
+  const quotaHours = $derived(
+    quota ? Math.max(0, Math.floor((quota.sttAudioSecLimit - quota.sttAudioSecUsed) / 3600)) : 0,
+  );
+
+  async function saveReport() {
+    try {
+      if (await api.saveProblemReport()) showToast(t.reportSaved, "success");
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
   let update = $state<UpdateInfo | null>(null);
   let updateMsg = $state<string | null>(null);
   let updateBusy = $state(false);
@@ -45,6 +59,7 @@
     try {
       form = await api.getSettings();
       version = await getVersion();
+      quota = await api.getQuotaToday().catch(() => null);
     } catch (e) {
       showToast((e as AppError).message, "error");
     }
@@ -155,6 +170,31 @@
       </button>
     </form>
   {/if}
+
+  {#if quota}
+    <section class="flex flex-col gap-1 rounded-xl border border-gray-200 bg-white p-5">
+      <h2 class="mb-1 font-semibold">{t.quota}</h2>
+      <span class="text-gray-700">
+        {t.quotaAudio(Math.round(quota.sttAudioSecUsed / 60), Math.round(quota.sttAudioSecLimit / 60))}
+      </span>
+      <div class="h-2 overflow-hidden rounded bg-gray-200">
+        <div
+          class="h-full bg-indigo-600"
+          style:width={`${Math.min(100, (quota.sttAudioSecUsed / Math.max(1, quota.sttAudioSecLimit)) * 100)}%`}
+        ></div>
+      </div>
+      <span class="text-gray-700">{t.quotaTokens(quota.llmTokensUsed, Math.round(quota.llmTokensLimit))}</span>
+      <span class="text-sm text-gray-700">{t.quotaEstimate(quotaHours)}</span>
+      <span class="text-sm text-gray-500">{t.quotaNote}</span>
+    </section>
+  {/if}
+
+  <section class="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-5">
+    <button type="button" class="self-start rounded-lg border border-gray-300 px-4 py-2 hover:bg-gray-50" onclick={saveReport}>
+      {t.report}
+    </button>
+    <span class="text-sm text-gray-500">{t.reportNote}</span>
+  </section>
 
   <section class="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-5">
     <h2 class="font-semibold">{t.about}</h2>

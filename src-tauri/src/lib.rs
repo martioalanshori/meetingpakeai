@@ -291,6 +291,8 @@ pub fn run() {
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::settings::check_update,
+            commands::settings::get_quota_today,
+            commands::settings::save_problem_report,
             commands::settings::install_update,
             commands::recording::start_recording,
             commands::recording::pause_recording,
@@ -315,6 +317,8 @@ pub fn run() {
             commands::meetings::delete_meeting,
             commands::meetings::retry_job,
             commands::meetings::regenerate_summary,
+            commands::meetings::list_summary_templates,
+            commands::meetings::set_summary_template,
             commands::meetings::retranscribe,
             commands::meetings::resolve_interrupted,
         ])

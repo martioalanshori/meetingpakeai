@@ -537,7 +537,11 @@ impl Worker {
                 .timestamp_millis_opt(m.started_at)
                 .single()
                 .map_or_else(String::new, |t| t.format("%Y-%m-%d").to_string());
-            (SummarizeInput { lines, word_count, label_saya, label_peserta, tanggal }, self.providers.llm_model.clone())
+            let template = repo_meetings::summary_template(&conn, id)?;
+            (
+                SummarizeInput { lines, word_count, label_saya, label_peserta, tanggal, template },
+                self.providers.llm_model.clone(),
+            )
         };
 
         let outcome = if input.word_count < 20 {
@@ -549,9 +553,10 @@ impl Worker {
         };
         let mut conn = self.db.conn();
         match outcome {
-            SummaryOutcome::Empty => repo_summary::save(&mut conn, id, None, &model)?,
+            SummaryOutcome::Empty => repo_summary::save(&mut conn, id, None, &model, None)?,
             SummaryOutcome::Notes(notes) => {
-                repo_summary::save(&mut conn, id, Some(&notes), &model)?;
+                let template = input.template.as_deref().or(notes.jenis.as_deref());
+                repo_summary::save(&mut conn, id, Some(&notes), &model, template)?;
                 repo_meetings::set_generated_title(&conn, id, &notes.judul)?;
             }
         }
