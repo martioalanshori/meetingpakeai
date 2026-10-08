@@ -2,7 +2,7 @@
 
 use crate::config::providers::PipelineConfig;
 use crate::db::repo_chunks::ChunkRow;
-use crate::preprocess::{map_time, OffsetEntry};
+use crate::preprocess::{map_time, region_duration_at, OffsetEntry};
 use crate::stt::SttSegment;
 
 use super::filter::is_hallucination;
@@ -34,7 +34,9 @@ pub fn build_segments(chunks: &[ChunkRow], cfg: &PipelineConfig) -> Vec<Segment>
         };
         let map: Vec<OffsetEntry> = serde_json::from_str(&c.offset_map_json).unwrap_or_default();
         for s in segs {
-            let start = map_time(&map, (s.start_s * 1000.0).round() as i64);
+            let file_start = (s.start_s * 1000.0).round() as i64;
+            let start = map_time(&map, file_start);
+            let region_ms = region_duration_at(&map, file_start);
             let end = map_time(&map, (s.end_s * 1000.0).round() as i64).max(start);
             out.push(Segment {
                 channel: c.channel.clone(),
@@ -44,7 +46,7 @@ pub fn build_segments(chunks: &[ChunkRow], cfg: &PipelineConfig) -> Vec<Segment>
                 no_speech_prob: s.no_speech_prob,
                 avg_logprob: s.avg_logprob,
                 compression_ratio: s.compression_ratio,
-                is_filtered: is_hallucination(&s, cfg),
+                is_filtered: is_hallucination(&s, cfg, region_ms),
                 is_duplicate: false,
             });
         }

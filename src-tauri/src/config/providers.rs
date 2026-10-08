@@ -44,6 +44,9 @@ pub struct PipelineConfig {
     pub compression_ratio_max: f64,
     pub dedup_similarity: f64,
     pub hallucination_phrases: Vec<String>,
+    /// Dibuang hanya jika sama persis dan region VAD < 1 dtk (lihat `pipeline/filter.rs`).
+    #[serde(default)]
+    pub short_hallucination_phrases: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

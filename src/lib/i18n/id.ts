@@ -179,7 +179,7 @@ export const id = {
     openPrivacy: "Buka Pengaturan Privasi",
     recheck: "Periksa lagi",
     startTest: "Mulai tes 5 detik",
-    testing: 'Ucapkan: "tes satu dua tiga" — aplikasi juga memutar nada tes.',
+    testing: 'Ucapkan sekarang: "tes satu dua tiga". Setelah itu aplikasi memutar nada tes.',
     micOk: "✔ Mikrofon menangkap suara",
     micFail: "✖ Mikrofon tidak menangkap suara. Periksa mikrofon lalu ulangi tes.",
     systemOk: "✔ Audio sistem tertangkap",

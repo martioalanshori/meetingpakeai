@@ -13,6 +13,8 @@ use super::writer::WAV_SPEC;
 use super::{AudioError, Channel, SAMPLE_RATE};
 
 pub const TEST_DURATION: Duration = Duration::from_secs(5);
+/// Mic dinilai hanya sebelum nada diputar: nada dari speaker yang tertangkap mic tidak boleh meloloskan tes.
+const MIC_WINDOW: Duration = Duration::from_millis(2500);
 const TONE_SECS: u32 = 3;
 const TONE_HZ: f64 = 1000.0;
 const TONE_DBFS: f64 = -12.0;
@@ -58,7 +60,7 @@ impl CaptureSink for PeakSink {
 }
 
 /// Jalankan tes; `on_level(mic_db, system_db)` dipanggil ±10 kali per detik.
-/// `play_tone` dipanggil sekali setelah capture berjalan.
+/// 0–2,5 dtk: pengguna bicara, puncak mic diambil. Lalu `play_tone` dipanggil sekali untuk tes loopback.
 pub fn run(play_tone: impl FnOnce(), mut on_level: impl FnMut(f32, f32)) -> Result<AudioTestResult, AudioError> {
     let make = || (Arc::new(Mutex::new(LevelMeter::default())), Arc::new(SharedLevel::default()));
     let (mic_meter, mic_level) = make();
@@ -69,19 +71,26 @@ pub fn run(play_tone: impl FnOnce(), mut on_level: impl FnMut(f32, f32)) -> Resu
     if let Err(e) = &sys {
         tracing::warn!("tes audio: loopback tidak bisa dibuka: {e}");
     }
-    play_tone();
+    let peak = |m: &Arc<Mutex<LevelMeter>>| m.lock().unwrap_or_else(|e| e.into_inner()).peak_dbfs();
     let start = Instant::now();
+    let mut play_tone = Some(play_tone);
+    let mut mic_peak = SILENCE_DBFS;
     while start.elapsed() < TEST_DURATION {
         std::thread::sleep(Duration::from_millis(100));
         on_level(mic_level.get(), sys_level.get());
+        if start.elapsed() >= MIC_WINDOW {
+            if let Some(play) = play_tone.take() {
+                mic_peak = peak(&mic_meter);
+                play();
+            }
+        }
     }
     mic.stop();
     if let Ok(s) = sys {
         s.stop();
     }
     on_level(SILENCE_DBFS, SILENCE_DBFS);
-    let peak = |m: &Arc<Mutex<LevelMeter>>| m.lock().unwrap_or_else(|e| e.into_inner()).peak_dbfs();
-    let (mic_peak, sys_peak) = (peak(&mic_meter), peak(&sys_meter));
+    let sys_peak = peak(&sys_meter);
     Ok(AudioTestResult {
         mic_ok: mic_peak > PASS_DBFS,
         mic_peak_dbfs: mic_peak,

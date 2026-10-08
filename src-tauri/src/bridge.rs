@@ -1,6 +1,7 @@
 //! Implementasi `EventSink` untuk Tauri: emit event, notifikasi Windows, tray & jendela widget rekaman.
 //! Demi RAM kecil (PRD §17), widget hanya ada selama merekam dan jendela main dihancurkan saat ditutup ke tray.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -16,6 +17,7 @@ use crate::events::EventSink;
 pub const TRAY_ID: &str = "main-tray";
 pub const TRAY_ICON_IDLE: &[u8] = include_bytes!("../icons/tray-idle.png");
 pub const TRAY_ICON_RECORDING: &[u8] = include_bytes!("../icons/tray-recording.png");
+pub const TRAY_ICON_PROCESSING: &[u8] = include_bytes!("../icons/tray-processing.png");
 const RECORDER_LABEL: &str = "recorder";
 /// Meeting dari notifikasi "Notulen siap" dibuka jika jendela main dibuka dalam waktu ini.
 const PENDING_MEETING_TTL: Duration = Duration::from_secs(60 * 60);
@@ -31,6 +33,8 @@ pub struct TauriBridge {
     /// Notifikasi desktop tidak punya handler klik: meeting terakhir yang selesai dibuka
     /// saat jendela main berikutnya mendapat fokus (klik notifikasi / tray).
     pending_meeting: Mutex<Option<(String, Instant)>>,
+    recording: AtomicBool,
+    processing: AtomicBool,
 }
 
 /// Tampilkan jendela main; dibuat ulang dari konfigurasi jika sudah dihancurkan.
@@ -61,7 +65,14 @@ pub fn show_main_window(app: &AppHandle, open_consent: bool) {
 
 impl TauriBridge {
     pub fn new(app: AppHandle, db: Arc<Db>) -> Self {
-        Self { app, db, record_item: Mutex::new(None), pending_meeting: Mutex::new(None) }
+        Self {
+            app,
+            db,
+            record_item: Mutex::new(None),
+            pending_meeting: Mutex::new(None),
+            recording: AtomicBool::new(false),
+            processing: AtomicBool::new(false),
+        }
     }
 
     /// Meeting yang menunggu dibuka dari notifikasi "Notulen siap" (sekali ambil).
@@ -120,6 +131,33 @@ impl TauriBridge {
         Some(WindowPosition { x: wa.position.x + wa.size.width as i32 - width, y: wa.position.y + margin })
     }
 
+    /// Ikon & tooltip tray: merekam > memproses > idle; label menu "Mulai/Stop rekam".
+    fn update_tray(&self) {
+        let recording = self.recording.load(Ordering::SeqCst);
+        let processing = self.processing.load(Ordering::SeqCst);
+        let app = self.app.clone();
+        let item = self.record_item.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        // Operasi tray dijalankan di main thread.
+        let _ = self.app.run_on_main_thread(move || {
+            if let Some(tray) = app.tray_by_id(TRAY_ID) {
+                let (bytes, tip) = if recording {
+                    (TRAY_ICON_RECORDING, "Meeting Pake AI — merekam")
+                } else if processing {
+                    (TRAY_ICON_PROCESSING, "Meeting Pake AI — memproses notulen")
+                } else {
+                    (TRAY_ICON_IDLE, "Meeting Pake AI")
+                };
+                if let Ok(img) = Image::from_bytes(bytes) {
+                    let _ = tray.set_icon(Some(img));
+                }
+                let _ = tray.set_tooltip(Some(tip));
+            }
+            if let Some(item) = item {
+                let _ = item.set_text(if recording { "Stop rekam" } else { "Mulai rekam" });
+            }
+        });
+    }
+
     fn close_recorder(&self) {
         let Some(w) = self.app.get_webview_window(RECORDER_LABEL) else { return };
         if let Ok(p) = w.outer_position() {
@@ -153,22 +191,15 @@ impl EventSink for TauriBridge {
 Klik untuk membuka notulen."));
     }
 
+    fn processing_changed(&self, processing: bool) {
+        if self.processing.swap(processing, Ordering::SeqCst) != processing {
+            self.update_tray();
+        }
+    }
+
     fn recording_changed(&self, recording: bool) {
-        let app = self.app.clone();
-        let item = self.record_item.lock().unwrap_or_else(|e| e.into_inner()).clone();
-        // Operasi tray dijalankan di main thread.
-        let _ = self.app.run_on_main_thread(move || {
-            if let Some(tray) = app.tray_by_id(TRAY_ID) {
-                let bytes = if recording { TRAY_ICON_RECORDING } else { TRAY_ICON_IDLE };
-                if let Ok(img) = Image::from_bytes(bytes) {
-                    let _ = tray.set_icon(Some(img));
-                }
-                let _ = tray.set_tooltip(Some(if recording { "Meeting Pake AI — merekam" } else { "Meeting Pake AI" }));
-            }
-            if let Some(item) = item {
-                let _ = item.set_text(if recording { "Stop rekam" } else { "Mulai rekam" });
-            }
-        });
+        self.recording.store(recording, Ordering::SeqCst);
+        self.update_tray();
         if recording {
             self.open_recorder();
         } else {

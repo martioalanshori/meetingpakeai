@@ -231,9 +231,10 @@ pub fn finish_recording(conn: &Connection, id: &str, ended_at: i64, duration_ms:
     Ok(())
 }
 
+/// Durasi audio yang terselamatkan; `ended_at` diperkirakan `started_at + durasi` (meeting terputus).
 pub fn set_duration(conn: &Connection, id: &str, duration_ms: i64) -> AppResult<()> {
     conn.execute(
-        "UPDATE meetings SET duration_ms = ?2, updated_at = ?3 WHERE id = ?1",
+        "UPDATE meetings SET duration_ms = ?2, ended_at = COALESCE(ended_at, started_at + ?2), updated_at = ?3 WHERE id = ?1",
         params![id, duration_ms, now_ms()],
     )?;
     Ok(())

@@ -13,7 +13,8 @@
     "no_speech_prob_max": 0.6, "avg_logprob_min": -1.0, "compression_ratio_max": 2.4,
     "dedup_similarity": 0.75,
     "hallucination_phrases": ["terima kasih telah menonton", "terima kasih sudah menonton",
-      "jangan lupa subscribe", "subtitle oleh", "thank you for watching", "thanks for watching"]
+      "jangan lupa subscribe", "subtitle oleh", "thank you for watching", "thanks for watching"],
+    "short_hallucination_phrases": ["terima kasih", "terima kasih banyak", "ya", "oke", "ok", "thank you", "thanks", "you"]
   },
   "recording": { "auto_stop_silence_min": 10, "max_recording_hours": 4 }
 }

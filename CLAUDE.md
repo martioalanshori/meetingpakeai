@@ -101,6 +101,10 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Ikon UI (langkah 17) | `src/lib/components/Icon.svelte`: path SVG Lucide (ISC) disalin inline, tanpa dependensi npm. |
 | Notifikasi "Notulen siap" (langkah 18) | `EventSink::meeting_done`. `tauri-plugin-notification` 2.5 di desktop tidak punya handler klik → id meeting disimpan di `TauriBridge.pending_meeting` (berlaku 1 jam); jendela main mengambilnya lewat command tambahan `take_pending_meeting` saat dibuat / mendapat fokus (klik notifikasi membuka instance kedua → single-instance → fokus). Tidak dikirim jika jendela main sedang fokus. |
 | Salin notulen (langkah 18) | `src/lib/minutes.ts` (format §14.7: `markdown`, `text`, `whatsapp`); dipakai juga untuk ekspor. Clipboard lewat `navigator.clipboard`. |
+| Frasa halusinasi pendek (langkah 19) | `short_hallucination_phrases` di `providers.json`: segment dibuang jika teks ternormalisasi ≤ 3 kata, sama persis dengan salah satu frasa, **dan** potongan region VAD asal (`dur_ms` entri offset map) < 1 dtk. |
+| Tes audio onboarding (langkah 19) | Puncak mic diambil di 0–2,5 dtk (pengguna bicara), lalu nada diputar untuk tes loopback sampai detik 5. |
+| `ended_at` meeting terputus (langkah 19) | Recovery mengisi `ended_at = started_at + duration_ms` jika masih kosong. |
+| Ikon tray memproses (langkah 19) | `icons/tray-processing.png` (placeholder lingkaran amber). Prioritas: merekam > memproses > idle; worker memanggil `EventSink::processing_changed`. Ikon final menunggu desain dari pemilik. |
 
 ## Hasil verifikasi §21
 

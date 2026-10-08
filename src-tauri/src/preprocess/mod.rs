@@ -38,6 +38,11 @@ use crate::db::repo_chunks::{self, NewChunk};
 use crate::db::{repo_parts, Db};
 use crate::error::AppResult;
 
+/// Durasi potongan region asal untuk posisi `t_ms` di file upload (`None` jika map kosong).
+pub fn region_duration_at(map: &[OffsetEntry], t_ms: i64) -> Option<i64> {
+    map.iter().take_while(|e| e.file_ms <= t_ms).last().or(map.first()).map(|e| e.dur_ms)
+}
+
 /// Step `preprocessing` satu meeting. Idempoten: `upload/` dan row `upload_chunks` lama dihapus dulu.
 /// Mengembalikan jumlah chunk yang dibuat.
 pub fn run(data_dir: &Path, db: &Db, meeting_id: &str, chunk_target_sec: u32) -> AppResult<usize> {

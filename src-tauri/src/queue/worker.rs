@@ -114,10 +114,12 @@ impl Worker {
             match next {
                 Ok(Some(m)) => {
                     *self.current.lock().unwrap_or_else(|e| e.into_inner()) = Some(m.id.clone());
+                    self.events.processing_changed(true);
                     self.process(m).await;
                     *self.current.lock().unwrap_or_else(|e| e.into_inner()) = None;
                 }
                 Ok(None) => {
+                    self.events.processing_changed(false);
                     let sleep = repo_meetings::earliest_waiting(&self.db.conn())
                         .ok()
                         .flatten()
