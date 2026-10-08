@@ -298,7 +298,6 @@ pub fn run() {
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::settings::check_update,
-            commands::settings::get_quota_today,
             commands::settings::save_problem_report,
             commands::settings::install_update,
             commands::recording::start_recording,

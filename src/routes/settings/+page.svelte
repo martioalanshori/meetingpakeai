@@ -6,19 +6,14 @@
   import ShortcutInput from "$lib/components/ShortcutInput.svelte";
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
-  import type { AppError, QuotaToday, Settings, UpdateInfo } from "$lib/types";
+  import type { AppError, Settings, UpdateInfo } from "$lib/types";
 
   const t = id.settings;
 
   let form = $state<Settings | null>(null);
   let saving = $state(false);
   let version = $state("");
-  let quota = $state<QuotaToday | null>(null);
 
-  // ±1 jam meeting ≈ 1 jam audio terkirim (dua channel, hanya bagian bersuara).
-  const quotaHours = $derived(
-    quota ? Math.max(0, Math.floor((quota.sttAudioSecLimit - quota.sttAudioSecUsed) / 3600)) : 0,
-  );
 
   async function saveReport() {
     try {
@@ -59,7 +54,6 @@
     try {
       form = await api.getSettings();
       version = await getVersion();
-      quota = await api.getQuotaToday().catch(() => null);
     } catch (e) {
       showToast((e as AppError).message, "error");
     }
@@ -163,27 +157,8 @@
   {/if}
 
   <section class="border-b border-line py-7">
-    <AiProviderSection onchange={() => api.getQuotaToday().then((q) => (quota = q), () => {})} />
+    <AiProviderSection />
   </section>
-
-  {#if quota && (quota.sttGroq || quota.llmGroq)}
-    <section class="flex flex-col gap-2 border-b border-line py-7">
-      <h2 class="mb-1 text-lg font-bold">{t.quota}</h2>
-      <span>{t.quotaAudio(Math.round(quota.sttAudioSecUsed / 60), Math.round(quota.sttAudioSecLimit / 60))}</span>
-      <div class="h-1.5 max-w-md overflow-hidden rounded-full bg-line-soft">
-        <div
-          class="h-full rounded-full bg-ink"
-          style:width={`${Math.min(100, (quota.sttAudioSecUsed / Math.max(1, quota.sttAudioSecLimit)) * 100)}%`}
-        ></div>
-      </div>
-      <span>{t.quotaTokens(quota.llmTokensUsed, Math.round(quota.llmTokensLimit))}</span>
-      <span class="font-medium">{t.quotaEstimate(quotaHours)}</span>
-      <span class="max-w-prose text-sm text-ink-soft">{t.quotaNote}</span>
-      {#if !(quota.sttGroq && quota.llmGroq)}
-        <span class="max-w-prose text-sm text-ink-soft">{t.quotaPartial}</span>
-      {/if}
-    </section>
-  {/if}
 
   <section class="flex flex-col gap-4 py-7">
     <h2 class="text-lg font-bold">{t.sectionHelp}</h2>

@@ -19,7 +19,6 @@ import type {
   OnboardingStatus,
   SearchHit,
   TaskItem,
-  QuotaToday,
   TemplateOption,
   RecordingState,
   RecordingWarningPayload,
@@ -98,7 +97,6 @@ export const api = {
   getSettings: () => call<Settings>("get_settings"),
   updateSettings: (patch: Partial<Settings>) => call<Settings>("update_settings", { patch }),
   checkUpdate: () => call<UpdateInfo | null>("check_update"),
-  getQuotaToday: () => call<QuotaToday>("get_quota_today"),
   saveProblemReport: () => call<boolean>("save_problem_report"),
   installUpdate: () => call<void>("install_update"),
 };

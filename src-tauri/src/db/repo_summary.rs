@@ -156,19 +156,6 @@ pub fn update(conn: &mut Connection, meeting_id: &str, e: &SummaryEdit) -> AppRe
     Ok(true)
 }
 
-/// Nama "Peserta lain" per meeting (F10); kosong → kembali ke default.
-pub fn set_system_label(conn: &Connection, meeting_id: &str, name: &str) -> AppResult<()> {
-    match clean(name) {
-        Some(n) => conn.execute(
-            "INSERT INTO meeting_speaker_names (meeting_id, channel, display_name) VALUES (?1, 'system', ?2)
-             ON CONFLICT(meeting_id, channel) DO UPDATE SET display_name = excluded.display_name",
-            params![meeting_id, n],
-        )?,
-        None => conn.execute("DELETE FROM meeting_speaker_names WHERE meeting_id = ?1", [meeting_id])?,
-    };
-    Ok(())
-}
-
 pub fn action_items(conn: &Connection, meeting_id: &str) -> AppResult<Vec<ActionItemView>> {
     let mut stmt =
         conn.prepare("SELECT id, task, assignee, due, done FROM action_items WHERE meeting_id = ?1 ORDER BY idx")?;
@@ -219,13 +206,3 @@ pub fn all_action_items(conn: &Connection) -> AppResult<Vec<TaskView>> {
     Ok(rows)
 }
 
-/// Label "Peserta lain" per meeting (Beta F10; tabel sudah ada sejak MVP).
-pub fn system_label(conn: &Connection, meeting_id: &str) -> AppResult<Option<String>> {
-    Ok(conn
-        .query_row(
-            "SELECT display_name FROM meeting_speaker_names WHERE meeting_id = ?1 AND channel = 'system'",
-            [meeting_id],
-            |r| r.get(0),
-        )
-        .optional()?)
-}

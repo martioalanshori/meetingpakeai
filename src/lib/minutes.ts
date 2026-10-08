@@ -60,12 +60,11 @@ export function formatActionItems(m: MeetingDetail, style: MinutesStyle): string
   return lines.join("\n") + "\n";
 }
 
-/** Tab Transkrip: satu baris per segment `[HH:MM:SS] Label: teks`. */
+/** Tab Transkrip: satu baris per segment `[HH:MM:SS] teks`. */
 export function formatTranscript(m: MeetingDetail, transcript: TranscriptSegment[]): string {
   const lines = [m.title, dateLine(m, "text"), ""];
   for (const seg of transcript) {
-    const who = seg.channel === "mic" ? m.labels.mic : m.labels.system;
-    lines.push(`[${formatTimestamp(seg.startMs)}] ${who}: ${seg.text}`);
+    lines.push(`[${formatTimestamp(seg.startMs)}] ${seg.text}`);
   }
   return lines.join("\n") + "\n";
 }
@@ -97,8 +96,7 @@ export function formatMinutes(m: MeetingDetail, style: MinutesStyle, transcript?
   if (transcript && transcript.length > 0) {
     out.push(heading(t.detail.tabTranscript, style));
     for (const seg of transcript) {
-      const who = seg.channel === "mic" ? m.labels.mic : m.labels.system;
-      out.push(`[${formatTimestamp(seg.startMs)}] ${who}: ${seg.text}`);
+      out.push(`[${formatTimestamp(seg.startMs)}] ${seg.text}`);
     }
     out.push("");
   }

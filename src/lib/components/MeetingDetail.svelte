@@ -248,23 +248,6 @@
   }
 
 
-  function label(ch: "mic" | "system") {
-    return ch === "mic" ? meeting!.labels.mic : meeting!.labels.system;
-  }
-
-  /** Giliran bicara: segment berurutan dari channel yang sama dikelompokkan di bawah satu label;
-   *  tiap segment tetap satu baris dengan waktunya sendiri. */
-  type Turn = { key: number; channel: "mic" | "system"; segments: TranscriptSegment[] };
-  const turns = $derived.by(() => {
-    const out: Turn[] = [];
-    for (const s of transcript) {
-      const last = out.at(-1);
-      if (last && last.channel === s.channel) last.segments.push(s);
-      else out.push({ key: s.id, channel: s.channel, segments: [s] });
-    }
-    return out;
-  });
-
   const tabs: { key: Tab; text: string }[] = [
     { key: "summary", text: t.detail.tabSummary },
     { key: "actions", text: t.detail.tabActionItems },
@@ -612,12 +595,6 @@
         <p class="text-ink-soft">{processing ? t.detail.processing : t.detail.emptyTranscript}</p>
       {:else}
         <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <span class="flex items-center gap-2 text-sm font-semibold text-mic">
-            <span class="h-3 w-1 rounded-full bg-mic" aria-hidden="true"></span>{meeting.labels.mic}
-          </span>
-          <span class="flex items-center gap-2 text-sm font-semibold text-system">
-            <span class="h-3 w-1 rounded-full bg-system" aria-hidden="true"></span>{meeting.labels.system}
-          </span>
           {#if !meeting.audioDeleted}<span class="text-sm text-ink-faint">{t.detail.clickToPlay}</span>{/if}
           <div class="ml-auto">
             <CopyButton text={() => formatTranscript(meeting!, transcript)} okText={t.minutes.transcriptCopied} />
@@ -633,38 +610,23 @@
           </div>
         {/if}
 
-        <ol class={["flex flex-col gap-4", turns.length > 200 && "virtualized"]}>
-          {#each turns as turn (turn.key)}
-            <li class="turn grid grid-cols-[4.25rem_1fr] gap-x-3 gap-y-2">
-              <span></span>
-              <span
-                class={[
-                  "pl-[17px] text-sm font-bold",
-                  turn.channel === "mic" ? "border-mic text-mic" : "border-system text-system",
-                ]}
-              >
-                {label(turn.channel)}
-              </span>
-              {#each turn.segments as s (s.id)}
-                <span class="tabular pt-1 text-sm text-ink-faint">{formatTimestamp(s.startMs)}</span>
-                <p
-                  class={[
-                    "max-w-[70ch] border-l-[3px] py-0.5 pl-3.5 leading-[1.7]",
-                    turn.channel === "mic" ? "border-mic" : "border-system",
-                  ]}
-                >
-                  {#if meeting.audioDeleted}
-                    {s.text.trim()}
-                  {:else}
-                    <button
-                      type="button"
-                      class="inline rounded-sm text-left hover:bg-wash focus-visible:bg-wash"
-                      title={`${t.detail.playFrom} ${formatTimestamp(s.startMs)}`}
-                      onclick={() => playAt(s.startMs)}>{s.text.trim()}</button
-                    >
-                  {/if}
-                </p>
-              {/each}
+        <!-- Transkrip polos: tanpa label pembicara (keputusan pemilik), satu baris per segment. -->
+        <ol class={["flex flex-col gap-2", transcript.length > 500 && "virtualized"]}>
+          {#each transcript as s (s.id)}
+            <li class="row grid grid-cols-[4.25rem_1fr] gap-x-3">
+              <span class="tabular pt-1 text-sm text-ink-faint">{formatTimestamp(s.startMs)}</span>
+              <p class="max-w-[70ch] border-l-[3px] border-line py-0.5 pl-3.5 leading-[1.7]">
+                {#if meeting.audioDeleted}
+                  {s.text.trim()}
+                {:else}
+                  <button
+                    type="button"
+                    class="inline rounded-sm text-left hover:bg-wash focus-visible:bg-wash"
+                    title={`${t.detail.playFrom} ${formatTimestamp(s.startMs)}`}
+                    onclick={() => playAt(s.startMs)}>{s.text.trim()}</button
+                  >
+                {/if}
+              </p>
             </li>
           {/each}
         </ol>
@@ -705,9 +667,9 @@
 </dialog>
 
 <style>
-  /* Transkrip panjang: browser hanya me-render giliran yang terlihat (PRD §14.5). */
-  .virtualized .turn {
+  /* Transkrip panjang: browser hanya me-render baris yang terlihat (PRD §14.5). */
+  .virtualized .row {
     content-visibility: auto;
-    contain-intrinsic-size: auto 5rem;
+    contain-intrinsic-size: auto 2.5rem;
   }
 </style>

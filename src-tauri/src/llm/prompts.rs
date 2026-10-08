@@ -11,9 +11,8 @@ Aturan:
 
 pub const CHUNK: &str = "Tanggal meeting: {tanggal_iso}. Ini bagian {i} dari {n} transkrip.
 Ekstrak informasi HANYA dari bagian ini dengan format:
-{\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"], \"nama_peserta_lain\": null}
+{\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
 Gunakan array kosong [] jika tidak ada.
-- nama_peserta_lain: nama orang di label \"{label_peserta}\" HANYA jika jelas hanya ada satu orang lain di meeting dan namanya disebut (memperkenalkan diri atau dipanggil namanya). Jika lebih dari satu orang, tidak jelas, atau nama itu milik \"{label_saya}\", isi null. Jika terisi, pakai nama itu (bukan \"{label_peserta}\") di ringkasan, keputusan, dan penanggung_jawab.
 
 TRANSKRIP:
 <<<
@@ -22,7 +21,7 @@ TRANSKRIP:
 
 pub const FINAL: &str = "Tanggal meeting: {tanggal_iso}.
 Buat notulen dari transkrip berikut dengan format:
-{\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"], \"nama_peserta_lain\": null}
+{\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
 Ketentuan:
 - judul: maksimal 8 kata, menggambarkan inti meeting.
 - ringkasan: 1-3 paragraf.
@@ -31,7 +30,6 @@ Ketentuan:
 - action_items.penanggung_jawab: nama orang jika disebut; \"{label_saya}\" jika pemilik rekaman berkomitmen; null jika tidak jelas.
 - action_items.tenggat: tulis seperti yang disebut; jika tanggal relatif bisa dihitung dari tanggal meeting, tambahkan tanggal dalam kurung format YYYY-MM-DD, contoh \"Jumat depan (2026-10-16)\"; null jika tidak disebut.
 - topik: maksimal 8 item.
-- nama_peserta_lain: nama orang di label \"{label_peserta}\" HANYA jika jelas hanya ada satu orang lain di meeting dan namanya disebut (memperkenalkan diri atau dipanggil namanya). Jika lebih dari satu orang, tidak jelas, atau nama itu milik \"{label_saya}\", isi null. Jika terisi, pakai nama itu (bukan \"{label_peserta}\") di ringkasan, keputusan, dan penanggung_jawab.
 Gunakan array kosong [] jika tidak ada.
 
 TRANSKRIP:
@@ -45,9 +43,8 @@ Berikut hasil ekstraksi per bagian dari satu meeting (JSON array, berurutan):
 {json_parsial}
 >>>
 Gabungkan menjadi satu notulen dengan format dan ketentuan yang sama persis seperti berikut:
-{\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"], \"nama_peserta_lain\": null}
+{\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
 - Gabungkan keputusan dan action item yang sama atau mirip menjadi satu.
-- nama_peserta_lain: ambil dari bagian-bagian jika semuanya konsisten menyebut satu nama yang sama; jika berbeda atau kosong, null.
 - judul maksimal 8 kata; ringkasan 1-3 paragraf; topik maksimal 8 item.";
 
 /// Merge perantara (merge bertingkat) memakai format CHUNK (`ringkasan_bagian`) — PRD §10.4.
@@ -57,8 +54,7 @@ Berikut hasil ekstraksi per bagian dari satu meeting (JSON array, berurutan):
 {json_parsial}
 >>>
 Gabungkan menjadi satu ekstraksi dengan format:
-{\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"], \"nama_peserta_lain\": null}
-- nama_peserta_lain: satu nama jika semua bagian konsisten; jika berbeda atau kosong, null.
+{\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
 - Gabungkan keputusan dan action item yang sama atau mirip menjadi satu.
 Gunakan array kosong [] jika tidak ada.";
 

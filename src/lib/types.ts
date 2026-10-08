@@ -80,20 +80,6 @@ export type MeetingSummary = {
 
 export type TemplateOption = { key: string; label: string };
 
-export type QuotaToday = {
-  sttAudioSecUsed: number;
-  sttAudioSecLimit: number;
-  sttRequestsUsed: number;
-  sttRequestsLimit: number;
-  llmTokensUsed: number;
-  llmTokensLimit: number;
-  llmRequestsUsed: number;
-  llmRequestsLimit: number;
-  /** Peran memakai Groq (batas di atas berlaku). */
-  sttGroq: boolean;
-  llmGroq: boolean;
-};
-
 export type SummaryEdit = {
   summary: string;
   decisions: string[];

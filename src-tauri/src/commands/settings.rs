@@ -32,17 +32,6 @@ pub async fn update_settings(app: AppHandle, state: State<'_, AppState>, patch: 
     Ok(updated)
 }
 
-/// Tambahan (langkah 29, C5.2): pemakaian kuota Groq hari ini dari `usage_log`.
-#[tauri::command]
-pub async fn get_quota_today(state: State<'_, AppState>) -> AppResult<crate::queue::rate_limiter::QuotaToday> {
-    let conn = state.db.conn();
-    let mut q = crate::queue::rate_limiter::quota_today(&conn, &state.providers.limits, crate::db::now_ms())?;
-    // Batas harian hanya diketahui untuk Groq (free tier); penyedia lain mengikuti akun masing-masing.
-    q.stt_groq = crate::ai::provider_of(&conn, crate::ai::Role::Stt)? == crate::ai::GROQ;
-    q.llm_groq = crate::ai::provider_of(&conn, crate::ai::Role::Llm)? == crate::ai::GROQ;
-    Ok(q)
-}
-
 /// Ukuran maksimal log yang dimasukkan ke laporan (bagian akhir file terbaru).
 const REPORT_MAX_LOG_BYTES: usize = 4 * 1024 * 1024;
 

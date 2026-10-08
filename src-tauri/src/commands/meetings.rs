@@ -104,7 +104,7 @@ pub async fn get_meeting(state: State<'_, AppState>, id: String) -> AppResult<Me
     // Label dihitung saat tampil, bukan disimpan per segment (AC F9.1).
     let labels = Labels {
         mic: settings::load(&conn)?.user_display_name,
-        system: repo_summary::system_label(&conn, &id)?.unwrap_or_else(|| DEFAULT_SYSTEM_LABEL.to_string()),
+        system: DEFAULT_SYSTEM_LABEL.to_string(),
     };
     Ok(MeetingDetail {
         base: MeetingListItem::from(&m),

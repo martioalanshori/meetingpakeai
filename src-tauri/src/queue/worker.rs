@@ -573,15 +573,6 @@ impl Worker {
                 let template = input.template.as_deref().or(notes.jenis.as_deref());
                 repo_summary::save(&mut conn, id, Some(&notes), &model, template)?;
                 repo_meetings::set_generated_title(&conn, id, &notes.judul)?;
-                // Nama lawan bicara dari perkenalan (meeting 1:1); bukan nama pemilik rekaman.
-                let name = notes
-                    .nama_peserta_lain
-                    .as_deref()
-                    .filter(|n| !n.eq_ignore_ascii_case(&input.label_saya) && !n.eq_ignore_ascii_case("saya"));
-                if name.is_some() {
-                    tracing::info!("meeting {id}: nama peserta lain dikenali dari percakapan");
-                }
-                repo_summary::set_system_label(&conn, id, name.unwrap_or(""))?;
             }
         }
         Ok(())
