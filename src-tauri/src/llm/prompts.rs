@@ -24,8 +24,8 @@ Buat notulen dari transkrip berikut dengan format:
 {\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
 Ketentuan:
 - judul: maksimal 8 kata, menggambarkan inti meeting.
-- ringkasan: 1-3 paragraf.
-- keputusan: hanya hal yang jelas disepakati.
+- ringkasan: 1-3 paragraf bergaya notulen rapat profesional: buka dengan tujuan atau konteks meeting, lalu poin pembahasan utama, lalu hasil dan langkah berikutnya. Kalimat lugas, sudut pandang orang ketiga, tanpa opini, tanpa basa-basi pembuka.
+- keputusan: hanya hal yang jelas disepakati, satu keputusan per item, tulis sebagai pernyataan lengkap.
 - action_items.tugas: diawali kata kerja.
 - action_items.penanggung_jawab: nama orang jika disebut; \"{label_saya}\" jika pemilik rekaman berkomitmen; null jika tidak jelas.
 - action_items.tenggat: tulis seperti yang disebut; jika tanggal relatif bisa dihitung dari tanggal meeting, tambahkan tanggal dalam kurung format YYYY-MM-DD, contoh \"Jumat depan (2026-10-16)\"; null jika tidak disebut.
@@ -45,7 +45,7 @@ Berikut hasil ekstraksi per bagian dari satu meeting (JSON array, berurutan):
 Gabungkan menjadi satu notulen dengan format dan ketentuan yang sama persis seperti berikut:
 {\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
 - Gabungkan keputusan dan action item yang sama atau mirip menjadi satu.
-- judul maksimal 8 kata; ringkasan 1-3 paragraf; topik maksimal 8 item.";
+- judul maksimal 8 kata; ringkasan 1-3 paragraf bergaya notulen rapat profesional (tujuan/konteks, poin pembahasan, hasil dan langkah berikutnya); topik maksimal 8 item.";
 
 /// Merge perantara (merge bertingkat) memakai format CHUNK (`ringkasan_bagian`) — PRD §10.4.
 pub const MERGE_INTERMEDIATE: &str = "Tanggal meeting: {tanggal_iso}.
@@ -57,54 +57,6 @@ Gabungkan menjadi satu ekstraksi dengan format:
 {\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
 - Gabungkan keputusan dan action item yang sama atau mirip menjadi satu.
 Gunakan array kosong [] jika tidak ada.";
-
-/// Template ringkasan (F14): kunci, nama tampilan, dan fokus notulen.
-pub const TEMPLATES: &[(&str, &str, &str)] = &[
-    ("umum", "Umum", "Notulen umum: ringkasan, keputusan, dan tindak lanjut."),
-    (
-        "standup",
-        "Standup",
-        "Fokus pada apa yang sudah dikerjakan, rencana berikutnya, dan hambatan; sebut per orang jika namanya disebut.",
-    ),
-    (
-        "client_call",
-        "Client call",
-        "Fokus pada kebutuhan dan permintaan klien, keberatan, harga atau penawaran, serta langkah tindak lanjut ke klien.",
-    ),
-    (
-        "interview",
-        "Interview",
-        "Fokus pada latar belakang kandidat, jawaban penting, kekuatan, kekhawatiran, dan rekomendasi; keputusan hanya jika disebut eksplisit.",
-    ),
-    (
-        "kuliah",
-        "Kuliah / pelatihan",
-        "Fokus pada konsep utama, definisi, contoh, dan tugas atau ujian yang disebut; action item = tugas untuk peserta.",
-    ),
-    (
-        "one_on_one",
-        "1:1",
-        "Fokus pada umpan balik, tujuan, kendala, dan kesepakatan antara kedua orang.",
-    ),
-];
-
-pub fn is_template(key: &str) -> bool {
-    TEMPLATES.iter().any(|(k, _, _)| *k == key)
-}
-
-/// Tambahan prompt FINAL/MERGE. `None` = otomatis: LLM mengenali jenis meeting dan mengisi field "jenis".
-pub fn template_instruction(template: Option<&str>) -> String {
-    if let Some((_, label, focus)) = template.and_then(|t| TEMPLATES.iter().find(|(k, _, _)| *k == t)) {
-        return format!("Jenis meeting: {label}. {focus}");
-    }
-    let mut s = String::from(
-        "Kenali jenis meeting dari isinya, sesuaikan fokus notulen, dan tambahkan field \"jenis\" berisi salah satu kunci berikut:",
-    );
-    for (key, _, focus) in TEMPLATES {
-        s.push_str(&format!("\n- {key}: {focus}"));
-    }
-    s
-}
 
 pub const RETRY: &str =
     "Output sebelumnya tidak valid: {error}. Kembalikan ulang HANYA JSON valid sesuai format yang diminta.";
@@ -123,30 +75,17 @@ pub fn chunk(tanggal: &str, i: usize, n: usize, transkrip: &str, label_saya: &st
         .replace("{transkrip}", transkrip)
 }
 
-pub fn final_prompt(
-    tanggal: &str,
-    label_saya: &str,
-    label_peserta: &str,
-    transkrip: &str,
-    template: Option<&str>,
-) -> String {
-    let base = FINAL
+pub fn final_prompt(tanggal: &str, label_saya: &str, label_peserta: &str, transkrip: &str) -> String {
+    FINAL
         .replace("{tanggal_iso}", tanggal)
         .replace("{label_saya}", label_saya)
-        .replace("{label_peserta}", label_peserta);
-    // Instruksi template disisipkan sebelum transkrip (setelah "Ketentuan").
-    let base = base.replacen("\nTRANSKRIP:", &format!("{}\n\nTRANSKRIP:", template_instruction(template)), 1);
-    base.replace("{transkrip}", transkrip)
+        .replace("{label_peserta}", label_peserta)
+        .replace("{transkrip}", transkrip)
 }
 
-pub fn merge(tanggal: &str, json_parsial: &str, intermediate: bool, template: Option<&str>) -> String {
+pub fn merge(tanggal: &str, json_parsial: &str, intermediate: bool) -> String {
     let tpl = if intermediate { MERGE_INTERMEDIATE } else { MERGE };
-    let out = tpl.replace("{tanggal_iso}", tanggal).replace("{json_parsial}", json_parsial);
-    if intermediate {
-        out
-    } else {
-        format!("{out}\n{}", template_instruction(template))
-    }
+    tpl.replace("{tanggal_iso}", tanggal).replace("{json_parsial}", json_parsial)
 }
 
 pub fn retry(error: &str) -> String {

@@ -550,9 +550,8 @@ impl Worker {
                 .timestamp_millis_opt(m.started_at)
                 .single()
                 .map_or_else(String::new, |t| t.format("%Y-%m-%d").to_string());
-            let template = repo_meetings::summary_template(&conn, id)?;
             (
-                SummarizeInput { lines, word_count, label_saya, label_peserta, tanggal, template },
+                SummarizeInput { lines, word_count, label_saya, label_peserta, tanggal },
                 llm_endpoint.model.clone(),
             )
         };
@@ -568,10 +567,9 @@ impl Worker {
         };
         let mut conn = self.db.conn();
         match outcome {
-            SummaryOutcome::Empty => repo_summary::save(&mut conn, id, None, &model, None)?,
+            SummaryOutcome::Empty => repo_summary::save(&mut conn, id, None, &model)?,
             SummaryOutcome::Notes(notes) => {
-                let template = input.template.as_deref().or(notes.jenis.as_deref());
-                repo_summary::save(&mut conn, id, Some(&notes), &model, template)?;
+                repo_summary::save(&mut conn, id, Some(&notes), &model)?;
                 repo_meetings::set_generated_title(&conn, id, &notes.judul)?;
             }
         }

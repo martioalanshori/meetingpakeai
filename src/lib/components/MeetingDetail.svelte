@@ -16,7 +16,6 @@
     MeetingDetail,
     MeetingStatus,
     SummaryEdit,
-    TemplateOption,
     TranscriptSegment,
   } from "$lib/types";
 
@@ -45,7 +44,6 @@
   let audioSrc = $state<string | null>(null);
   let audioEl = $state<HTMLAudioElement | null>(null);
   let audioLoading = $state(false);
-  let templates = $state<TemplateOption[]>([]);
 
   const PROCESSING: MeetingStatus[] = [
     "queued",
@@ -108,7 +106,6 @@
   });
 
   onMount(async () => {
-    templates = await api.listSummaryTemplates().catch(() => []);
     unlisten.push(
       await events.jobProgress((p) => {
         if (p.meetingId !== meetingId || !meeting) return;
@@ -158,19 +155,6 @@
     if (meeting?.summary?.edited) regenerateDialog?.showModal();
     else act(() => api.regenerateSummary(meetingId), t.toast.requeued);
   }
-
-  /** Template dipilih → ringkasan dibuat ulang ("" = otomatis). */
-  async function changeTemplate(e: Event) {
-    const select = e.currentTarget as HTMLSelectElement;
-    const value = select.value === "" ? null : select.value;
-    if (meeting?.summary?.edited && !confirm(t.edit.templateConfirm)) {
-      select.value = meeting.summary.template ?? "";
-      return;
-    }
-    await act(() => api.setSummaryTemplate(meetingId, value), t.toast.requeued);
-  }
-
-  const templateLabel = (key: string | null) => templates.find((x) => x.key === key)?.label ?? key ?? "";
 
   async function saveSummary(edit: SummaryEdit) {
     try {
@@ -463,21 +447,6 @@
           <p class="text-ink-soft">{t.summary.noSpeech}</p>
         {:else}
           <div class="flex flex-wrap items-center gap-2">
-            {#if meeting.status === "done" && templates.length > 0}
-              <label class="flex items-center gap-2 text-sm text-ink-soft">
-                {t.edit.template}
-                <select class="field py-1 pr-7 text-sm" onchange={changeTemplate}>
-                  <option value="" selected={!meeting.summaryTemplate}>
-                    {meeting.summary.template && !meeting.summaryTemplate
-                      ? t.edit.templateAutoDetected(templateLabel(meeting.summary.template))
-                      : t.edit.templateAuto}
-                  </option>
-                  {#each templates as tp (tp.key)}
-                    <option value={tp.key} selected={meeting.summaryTemplate === tp.key}>{tp.label}</option>
-                  {/each}
-                </select>
-              </label>
-            {/if}
             {#if meeting.summary.edited}
               <span class="text-sm text-ink-faint">{t.edit.edited}</span>
             {/if}

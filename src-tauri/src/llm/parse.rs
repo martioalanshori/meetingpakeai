@@ -18,8 +18,6 @@ pub struct FinalNotes {
     pub keputusan: Vec<String>,
     pub action_items: Vec<ActionItem>,
     pub topik: Vec<String>,
-    /// Jenis meeting yang dikenali LLM (template otomatis); hanya kunci template yang dikenal.
-    pub jenis: Option<String>,
 }
 
 /// Hasil per bagian (CHUNK / merge perantara).
@@ -105,9 +103,6 @@ pub fn parse_final(raw: &str) -> Result<FinalNotes, String> {
         keputusan: string_list(v.get("keputusan"))?,
         action_items: action_items(v.get("action_items"))?,
         topik: string_list(v.get("topik"))?.into_iter().take(8).collect(),
-        jenis: opt_string(v.get("jenis"))
-            .map(|j| j.to_lowercase())
-            .filter(|j| crate::llm::prompts::is_template(j)),
     })
 }
 
@@ -169,13 +164,6 @@ mod tests {
         assert_eq!(n.judul.chars().count(), 100);
         assert_eq!(n.topik.len(), 8);
     }
-
-    #[test]
-    fn parse_final_jenis_hanya_kunci_dikenal() {
-        assert_eq!(parse_final(r#"{"judul":"J","ringkasan":"R","jenis":"Standup"}"#).unwrap().jenis.as_deref(), Some("standup"));
-        assert_eq!(parse_final(r#"{"judul":"J","ringkasan":"R","jenis":"rapat"}"#).unwrap().jenis, None);
-    }
-
 
     #[test]
     fn parse_final_item_tanpa_tugas_dibuang() {

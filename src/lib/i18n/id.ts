@@ -162,10 +162,6 @@ export const id = {
     regenerateConfirm:
       "Ringkasan ini sudah Anda edit. Buat ulang ringkasan akan mengganti semua perubahan Anda. Lanjutkan?",
     regenerateButton: "Buat ulang",
-    template: "Template",
-    templateAuto: "Otomatis",
-    templateAutoDetected: (label: string) => `Otomatis (${label})`,
-    templateConfirm: "Ganti template akan membuat ulang ringkasan dan mengganti perubahan Anda. Lanjutkan?",
   },
 
   ai: {

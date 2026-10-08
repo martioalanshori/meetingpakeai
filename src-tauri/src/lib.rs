@@ -322,8 +322,6 @@ pub fn run() {
             commands::meetings::delete_meeting,
             commands::meetings::retry_job,
             commands::meetings::regenerate_summary,
-            commands::meetings::list_summary_templates,
-            commands::meetings::set_summary_template,
             commands::meetings::retranscribe,
             commands::meetings::resolve_interrupted,
         ])

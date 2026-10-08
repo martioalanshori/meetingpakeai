@@ -27,8 +27,6 @@ pub struct SummarizeInput {
     pub label_peserta: String,
     /// Tanggal meeting `YYYY-MM-DD`.
     pub tanggal: String,
-    /// Template pilihan pengguna; `None` = otomatis.
-    pub template: Option<String>,
 }
 
 pub enum SummaryOutcome {
@@ -128,7 +126,6 @@ pub async fn summarize(caller: &dyn LlmCaller, input: &SummarizeInput, max_chunk
             &input.label_saya,
             &input.label_peserta,
             &transcript,
-            input.template.as_deref(),
         ));
         let notes = call_parsed(caller, vec![system, user], MAX_TOKENS_FINAL, parse::parse_final).await?;
         caller.progress(1, 1);
@@ -157,7 +154,7 @@ pub async fn summarize(caller: &dyn LlmCaller, input: &SummarizeInput, max_chunk
         let joined = json_array(&partials);
         let groups = group_partials(&partials, max_chunk_tokens);
         if estimate_tokens(&joined) <= max_chunk_tokens || groups.len() == partials.len() {
-            let user = ChatMessage::user(prompts::merge(&input.tanggal, &joined, false, input.template.as_deref()));
+            let user = ChatMessage::user(prompts::merge(&input.tanggal, &joined, false));
             let notes = call_parsed(caller, vec![system.clone(), user], MAX_TOKENS_FINAL, parse::parse_final).await?;
             done += 1;
             caller.progress(done, total.max(done));
@@ -167,7 +164,7 @@ pub async fn summarize(caller: &dyn LlmCaller, input: &SummarizeInput, max_chunk
         total += groups.len();
         let mut next = Vec::with_capacity(groups.len());
         for g in groups {
-            let user = ChatMessage::user(prompts::merge(&input.tanggal, &json_array(&g), true, None));
+            let user = ChatMessage::user(prompts::merge(&input.tanggal, &json_array(&g), true));
             let p: PartialNotes = call_parsed(caller, vec![system.clone(), user], MAX_TOKENS_FINAL, parse::parse_partial).await?;
             next.push(serde_json::to_string(&p).map_err(|e| StepError::Failed(AppError::from(e)))?);
             done += 1;

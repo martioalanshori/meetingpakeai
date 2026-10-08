@@ -19,7 +19,6 @@ import type {
   OnboardingStatus,
   SearchHit,
   TaskItem,
-  TemplateOption,
   RecordingState,
   RecordingWarningPayload,
   Settings,
@@ -86,9 +85,6 @@ export const api = {
   updateSummary: (id: string, edit: SummaryEdit) => call<void>("update_summary", { id, edit }),
   retryJob: (id: string) => call<void>("retry_job", { id }),
   regenerateSummary: (id: string) => call<void>("regenerate_summary", { id }),
-  listSummaryTemplates: () => call<TemplateOption[]>("list_summary_templates"),
-  setSummaryTemplate: (id: string, template: string | null) =>
-    call<void>("set_summary_template", { id, template }),
   retranscribe: (id: string) => call<void>("retranscribe", { id }),
   resolveInterrupted: (id: string, action: "process" | "discard") =>
     call<void>("resolve_interrupted", { id, action }),

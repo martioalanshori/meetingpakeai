@@ -62,8 +62,6 @@ pub struct MeetingDetail {
     pub failed_step: Option<String>,
     pub audio_deleted: bool,
     pub labels: Labels,
-    /// Tambahan (langkah 29): template pilihan pengguna; `None` = otomatis.
-    pub summary_template: Option<String>,
     pub summary: Option<SummaryView>,
     pub action_items: Vec<ActionItemView>,
 }
@@ -113,7 +111,6 @@ pub async fn get_meeting(state: State<'_, AppState>, id: String) -> AppResult<Me
         failed_step: m.failed_step.clone(),
         audio_deleted: m.audio_deleted,
         labels,
-        summary_template: repo_meetings::summary_template(&conn, &id)?,
         summary: repo_summary::get(&conn, &id)?,
         action_items: repo_summary::action_items(&conn, &id)?,
     })
@@ -229,35 +226,6 @@ pub async fn retry_job(state: State<'_, AppState>, id: String) -> AppResult<()> 
         return Err(AppError::new(ErrorCode::AudioNotAvailable));
     }
     requeue(&state, &id, step)
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TemplateOption {
-    pub key: &'static str,
-    pub label: &'static str,
-}
-
-/// Tambahan (langkah 29, F14): daftar template ringkasan.
-#[tauri::command]
-pub async fn list_summary_templates() -> AppResult<Vec<TemplateOption>> {
-    Ok(crate::llm::prompts::TEMPLATES.iter().map(|(key, label, _)| TemplateOption { key, label }).collect())
-}
-
-/// Tambahan (langkah 29): pilih template (`null` = otomatis) lalu buat ulang ringkasan.
-#[tauri::command]
-pub async fn set_summary_template(state: State<'_, AppState>, id: String, template: Option<String>) -> AppResult<()> {
-    let template = template.filter(|t| crate::llm::prompts::is_template(t));
-    let m = repo_meetings::get(&state.db.conn(), &id)?;
-    repo_meetings::set_summary_template(&state.db.conn(), &id, template.as_deref())?;
-    let can_regenerate = m.status == MeetingStatus::Done
-        || (m.status == MeetingStatus::Failed && m.failed_step.as_deref() == Some("summarizing"));
-    if can_regenerate {
-        requeue(&state, &id, MeetingStatus::Summarizing)
-    } else {
-        emit_updated(&state, &id);
-        Ok(())
-    }
 }
 
 /// Hanya jika `done` atau `failed` di `summarizing`.
