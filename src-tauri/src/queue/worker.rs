@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use futures_util::StreamExt;
 use chrono::{Local, TimeZone};
 use serde::Serialize;
 use tokio::sync::Notify;
@@ -36,6 +37,12 @@ const NET_MAX_ATTEMPTS: u32 = 5;
 const QUOTA_RETRY_MS: i64 = 15 * 60 * 1000;
 const NETWORK_RETRY_MS: i64 = 60 * 1000;
 const IDLE_MAX_SLEEP: Duration = Duration::from_secs(60);
+/// Satu transkripsi chunk yang berjalan (lihat `step_transcribe`).
+type ChunkJob<'a> = Pin<Box<dyn Future<Output = (&'a repo_chunks::ChunkRow, StepResult<Vec<SttSegment>>)> + Send + 'a>>;
+
+/// Chunk STT yang dikirim bersamaan (urutan hasil tidak penting: merge mengurutkan menurut waktu).
+const STT_CONCURRENCY: usize = 3;
+const STT_CONCURRENCY_GROQ: usize = 2;
 /// Retensi "7 hari": audio meeting selesai yang lebih tua dari ini dihapus.
 const AUDIO_KEEP_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 const RETENTION_SWEEP_EVERY: Duration = Duration::from_secs(60 * 60);
@@ -477,13 +484,18 @@ impl Worker {
             return Ok(());
         }
         let (e, api_key) = self.endpoint(Role::Stt)?;
+        // Beberapa chunk sekaligus (mic & sistem paralel). Groq dibatasi lebih ketat karena kuota per menit/jam.
+        let concurrency = if e.is_groq() { STT_CONCURRENCY_GROQ } else { STT_CONCURRENCY };
         let stt = OpenAiStt { http: self.http.clone(), base_url: e.base_url, api_key, model: e.model };
         let language = (m.language == "id").then(|| "id".to_string());
+        // Future dibuat lebih dulu (Vec) agar tidak ada closure tersimpan di state future worker (`Send`).
+        let mut jobs: Vec<ChunkJob<'_>> = Vec::new();
         for c in chunks.iter().filter(|c| c.stt_status != "done") {
-            let path = self.data_dir.join(&c.path);
+            jobs.push(Box::pin(self.transcribe_chunk(&stt, &language, c)));
+        }
+        let mut results = futures_util::stream::iter(jobs).buffer_unordered(concurrency);
+        while let Some((c, segments)) = results.next().await {
             let cost = Cost::Stt { audio_sec: c.duration_ms as f64 / 1000.0 };
-            let map: Vec<preprocess::OffsetEntry> = serde_json::from_str(&c.offset_map_json).unwrap_or_default();
-            let segments = self.transcribe_file(&stt, &language, &path, c.duration_ms, &map, 0).await;
             let segments = match segments {
                 Ok(s) => s,
                 Err(e) => {
@@ -502,6 +514,18 @@ impl Worker {
             self.set_progress(id, MeetingStatus::Transcribing, done, total);
         }
         Ok(())
+    }
+
+    async fn transcribe_chunk<'a>(
+        &'a self,
+        stt: &'a OpenAiStt,
+        language: &'a Option<String>,
+        c: &'a repo_chunks::ChunkRow,
+    ) -> (&'a repo_chunks::ChunkRow, StepResult<Vec<SttSegment>>) {
+        let path = self.data_dir.join(&c.path);
+        let map: Vec<preprocess::OffsetEntry> = serde_json::from_str(&c.offset_map_json).unwrap_or_default();
+        let result = self.transcribe_file(stt, language, &path, c.duration_ms, &map, 0).await;
+        (c, result)
     }
 
     /// Transkrip satu file chunk. Ditolak 413 → pecah dua di jeda antar-region (offset map) dan

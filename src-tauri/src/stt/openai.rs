@@ -53,16 +53,48 @@ fn one() -> f64 {
     1.0
 }
 
+/// WAV PCM16 mono → FLAC (lossless, ±50% lebih kecil) agar unggahan lebih cepat. `None` jika gagal
+/// (pemanggil mengirim WAV apa adanya). Format diterima Groq, OpenAI, dan server berbasis ffmpeg.
+fn encode_flac(wav: &[u8]) -> Option<Vec<u8>> {
+    use flacenc::component::BitRepr;
+    use flacenc::error::Verify;
+
+    let mut reader = hound::WavReader::new(std::io::Cursor::new(wav)).ok()?;
+    let spec = reader.spec();
+    if spec.bits_per_sample != 16 || spec.sample_format != hound::SampleFormat::Int {
+        return None;
+    }
+    let samples: Vec<i32> = reader.samples::<i16>().filter_map(Result::ok).map(i32::from).collect();
+    if samples.is_empty() {
+        return None;
+    }
+    let config = flacenc::config::Encoder::default().into_verified().ok()?;
+    let source = flacenc::source::MemSource::from_samples(&samples, usize::from(spec.channels), 16, spec.sample_rate as usize);
+    let stream = flacenc::encode_with_fixed_block_size(&config, source, config.block_size).ok()?;
+    let mut sink = flacenc::bitsink::ByteSink::new();
+    stream.write(&mut sink).ok()?;
+    Some(sink.as_slice().to_vec())
+}
+
 #[async_trait]
 impl SttProvider for OpenAiStt {
     async fn transcribe(&self, req: SttRequest) -> Result<Vec<SttSegment>, ProviderError> {
         let bytes = tokio::fs::read(&req.wav_path)
             .await
             .map_err(|e| ProviderError::BadRequest(format!("file chunk tidak bisa dibaca: {e}")))?;
-        let timeout = timeout_for(bytes.len());
-        let file = reqwest::multipart::Part::bytes(bytes)
-            .file_name("audio.wav")
-            .mime_str("audio/wav")
+        let wav_len = bytes.len();
+        // Encode di thread blocking (CPU-bound, ±detik untuk chunk 5–10 menit).
+        let (payload, name, mime) = tokio::task::spawn_blocking(move || match encode_flac(&bytes) {
+            Some(flac) => (flac, "audio.flac", "audio/flac"),
+            None => (bytes, "audio.wav", "audio/wav"),
+        })
+        .await
+        .map_err(|e| ProviderError::BadRequest(format!("encode audio gagal: {e}")))?;
+        tracing::debug!("unggah chunk {name}: {} KB (WAV {} KB)", payload.len() / 1024, wav_len / 1024);
+        let timeout = timeout_for(payload.len());
+        let file = reqwest::multipart::Part::bytes(payload)
+            .file_name(name)
+            .mime_str(mime)
             .map_err(|e| ProviderError::BadRequest(e.to_string()))?;
         let mut form = reqwest::multipart::Form::new()
             .part("file", file)
