@@ -38,7 +38,6 @@
   let deleteDialog = $state<HTMLDialogElement | null>(null);
   let regenerateDialog = $state<HTMLDialogElement | null>(null);
   let editingSummary = $state(false);
-  let speakerDraft = $state("");
   let audioSrc = $state<string | null>(null);
   let audioEl = $state<HTMLAudioElement | null>(null);
   let audioLoading = $state(false);
@@ -72,7 +71,6 @@
       const m = await api.getMeeting(meetingId);
       const firstLoad = meeting === null;
       meeting = m;
-      if (firstLoad) speakerDraft = m.labels.system;
       transcript = await api.getTranscript(meetingId);
       const wanted = page.url.searchParams.get("tab");
       if (firstLoad && (wanted === "summary" || wanted === "actions" || wanted === "transcript")) tab = wanted;
@@ -159,12 +157,6 @@
     } catch (e) {
       showToast((e as AppError).message, "error");
     }
-  }
-
-  async function saveSpeaker(e: SubmitEvent) {
-    e.preventDefault();
-    await act(() => api.setSpeakerName(meetingId, speakerDraft), t.edit.speakerSaved);
-    if (meeting) speakerDraft = meeting.labels.system;
   }
 
   async function confirmDelete() {
@@ -566,19 +558,9 @@
       {:else if transcript.length === 0}
         <p class="text-gray-500">{processing ? t.detail.processing : t.detail.emptyTranscript}</p>
       {:else}
-        <form class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3" onsubmit={saveSpeaker}>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium">{t.edit.speakerLabel}</span>
-            <input class="w-56 rounded-lg border border-gray-300 px-3 py-1.5" maxlength="50" bind:value={speakerDraft} />
-          </label>
-          <button type="submit" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">
-            {t.edit.speakerSave}
-          </button>
-          <div class="ml-auto self-center">
-            <CopyButton text={() => formatTranscript(meeting!, transcript)} okText={t.minutes.transcriptCopied} />
-          </div>
-          <span class="w-full text-xs text-gray-500">{t.edit.speakerHint}</span>
-        </form>
+        <div class="flex justify-end">
+          <CopyButton text={() => formatTranscript(meeting!, transcript)} okText={t.minutes.transcriptCopied} />
+        </div>
         {#if audioSrc || audioLoading}
           <div class="sticky top-0 z-10 flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
             {#if audioLoading && !audioSrc}<span class="text-sm text-gray-600">{t.detail.preparingAudio}</span>{/if}

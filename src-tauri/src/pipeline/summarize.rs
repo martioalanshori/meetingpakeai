@@ -123,8 +123,13 @@ pub async fn summarize(caller: &dyn LlmCaller, input: &SummarizeInput, max_chunk
     // Single pass.
     if estimate_tokens(&transcript) <= max_chunk_tokens {
         caller.progress(0, 1);
-        let user =
-            ChatMessage::user(prompts::final_prompt(&input.tanggal, &input.label_saya, &transcript, input.template.as_deref()));
+        let user = ChatMessage::user(prompts::final_prompt(
+            &input.tanggal,
+            &input.label_saya,
+            &input.label_peserta,
+            &transcript,
+            input.template.as_deref(),
+        ));
         let notes = call_parsed(caller, vec![system, user], MAX_TOKENS_FINAL, parse::parse_final).await?;
         caller.progress(1, 1);
         tracing::info!("ringkasan single pass: 1 request");
@@ -139,7 +144,8 @@ pub async fn summarize(caller: &dyn LlmCaller, input: &SummarizeInput, max_chunk
     caller.progress(done, total);
     let mut partials: Vec<String> = Vec::with_capacity(n);
     for (i, text) in chunks.iter().enumerate() {
-        let user = ChatMessage::user(prompts::chunk(&input.tanggal, i + 1, n, text));
+        let user =
+            ChatMessage::user(prompts::chunk(&input.tanggal, i + 1, n, text, &input.label_saya, &input.label_peserta));
         let p: PartialNotes = call_parsed(caller, vec![system.clone(), user], MAX_TOKENS_CHUNK, parse::parse_partial).await?;
         partials.push(serde_json::to_string(&p).map_err(|e| StepError::Failed(AppError::from(e)))?);
         done += 1;

@@ -11,7 +11,6 @@ use crate::events::{self, MeetingUpdated};
 use crate::AppState;
 
 const TITLE_MAX_CHARS: usize = 100;
-const SPEAKER_NAME_MAX_CHARS: usize = 50;
 
 /// `MeetingListItem` (PRD §12.2).
 #[derive(Serialize)]
@@ -177,18 +176,6 @@ pub async fn update_summary(state: State<'_, AppState>, id: String, edit: Summar
         return Err(AppError::new(ErrorCode::InvalidState));
     }
     reindex(&state, &id);
-    emit_updated(&state, &id);
-    Ok(())
-}
-
-/// Tambahan (langkah 23, F10): ganti label "Peserta lain" untuk satu meeting; kosong = default.
-#[tauri::command]
-pub async fn set_speaker_name(state: State<'_, AppState>, id: String, name: String) -> AppResult<()> {
-    let conn = state.db.conn();
-    repo_meetings::get(&conn, &id)?;
-    let name: String = name.trim().chars().take(SPEAKER_NAME_MAX_CHARS).collect();
-    repo_summary::set_system_label(&conn, &id, &name)?;
-    drop(conn);
     emit_updated(&state, &id);
     Ok(())
 }

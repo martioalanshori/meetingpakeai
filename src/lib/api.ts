@@ -80,7 +80,6 @@ export const api = {
   preparePlayback: (id: string) => call<string>("prepare_playback", { id }),
   saveExport: (fileName: string, contents: string) => call<boolean>("save_export", { fileName, contents }),
   updateSummary: (id: string, edit: SummaryEdit) => call<void>("update_summary", { id, edit }),
-  setSpeakerName: (id: string, name: string) => call<void>("set_speaker_name", { id, name }),
   retryJob: (id: string) => call<void>("retry_job", { id }),
   regenerateSummary: (id: string) => call<void>("regenerate_summary", { id }),
   listSummaryTemplates: () => call<TemplateOption[]>("list_summary_templates"),

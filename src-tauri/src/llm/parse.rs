@@ -20,6 +20,8 @@ pub struct FinalNotes {
     pub topik: Vec<String>,
     /// Jenis meeting yang dikenali LLM (template otomatis); hanya kunci template yang dikenal.
     pub jenis: Option<String>,
+    /// Nama satu-satunya peserta lain jika disebut di meeting (1:1); dipakai sebagai label channel system.
+    pub nama_peserta_lain: Option<String>,
 }
 
 /// Hasil per bagian (CHUNK / merge perantara).
@@ -29,6 +31,13 @@ pub struct PartialNotes {
     pub keputusan: Vec<String>,
     pub action_items: Vec<ActionItem>,
     pub topik: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nama_peserta_lain: Option<String>,
+}
+
+/// Nama peserta: dibuang jika kosong, terlalu panjang (> 40 karakter), atau berisi lebih dari 4 kata.
+fn person_name(v: Option<&Value>) -> Option<String> {
+    opt_string(v).filter(|n| n.chars().count() <= 40 && n.split_whitespace().count() <= 4)
 }
 
 /// Langkah 1–2: buang `<think>…</think>` (termasuk yang tidak tertutup), ambil `{` pertama s/d `}` terakhir.
@@ -108,6 +117,7 @@ pub fn parse_final(raw: &str) -> Result<FinalNotes, String> {
         jenis: opt_string(v.get("jenis"))
             .map(|j| j.to_lowercase())
             .filter(|j| crate::llm::prompts::is_template(j)),
+        nama_peserta_lain: person_name(v.get("nama_peserta_lain")),
     })
 }
 
@@ -121,6 +131,7 @@ pub fn parse_partial(raw: &str) -> Result<PartialNotes, String> {
         keputusan: string_list(v.get("keputusan"))?,
         action_items: action_items(v.get("action_items"))?,
         topik: string_list(v.get("topik"))?,
+        nama_peserta_lain: person_name(v.get("nama_peserta_lain")),
     })
 }
 
@@ -174,6 +185,16 @@ mod tests {
     fn parse_final_jenis_hanya_kunci_dikenal() {
         assert_eq!(parse_final(r#"{"judul":"J","ringkasan":"R","jenis":"Standup"}"#).unwrap().jenis.as_deref(), Some("standup"));
         assert_eq!(parse_final(r#"{"judul":"J","ringkasan":"R","jenis":"rapat"}"#).unwrap().jenis, None);
+    }
+
+    #[test]
+    fn parse_final_nama_peserta_lain() {
+        let n = parse_final(r#"{"judul":"J","ringkasan":"R","nama_peserta_lain":" Ucup "}"#).unwrap();
+        assert_eq!(n.nama_peserta_lain.as_deref(), Some("Ucup"));
+        let n = parse_final(r#"{"judul":"J","ringkasan":"R","nama_peserta_lain":null}"#).unwrap();
+        assert_eq!(n.nama_peserta_lain, None);
+        let long = r#"{"judul":"J","ringkasan":"R","nama_peserta_lain":"tim marketing dan tim sales klien"}"#;
+        assert_eq!(parse_final(long).unwrap().nama_peserta_lain, None);
     }
 
     #[test]

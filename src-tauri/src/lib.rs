@@ -313,7 +313,6 @@ pub fn run() {
             commands::meetings::update_summary,
             commands::meetings::prepare_playback,
             commands::meetings::save_export,
-            commands::meetings::set_speaker_name,
             commands::meetings::delete_meeting,
             commands::meetings::retry_job,
             commands::meetings::regenerate_summary,

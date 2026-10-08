@@ -11,8 +11,9 @@ Aturan:
 
 pub const CHUNK: &str = "Tanggal meeting: {tanggal_iso}. Ini bagian {i} dari {n} transkrip.
 Ekstrak informasi HANYA dari bagian ini dengan format:
-{\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
+{\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"], \"nama_peserta_lain\": null}
 Gunakan array kosong [] jika tidak ada.
+- nama_peserta_lain: nama orang di label \"{label_peserta}\" HANYA jika jelas hanya ada satu orang lain di meeting dan namanya disebut (memperkenalkan diri atau dipanggil namanya). Jika lebih dari satu orang, tidak jelas, atau nama itu milik \"{label_saya}\", isi null. Jika terisi, pakai nama itu (bukan \"{label_peserta}\") di ringkasan, keputusan, dan penanggung_jawab.
 
 TRANSKRIP:
 <<<
@@ -21,7 +22,7 @@ TRANSKRIP:
 
 pub const FINAL: &str = "Tanggal meeting: {tanggal_iso}.
 Buat notulen dari transkrip berikut dengan format:
-{\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
+{\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"], \"nama_peserta_lain\": null}
 Ketentuan:
 - judul: maksimal 8 kata, menggambarkan inti meeting.
 - ringkasan: 1-3 paragraf.
@@ -30,6 +31,7 @@ Ketentuan:
 - action_items.penanggung_jawab: nama orang jika disebut; \"{label_saya}\" jika pemilik rekaman berkomitmen; null jika tidak jelas.
 - action_items.tenggat: tulis seperti yang disebut; jika tanggal relatif bisa dihitung dari tanggal meeting, tambahkan tanggal dalam kurung format YYYY-MM-DD, contoh \"Jumat depan (2026-10-16)\"; null jika tidak disebut.
 - topik: maksimal 8 item.
+- nama_peserta_lain: nama orang di label \"{label_peserta}\" HANYA jika jelas hanya ada satu orang lain di meeting dan namanya disebut (memperkenalkan diri atau dipanggil namanya). Jika lebih dari satu orang, tidak jelas, atau nama itu milik \"{label_saya}\", isi null. Jika terisi, pakai nama itu (bukan \"{label_peserta}\") di ringkasan, keputusan, dan penanggung_jawab.
 Gunakan array kosong [] jika tidak ada.
 
 TRANSKRIP:
@@ -43,8 +45,9 @@ Berikut hasil ekstraksi per bagian dari satu meeting (JSON array, berurutan):
 {json_parsial}
 >>>
 Gabungkan menjadi satu notulen dengan format dan ketentuan yang sama persis seperti berikut:
-{\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
+{\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"], \"nama_peserta_lain\": null}
 - Gabungkan keputusan dan action item yang sama atau mirip menjadi satu.
+- nama_peserta_lain: ambil dari bagian-bagian jika semuanya konsisten menyebut satu nama yang sama; jika berbeda atau kosong, null.
 - judul maksimal 8 kata; ringkasan 1-3 paragraf; topik maksimal 8 item.";
 
 /// Merge perantara (merge bertingkat) memakai format CHUNK (`ringkasan_bagian`) — PRD §10.4.
@@ -54,7 +57,8 @@ Berikut hasil ekstraksi per bagian dari satu meeting (JSON array, berurutan):
 {json_parsial}
 >>>
 Gabungkan menjadi satu ekstraksi dengan format:
-{\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
+{\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"], \"nama_peserta_lain\": null}
+- nama_peserta_lain: satu nama jika semua bagian konsisten; jika berbeda atau kosong, null.
 - Gabungkan keputusan dan action item yang sama atau mirip menjadi satu.
 Gunakan array kosong [] jika tidak ada.";
 
@@ -113,16 +117,27 @@ pub fn system(label_saya: &str, label_peserta: &str) -> String {
     SYSTEM.replace("{label_saya}", label_saya).replace("{label_peserta}", label_peserta)
 }
 
-pub fn chunk(tanggal: &str, i: usize, n: usize, transkrip: &str) -> String {
+pub fn chunk(tanggal: &str, i: usize, n: usize, transkrip: &str, label_saya: &str, label_peserta: &str) -> String {
     CHUNK
+        .replace("{label_saya}", label_saya)
+        .replace("{label_peserta}", label_peserta)
         .replace("{tanggal_iso}", tanggal)
         .replace("{i}", &i.to_string())
         .replace("{n}", &n.to_string())
         .replace("{transkrip}", transkrip)
 }
 
-pub fn final_prompt(tanggal: &str, label_saya: &str, transkrip: &str, template: Option<&str>) -> String {
-    let base = FINAL.replace("{tanggal_iso}", tanggal).replace("{label_saya}", label_saya);
+pub fn final_prompt(
+    tanggal: &str,
+    label_saya: &str,
+    label_peserta: &str,
+    transkrip: &str,
+    template: Option<&str>,
+) -> String {
+    let base = FINAL
+        .replace("{tanggal_iso}", tanggal)
+        .replace("{label_saya}", label_saya)
+        .replace("{label_peserta}", label_peserta);
     // Instruksi template disisipkan sebelum transkrip (setelah "Ketentuan").
     let base = base.replacen("\nTRANSKRIP:", &format!("{}\n\nTRANSKRIP:", template_instruction(template)), 1);
     base.replace("{transkrip}", transkrip)

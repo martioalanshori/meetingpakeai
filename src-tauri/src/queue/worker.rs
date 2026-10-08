@@ -522,8 +522,8 @@ impl Worker {
         let (input, model) = {
             let conn = self.db.conn();
             let label_saya = settings::load(&conn)?.user_display_name;
-            let label_peserta =
-                repo_summary::system_label(&conn, id)?.unwrap_or_else(|| DEFAULT_SYSTEM_LABEL.to_string());
+            // LLM selalu melihat label default; nama hasil kenali (1:1) disimpan setelahnya.
+            let label_peserta = DEFAULT_SYSTEM_LABEL.to_string();
             let segments = repo_segments::list_visible(&conn, id)?;
             let word_count = segments.iter().map(|s| s.text.split_whitespace().count()).sum();
             let lines = segments
@@ -558,6 +558,15 @@ impl Worker {
                 let template = input.template.as_deref().or(notes.jenis.as_deref());
                 repo_summary::save(&mut conn, id, Some(&notes), &model, template)?;
                 repo_meetings::set_generated_title(&conn, id, &notes.judul)?;
+                // Nama lawan bicara dari perkenalan (meeting 1:1); bukan nama pemilik rekaman.
+                let name = notes
+                    .nama_peserta_lain
+                    .as_deref()
+                    .filter(|n| !n.eq_ignore_ascii_case(&input.label_saya) && !n.eq_ignore_ascii_case("saya"));
+                if name.is_some() {
+                    tracing::info!("meeting {id}: nama peserta lain dikenali dari percakapan");
+                }
+                repo_summary::set_system_label(&conn, id, name.unwrap_or(""))?;
             }
         }
         Ok(())

@@ -149,10 +149,6 @@ export const id = {
     regenerateConfirm:
       "Ringkasan ini sudah Anda edit. Buat ulang ringkasan akan mengganti semua perubahan Anda. Lanjutkan?",
     regenerateButton: "Buat ulang",
-    speakerLabel: "Nama peserta lain",
-    speakerHint: "Untuk meeting 1:1, isi nama lawan bicara agar transkrip lebih mudah dibaca.",
-    speakerSave: "Simpan nama",
-    speakerSaved: "Nama peserta disimpan",
     template: "Template",
     templateAuto: "Otomatis",
     templateAutoDetected: (label: string) => `Otomatis (${label})`,
