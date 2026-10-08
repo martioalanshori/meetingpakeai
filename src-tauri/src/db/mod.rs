@@ -16,7 +16,7 @@ use rusqlite::Connection;
 use crate::error::{AppError, AppResult};
 
 /// Migrasi berurutan; indeks + 1 = nilai `PRAGMA user_version` setelah migrasi dijalankan.
-const MIGRATIONS: &[&str] = &[include_str!("migrations/001_init.sql")];
+const MIGRATIONS: &[&str] = &[include_str!("migrations/001_init.sql"), include_str!("migrations/002_edits.sql")];
 
 pub struct Db {
     conn: Mutex<Connection>,

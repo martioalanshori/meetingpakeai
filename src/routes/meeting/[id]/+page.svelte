@@ -6,11 +6,12 @@
   import { api, events } from "$lib/api";
   import Icon from "$lib/components/Icon.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
+  import SummaryEditor from "$lib/components/SummaryEditor.svelte";
   import { formatActionItems, formatMinutes, type MinutesStyle } from "$lib/minutes";
   import { formatDateTime, formatDuration, formatTime, formatTimestamp } from "$lib/format";
   import { id as t } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
-  import type { AppError, MeetingDetail, MeetingStatus, TranscriptSegment } from "$lib/types";
+  import type { AppError, MeetingDetail, MeetingStatus, SummaryEdit, TranscriptSegment } from "$lib/types";
 
   type Tab = "summary" | "actions" | "transcript";
 
@@ -26,6 +27,9 @@
   let titleDraft = $state("");
   let titleInput = $state<HTMLInputElement | null>(null);
   let deleteDialog = $state<HTMLDialogElement | null>(null);
+  let regenerateDialog = $state<HTMLDialogElement | null>(null);
+  let editingSummary = $state(false);
+  let speakerDraft = $state("");
 
   const PROCESSING: MeetingStatus[] = [
     "queued",
@@ -55,6 +59,7 @@
       const m = await api.getMeeting(meetingId);
       const firstLoad = meeting === null;
       meeting = m;
+      if (firstLoad) speakerDraft = m.labels.system;
       transcript = await api.getTranscript(meetingId);
       if (firstLoad && m.status !== "done" && m.summary === null) tab = transcript.length > 0 ? "transcript" : "summary";
     } catch (e) {
@@ -108,6 +113,29 @@
     editing = false;
     if (title === "" || title === meeting.title) return;
     await act(() => api.renameMeeting(meetingId, title), t.toast.titleSaved);
+  }
+
+  function requestRegenerate() {
+    menuOpen = false;
+    if (meeting?.summary?.edited) regenerateDialog?.showModal();
+    else act(() => api.regenerateSummary(meetingId), t.toast.requeued);
+  }
+
+  async function saveSummary(edit: SummaryEdit) {
+    try {
+      await api.updateSummary(meetingId, edit);
+      editingSummary = false;
+      showToast(t.edit.saved, "success");
+      await load();
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+
+  async function saveSpeaker(e: SubmitEvent) {
+    e.preventDefault();
+    await act(() => api.setSpeakerName(meetingId, speakerDraft), t.edit.speakerSaved);
+    if (meeting) speakerDraft = meeting.labels.system;
   }
 
   async function confirmDelete() {
@@ -256,7 +284,7 @@
                 role="menuitem"
                 class="px-4 py-2 text-left hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400"
                 disabled={!canRegenerate}
-                onclick={() => act(() => api.regenerateSummary(meetingId), t.toast.requeued)}
+                onclick={requestRegenerate}
               >
                 {t.detail.regenerate}
               </button>
@@ -357,14 +385,30 @@
     </div>
 
     <section role="tabpanel" class="flex flex-col gap-4">
-      {#if tab === "summary"}
+      {#if (tab === "summary" || tab === "actions") && editingSummary && meeting.summary}
+        <SummaryEditor {meeting} onsave={saveSummary} oncancel={() => (editingSummary = false)} />
+      {:else if tab === "summary"}
         {#if !meeting.summary}
           <p class="text-gray-500">{processing ? t.detail.processing : "—"}</p>
         {:else if meeting.summary.status === "empty"}
           <p class="text-gray-600">{t.summary.noSpeech}</p>
         {:else}
           <div class="flex flex-col gap-2">
-            <h2 class="font-semibold">{t.detail.summary}</h2>
+            <div class="flex items-center gap-3">
+              <h2 class="font-semibold">{t.detail.summary}</h2>
+              {#if meeting.summary.edited}
+                <span class="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-700">{t.edit.edited}</span>
+              {/if}
+              {#if meeting.status === "done"}
+                <button
+                  type="button"
+                  class="ml-auto rounded-lg px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-50"
+                  onclick={() => (editingSummary = true)}
+                >
+                  {t.edit.button}
+                </button>
+              {/if}
+            </div>
             <p class="leading-relaxed whitespace-pre-line text-gray-800">{meeting.summary.summary}</p>
           </div>
           <div class="flex flex-col gap-2">
@@ -391,9 +435,19 @@
       {:else if tab === "actions"}
         {#if !meeting.summary}
           <p class="text-gray-500">{processing ? t.detail.processing : "—"}</p>
-        {:else if meeting.actionItems.length === 0}
-          <p class="text-gray-600">{t.detail.noActionItems}</p>
         {:else}
+          {#if meeting.status === "done"}
+            <button
+              type="button"
+              class="self-end rounded-lg px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-50"
+              onclick={() => (editingSummary = true)}
+            >
+              {t.edit.button}
+            </button>
+          {/if}
+          {#if meeting.actionItems.length === 0}
+            <p class="text-gray-600">{t.detail.noActionItems}</p>
+          {:else}
           <ul class="flex flex-col divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white">
             {#each meeting.actionItems as a (a.id)}
               <li class="flex items-start gap-3 px-4 py-3">
@@ -416,10 +470,21 @@
               </li>
             {/each}
           </ul>
+          {/if}
         {/if}
       {:else if transcript.length === 0}
         <p class="text-gray-500">{processing ? t.detail.processing : t.detail.emptyTranscript}</p>
       {:else}
+        <form class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3" onsubmit={saveSpeaker}>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium">{t.edit.speakerLabel}</span>
+            <input class="w-56 rounded-lg border border-gray-300 px-3 py-1.5" maxlength="50" bind:value={speakerDraft} />
+          </label>
+          <button type="submit" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">
+            {t.edit.speakerSave}
+          </button>
+          <span class="w-full text-xs text-gray-500">{t.edit.speakerHint}</span>
+        </form>
         <ol class={["flex flex-col gap-1.5", transcript.length > 500 && "virtualized"]}>
           {#each transcript as s (s.id)}
             <li class="segment leading-relaxed">
@@ -451,6 +516,31 @@
         onclick={confirmDelete}
       >
         {t.detail.deleteButton}
+      </button>
+    </div>
+  </div>
+</dialog>
+
+<dialog
+  bind:this={regenerateDialog}
+  class="m-auto w-full max-w-md rounded-xl p-0 shadow-2xl backdrop:bg-black/40"
+  aria-labelledby="regen-title"
+>
+  <div class="flex flex-col gap-4 p-6">
+    <p id="regen-title" class="text-gray-800">{t.edit.regenerateConfirm}</p>
+    <div class="flex justify-end gap-2">
+      <button type="button" class="rounded-lg px-4 py-2 hover:bg-gray-100" onclick={() => regenerateDialog?.close()}>
+        {t.common.cancel}
+      </button>
+      <button
+        type="button"
+        class="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700"
+        onclick={() => {
+          regenerateDialog?.close();
+          act(() => api.regenerateSummary(meetingId), t.toast.requeued);
+        }}
+      >
+        {t.edit.regenerateButton}
       </button>
     </div>
   </div>

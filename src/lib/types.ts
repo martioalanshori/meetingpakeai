@@ -72,6 +72,15 @@ export type MeetingSummary = {
   summary: string | null;
   decisions: string[];
   topics: string[];
+  /** Sudah diubah pengguna. */
+  edited: boolean;
+};
+
+export type SummaryEdit = {
+  summary: string;
+  decisions: string[];
+  topics: string[];
+  actionItems: { task: string; assignee: string | null; due: string | null; done: boolean }[];
 };
 
 export type MeetingDetail = MeetingListItem & {

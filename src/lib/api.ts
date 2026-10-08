@@ -16,6 +16,7 @@ import type {
   RecordingState,
   RecordingWarningPayload,
   Settings,
+  SummaryEdit,
   TestApiKeyResult,
   TranscriptSegment,
 } from "./types";
@@ -68,6 +69,8 @@ export const api = {
   setActionItemDone: (id: number, done: boolean) =>
     call<void>("set_action_item_done", { id, done }),
   deleteMeeting: (id: string) => call<void>("delete_meeting", { id }),
+  updateSummary: (id: string, edit: SummaryEdit) => call<void>("update_summary", { id, edit }),
+  setSpeakerName: (id: string, name: string) => call<void>("set_speaker_name", { id, name }),
   retryJob: (id: string) => call<void>("retry_job", { id }),
   regenerateSummary: (id: string) => call<void>("regenerate_summary", { id }),
   retranscribe: (id: string) => call<void>("retranscribe", { id }),

@@ -292,6 +292,8 @@ pub fn run() {
             commands::meetings::get_transcript,
             commands::meetings::rename_meeting,
             commands::meetings::set_action_item_done,
+            commands::meetings::update_summary,
+            commands::meetings::set_speaker_name,
             commands::meetings::delete_meeting,
             commands::meetings::retry_job,
             commands::meetings::regenerate_summary,

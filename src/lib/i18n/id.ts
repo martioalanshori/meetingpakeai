@@ -111,6 +111,28 @@ export const id = {
     noSpeech: "Tidak ada percakapan yang terdeteksi.",
   },
 
+  edit: {
+    button: "Edit",
+    edited: "Diedit",
+    save: "Simpan perubahan",
+    saved: "Notulen disimpan",
+    decisionsHint: "Satu keputusan per baris.",
+    topicsHint: "Pisahkan topik dengan koma.",
+    task: "Tugas",
+    assignee: "PJ",
+    due: "Tenggat",
+    done: "Selesai",
+    remove: "Hapus",
+    addItem: "+ Tambah action item",
+    regenerateConfirm:
+      "Ringkasan ini sudah Anda edit. Buat ulang ringkasan akan mengganti semua perubahan Anda. Lanjutkan?",
+    regenerateButton: "Buat ulang",
+    speakerLabel: "Nama peserta lain",
+    speakerHint: "Untuk meeting 1:1, isi nama lawan bicara agar transkrip lebih mudah dibaca.",
+    speakerSave: "Simpan nama",
+    speakerSaved: "Nama peserta disimpan",
+  },
+
   minutes: {
     date: "Tanggal",
     actionItemsOf: (title: string) => `Action items — ${title}`,

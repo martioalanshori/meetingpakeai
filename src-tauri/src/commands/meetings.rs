@@ -4,12 +4,13 @@ use tauri::State;
 use crate::config::settings::{self, DEFAULT_SYSTEM_LABEL};
 use crate::db::repo_meetings::{self, MeetingRow, MeetingStatus};
 use crate::db::repo_segments::{self, VisibleSegment};
-use crate::db::repo_summary::{self, ActionItemView, SummaryView};
+use crate::db::repo_summary::{self, ActionItemView, SummaryEdit, SummaryView};
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::events::{self, MeetingUpdated};
 use crate::AppState;
 
 const TITLE_MAX_CHARS: usize = 100;
+const SPEAKER_NAME_MAX_CHARS: usize = 50;
 
 /// `MeetingListItem` (PRD §12.2).
 #[derive(Serialize)]
@@ -110,6 +111,32 @@ pub async fn rename_meeting(state: State<'_, AppState>, id: String, title: Strin
         return Err(AppError::new(ErrorCode::InvalidState));
     }
     repo_meetings::rename(&state.db.conn(), &id, &title)?;
+    emit_updated(&state, &id);
+    Ok(())
+}
+
+/// Tambahan (langkah 23): simpan ringkasan & action item hasil edit pengguna.
+#[tauri::command]
+pub async fn update_summary(state: State<'_, AppState>, id: String, edit: SummaryEdit) -> AppResult<()> {
+    let m = repo_meetings::get(&state.db.conn(), &id)?;
+    if m.status != MeetingStatus::Done {
+        return Err(AppError::new(ErrorCode::InvalidState));
+    }
+    if !repo_summary::update(&mut state.db.conn(), &id, &edit)? {
+        return Err(AppError::new(ErrorCode::InvalidState));
+    }
+    emit_updated(&state, &id);
+    Ok(())
+}
+
+/// Tambahan (langkah 23, F10): ganti label "Peserta lain" untuk satu meeting; kosong = default.
+#[tauri::command]
+pub async fn set_speaker_name(state: State<'_, AppState>, id: String, name: String) -> AppResult<()> {
+    let conn = state.db.conn();
+    repo_meetings::get(&conn, &id)?;
+    let name: String = name.trim().chars().take(SPEAKER_NAME_MAX_CHARS).collect();
+    repo_summary::set_system_label(&conn, &id, &name)?;
+    drop(conn);
     emit_updated(&state, &id);
     Ok(())
 }
