@@ -56,7 +56,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | `test_api_key` dengan key salah (401) | Kembalikan error `INVALID_API_KEY`. `{ ok, missingModels }` hanya untuk key valid. |
 | Antrean dijeda karena 401 | Flag di memori; saat start dihitung ulang dari adanya meeting `failed` + `error_code = 'INVALID_API_KEY'`. Tanpa perubahan skema. |
 | Nada tes onboarding | Sinus 1 kHz, −12 dBFS, 3 detik, dibangkitkan di kode. |
-| Ikon | Placeholder: app = lingkaran indigo; tray `icons/tray-idle.png` (abu-abu) / `icons/tray-recording.png` (merah). |
+| Ikon | Sumber: `Logo.png` di root (1080×1080 transparan: empat kotak `#0A0A0A` + kotak tengah `#FF4A1C`). Ikon aplikasi dibuat dengan `npx tauri icon ../Logo.png` dari `src-tauri/` (folder android/ios hasil generator dihapus). Logo di UI = `Wordmark.svelte` (SVG gambar ulang dari geometri logo). |
 | Cek disk saat merekam | Tiap 30 detik. |
 | Argumen `update_settings` | `{ patch: Partial<Settings> }`. |
 | tracing-subscriber | Ditambahkan (tidak ada di §6.1) karena dibutuhkan untuk memasang subscriber tracing ke file. |
@@ -107,7 +107,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Frasa halusinasi pendek (langkah 19) | `short_hallucination_phrases` di `providers.json`: segment dibuang jika teks ternormalisasi ≤ 3 kata, sama persis dengan salah satu frasa, **dan** potongan region VAD asal (`dur_ms` entri offset map) < 1 dtk. |
 | Tes audio onboarding (langkah 19) | Puncak mic diambil di 0–2,5 dtk (pengguna bicara), lalu nada diputar untuk tes loopback sampai detik 5. |
 | `ended_at` meeting terputus (langkah 19) | Recovery mengisi `ended_at = started_at + duration_ms` jika masih kosong. |
-| Ikon tray memproses (langkah 19) | `icons/tray-processing.png` (placeholder lingkaran amber). Prioritas: merekam > memproses > idle; worker memanggil `EventSink::processing_changed`. Ikon final menunggu desain dari pemilik. |
+| Ikon tray | Dibuat dari geometri logo (skrip render Python, 32 px): idle = logo; merekam = kelima kotak merah `#E5241B`; memproses = kotak sudut redup + tengah oranye. Tiap varian punya versi `-dark` (kotak sudut putih) untuk taskbar gelap; dipilih dari registry `Themes\Personalize\SystemUsesLightTheme` setiap ikon diperbarui. Prioritas: merekam > memproses > idle. |
 | Shortcut global (langkah 21) | Setting `globalShortcut` (default `Ctrl+Alt+R`, kosong = mati), didaftarkan dari Rust (`desktop.rs`). Idle → langsung mulai rekam tanpa membuka jendela; merekam → Stop. Shortcut baru gagal didaftarkan → setting tidak disimpan, shortcut lama dipulihkan. |
 | Autostart (langkah 21) | `tauri-plugin-autostart` dengan argumen `--minimized`; setting `autostart` (default mati, dicentang di langkah akhir onboarding). Jendela main `"create": false` di konfigurasi dan dibuat di `setup` kecuali start dengan `--minimized` setelah onboarding selesai. |
 | Deteksi meeting (langkah 22) | `meeting_watch.rs` polling ConsentStore HKCU tiap `meeting_detection.poll_sec` (10 dtk) via `windows_integration/meeting_detect.rs`. Daftar aplikasi di `providers.json` → `meeting_detection.apps` (nama exe NonPackaged / nama paket sebelum `_`, lowercase). Exe sendiri dikecualikan. Hanya aktif setelah onboarding dan jika setting `meetingDetection` (default nyala). Tawaran sekali per sesi mic; tidak saat merekam. |

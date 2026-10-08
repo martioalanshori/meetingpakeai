@@ -15,9 +15,22 @@ use crate::db::Db;
 use crate::events::EventSink;
 
 pub const TRAY_ID: &str = "main-tray";
-pub const TRAY_ICON_IDLE: &[u8] = include_bytes!("../icons/tray-idle.png");
-pub const TRAY_ICON_RECORDING: &[u8] = include_bytes!("../icons/tray-recording.png");
-pub const TRAY_ICON_PROCESSING: &[u8] = include_bytes!("../icons/tray-processing.png");
+/// Ikon tray dari logo: [taskbar terang, taskbar gelap]. Kotak sudut hitam tidak terlihat di taskbar gelap,
+/// jadi varian gelap memakai kotak sudut putih.
+const TRAY_IDLE: [&[u8]; 2] = [include_bytes!("../icons/tray-idle.png"), include_bytes!("../icons/tray-idle-dark.png")];
+const TRAY_RECORDING: [&[u8]; 2] =
+    [include_bytes!("../icons/tray-recording.png"), include_bytes!("../icons/tray-recording-dark.png")];
+const TRAY_PROCESSING: [&[u8]; 2] =
+    [include_bytes!("../icons/tray-processing.png"), include_bytes!("../icons/tray-processing-dark.png")];
+
+/// Varian ikon sesuai tema taskbar Windows saat ini.
+fn themed(icons: [&'static [u8]; 2]) -> &'static [u8] {
+    icons[usize::from(!crate::windows_integration::taskbar_is_light())]
+}
+
+pub fn tray_icon_idle() -> &'static [u8] {
+    themed(TRAY_IDLE)
+}
 const RECORDER_LABEL: &str = "recorder";
 /// Meeting dari notifikasi "Notulen siap" dibuka jika jendela main dibuka dalam waktu ini.
 const PENDING_MEETING_TTL: Duration = Duration::from_secs(60 * 60);
@@ -149,11 +162,11 @@ impl TauriBridge {
         let _ = self.app.run_on_main_thread(move || {
             if let Some(tray) = app.tray_by_id(TRAY_ID) {
                 let (bytes, tip) = if recording {
-                    (TRAY_ICON_RECORDING, "Meeting Pake AI — merekam")
+                    (themed(TRAY_RECORDING), "Meeting Pake AI — merekam")
                 } else if processing {
-                    (TRAY_ICON_PROCESSING, "Meeting Pake AI — memproses notulen")
+                    (themed(TRAY_PROCESSING), "Meeting Pake AI — memproses notulen")
                 } else {
-                    (TRAY_ICON_IDLE, "Meeting Pake AI")
+                    (themed(TRAY_IDLE), "Meeting Pake AI")
                 };
                 if let Ok(img) = Image::from_bytes(bytes) {
                     let _ = tray.set_icon(Some(img));

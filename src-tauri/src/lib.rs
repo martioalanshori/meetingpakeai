@@ -33,7 +33,7 @@ use tokio::sync::Notify;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling::{Builder as RollingBuilder, Rotation};
 
-use crate::bridge::{TauriBridge, TRAY_ICON_IDLE, TRAY_ID};
+use crate::bridge::{TauriBridge, TRAY_ID};
 use crate::config::providers::ProvidersConfig;
 use crate::config::settings;
 use crate::db::{now_ms, repo_usage, Db};
@@ -197,7 +197,7 @@ fn build_tray(app: &AppHandle, bridge: &TauriBridge) -> tauri::Result<()> {
     *bridge.record_item.lock().unwrap_or_else(|e| e.into_inner()) = Some(record.clone());
 
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(Image::from_bytes(TRAY_ICON_IDLE)?)
+        .icon(Image::from_bytes(bridge::tray_icon_idle())?)
         .tooltip("Meeting Pake AI")
         .menu(&menu)
         .show_menu_on_left_click(false)

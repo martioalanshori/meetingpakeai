@@ -3,6 +3,15 @@
 pub mod meeting_detect;
 pub mod mic_permission;
 
+/// Taskbar memakai tema terang (`SystemUsesLightTheme = 1`); tidak terbaca → anggap gelap (default Windows 11).
+pub fn taskbar_is_light() -> bool {
+    use winreg::enums::HKEY_CURRENT_USER;
+    winreg::RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+        .and_then(|k| k.get_value::<u32, _>("SystemUsesLightTheme"))
+        .is_ok_and(|v| v == 1)
+}
+
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
