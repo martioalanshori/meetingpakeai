@@ -61,8 +61,16 @@ Gunakan array kosong [] jika tidak ada.";
 pub const RETRY: &str =
     "Output sebelumnya tidak valid: {error}. Kembalikan ulang HANYA JSON valid sesuai format yang diminta.";
 
-pub fn system(label_saya: &str, label_peserta: &str) -> String {
-    SYSTEM.replace("{label_saya}", label_saya).replace("{label_peserta}", label_peserta)
+pub fn system(label_saya: &str, label_peserta: &str, ejaan: &[String]) -> String {
+    let mut s = SYSTEM.replace("{label_saya}", label_saya).replace("{label_peserta}", label_peserta);
+    if !ejaan.is_empty() {
+        // Transkrip bisa salah dengar; notulen memakai ejaan dari glosarium pengguna.
+        s.push_str(&format!(
+            "\nEjaan nama & istilah yang benar: {}. Jika transkrip menulisnya mirip tapi berbeda, pakai ejaan ini.",
+            ejaan.join(", ")
+        ));
+    }
+    s
 }
 
 pub fn chunk(tanggal: &str, i: usize, n: usize, transkrip: &str, label_saya: &str, label_peserta: &str) -> String {

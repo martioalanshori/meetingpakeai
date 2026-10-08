@@ -38,6 +38,12 @@ const QUOTA_RETRY_MS: i64 = 15 * 60 * 1000;
 const NETWORK_RETRY_MS: i64 = 60 * 1000;
 const IDLE_MAX_SLEEP: Duration = Duration::from_secs(60);
 /// Satu transkripsi chunk yang berjalan (lihat `step_transcribe`).
+/// Opsi STT per meeting (bahasa + prompt glosarium).
+struct SttOpts {
+    language: Option<String>,
+    prompt: Option<String>,
+}
+
 type ChunkJob<'a> = Pin<Box<dyn Future<Output = (&'a repo_chunks::ChunkRow, StepResult<Vec<SttSegment>>)> + Send + 'a>>;
 
 /// Chunk STT yang dikirim bersamaan (urutan hasil tidak penting: merge mengurutkan menurut waktu).
@@ -497,11 +503,11 @@ impl Worker {
         // Beberapa chunk sekaligus (mic & sistem paralel). Groq dibatasi lebih ketat karena kuota per menit/jam.
         let concurrency = if e.is_groq() { STT_CONCURRENCY_GROQ } else { STT_CONCURRENCY };
         let stt = OpenAiStt { http: self.http.clone(), base_url: e.base_url, api_key, model: e.model };
-        let language = (m.language == "id").then(|| "id".to_string());
+        let opts = self.stt_opts(&m.language);
         // Future dibuat lebih dulu (Vec) agar tidak ada closure tersimpan di state future worker (`Send`).
         let mut jobs: Vec<ChunkJob<'_>> = Vec::new();
         for c in chunks.iter().filter(|c| c.stt_status != "done") {
-            jobs.push(Box::pin(self.transcribe_chunk(&stt, &language, c)));
+            jobs.push(Box::pin(self.transcribe_chunk(&stt, &opts, c)));
         }
         let mut results = futures_util::stream::iter(jobs).buffer_unordered(concurrency);
         while let Some((c, segments)) = results.next().await {
@@ -555,10 +561,10 @@ impl Worker {
         }
         let concurrency = if e.is_groq() { STT_CONCURRENCY_GROQ } else { STT_CONCURRENCY };
         let stt = OpenAiStt { http: self.http.clone(), base_url: e.base_url, api_key, model: e.model };
-        let language = (m.language == "id").then(|| "id".to_string());
+        let opts = self.stt_opts(&m.language);
         let mut jobs: Vec<ChunkJob<'_>> = Vec::new();
         for c in chunks.iter().filter(|c| c.stt_status != "done") {
-            jobs.push(Box::pin(self.transcribe_chunk(&stt, &language, c)));
+            jobs.push(Box::pin(self.transcribe_chunk(&stt, &opts, c)));
         }
         let mut results = futures_util::stream::iter(jobs).buffer_unordered(concurrency);
         let mut done = 0;
@@ -595,15 +601,43 @@ impl Worker {
         }
     }
 
+    /// Bahasa + prompt STT: glosarium pengguna lalu nama PJ yang sering muncul 30 hari terakhir.
+    fn stt_opts(&self, meeting_language: &str) -> SttOpts {
+        let language = (meeting_language == "id").then(|| "id".to_string());
+        let conn = self.db.conn();
+        let glossary = settings::load(&conn).map(|s| s.stt_glossary).unwrap_or_default();
+        let mut terms = settings::glossary_terms(&glossary);
+        let since = now_ms() - 30 * 24 * 3600 * 1000;
+        for name in repo_meetings::recent_assignees(&conn, since, 20).unwrap_or_default() {
+            if !terms.iter().any(|t| t.eq_ignore_ascii_case(&name)) {
+                terms.push(name);
+            }
+        }
+        drop(conn);
+        // Whisper memakai prompt sebagai "teks sebelumnya": daftar istilah dipotong per istilah, bukan di tengah kata.
+        let mut prompt = String::new();
+        for t in &terms {
+            let add = t.chars().count() + if prompt.is_empty() { 0 } else { 2 };
+            if prompt.chars().count() + add + 1 > settings::GLOSSARY_MAX_CHARS {
+                break;
+            }
+            if !prompt.is_empty() {
+                prompt.push_str(", ");
+            }
+            prompt.push_str(t);
+        }
+        SttOpts { language, prompt: (!prompt.is_empty()).then(|| format!("{prompt}.")) }
+    }
+
     async fn transcribe_chunk<'a>(
         &'a self,
         stt: &'a OpenAiStt,
-        language: &'a Option<String>,
+        opts: &'a SttOpts,
         c: &'a repo_chunks::ChunkRow,
     ) -> (&'a repo_chunks::ChunkRow, StepResult<Vec<SttSegment>>) {
         let path = self.data_dir.join(&c.path);
         let map: Vec<preprocess::OffsetEntry> = serde_json::from_str(&c.offset_map_json).unwrap_or_default();
-        let result = self.transcribe_file(stt, language, &path, c.duration_ms, &map, 0).await;
+        let result = self.transcribe_file(stt, opts, &path, c.duration_ms, &map, 0).await;
         (c, result)
     }
 
@@ -612,7 +646,7 @@ impl Worker {
     fn transcribe_file<'a>(
         &'a self,
         stt: &'a OpenAiStt,
-        language: &'a Option<String>,
+        opts: &'a SttOpts,
         path: &'a Path,
         duration_ms: i64,
         map: &'a [preprocess::OffsetEntry],
@@ -622,7 +656,11 @@ impl Worker {
             let cost = Cost::Stt { audio_sec: duration_ms as f64 / 1000.0 };
             let res = self
                 .with_retry(cost, || {
-                    stt.transcribe(SttRequest { wav_path: path.to_path_buf(), language: language.clone(), prompt: None })
+                    stt.transcribe(SttRequest {
+                        wav_path: path.to_path_buf(),
+                        language: opts.language.clone(),
+                        prompt: opts.prompt.clone(),
+                    })
                 })
                 .await;
             if !matches!(res, Err(StepError::TooLarge)) || depth >= MAX_SPLIT_DEPTH {
@@ -645,8 +683,8 @@ impl Worker {
                 .map(|e| preprocess::OffsetEntry { file_ms: e.file_ms - cut_ms, ..*e })
                 .collect();
             let parts = async {
-                let first = self.transcribe_file(stt, language, &a, cut_ms, &map_a, depth + 1).await?;
-                let second = self.transcribe_file(stt, language, &b, duration_ms - cut_ms, &map_b, depth + 1).await?;
+                let first = self.transcribe_file(stt, opts, &a, cut_ms, &map_a, depth + 1).await?;
+                let second = self.transcribe_file(stt, opts, &b, duration_ms - cut_ms, &map_b, depth + 1).await?;
                 Ok::<_, StepError>((first, second))
             }
             .await;
@@ -707,7 +745,14 @@ impl Worker {
                 .single()
                 .map_or_else(String::new, |t| t.format("%Y-%m-%d").to_string());
             (
-                SummarizeInput { lines, word_count, label_saya, label_peserta, tanggal },
+                SummarizeInput {
+                    lines,
+                    word_count,
+                    label_saya,
+                    label_peserta,
+                    tanggal,
+                    ejaan: settings::glossary_terms(&settings::load(&conn)?.stt_glossary),
+                },
                 llm_endpoint.model.clone(),
             )
         };

@@ -19,6 +19,9 @@ pub const KEY_MAIN_GEOMETRY: &str = "main_window_geometry";
 pub const KEY_GLOBAL_SHORTCUT: &str = "global_shortcut";
 pub const KEY_AUTOSTART: &str = "autostart";
 pub const KEY_MEETING_DETECTION: &str = "meeting_detection";
+pub const KEY_STT_GLOSSARY: &str = "stt_glossary";
+/// Batas glosarium (= batas prompt STT).
+pub const GLOSSARY_MAX_CHARS: usize = 800;
 
 pub const DEFAULT_USER_DISPLAY_NAME: &str = "Saya";
 pub const DEFAULT_SYSTEM_LABEL: &str = "Peserta lain";
@@ -65,6 +68,8 @@ pub struct Settings {
     pub autostart: bool,
     /// Tawarkan rekam saat Zoom/Teams/browser memakai mic, dan tawarkan Stop saat selesai.
     pub meeting_detection: bool,
+    /// Nama & istilah yang sering muncul, satu per baris (membantu ejaan transkrip & notulen).
+    pub stt_glossary: String,
 }
 
 /// `Partial<Settings>` dari `update_settings`.
@@ -78,6 +83,7 @@ pub struct SettingsPatch {
     pub global_shortcut: Option<String>,
     pub autostart: Option<bool>,
     pub meeting_detection: Option<bool>,
+    pub stt_glossary: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -105,6 +111,7 @@ pub fn load(conn: &Connection) -> AppResult<Settings> {
             .unwrap_or_else(|| DEFAULT_GLOBAL_SHORTCUT.to_string()),
         autostart: repo_settings::get(conn, KEY_AUTOSTART)?.unwrap_or(false),
         meeting_detection: repo_settings::get(conn, KEY_MEETING_DETECTION)?.unwrap_or(true),
+        stt_glossary: repo_settings::get(conn, KEY_STT_GLOSSARY)?.unwrap_or_default(),
     })
 }
 
@@ -134,7 +141,24 @@ pub fn apply_patch(conn: &Connection, patch: SettingsPatch) -> AppResult<Setting
     if let Some(v) = patch.meeting_detection {
         repo_settings::set(conn, KEY_MEETING_DETECTION, &v)?;
     }
+    if let Some(v) = patch.stt_glossary {
+        // Baris kosong dibuang; dipotong ke batas karakter.
+        let lines: Vec<&str> = v.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+        let v: String = lines.join("\n").chars().take(GLOSSARY_MAX_CHARS).collect();
+        repo_settings::set(conn, KEY_STT_GLOSSARY, &v)?;
+    }
     load(conn)
+}
+
+/// Istilah glosarium (satu per baris, tanpa duplikat).
+pub fn glossary_terms(glossary: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for t in glossary.lines().map(str::trim).filter(|t| !t.is_empty()) {
+        if !out.iter().any(|o| o.eq_ignore_ascii_case(t)) {
+            out.push(t.to_string());
+        }
+    }
+    out
 }
 
 pub fn onboarding_completed(conn: &Connection) -> AppResult<bool> {

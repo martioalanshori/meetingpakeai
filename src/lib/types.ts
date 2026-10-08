@@ -114,6 +114,8 @@ export type Settings = {
   autostart: boolean;
   /** Tawarkan rekam saat Zoom/Teams/browser memakai mic; tawarkan Stop saat selesai. */
   meetingDetection: boolean;
+  /** Nama & istilah, satu per baris (maks 800 karakter). */
+  sttGlossary: string;
 };
 
 export type UpdateInfo = { version: string; notes: string | null };

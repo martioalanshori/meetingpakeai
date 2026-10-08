@@ -90,12 +90,15 @@
   let section = $state<Section>(sections.some((x) => x.key === initial) ? (initial as Section) : "recording");
 
   let nameDraft = $state("");
+  let glossaryDraft = $state("");
+  const GLOSSARY_MAX = 800;
 
   onMount(async () => {
     setWindowTitle(t.title);
     try {
       form = await api.getSettings();
       nameDraft = form.userDisplayName;
+      glossaryDraft = form.sttGlossary;
     } catch (e) {
       loadError = (e as AppError).message;
     }
@@ -115,6 +118,12 @@
       form = before;
       showToast((e as AppError).message, "error");
     }
+  }
+
+  async function saveGlossary() {
+    if (!form || glossaryDraft === form.sttGlossary) return;
+    await patch({ sttGlossary: glossaryDraft });
+    glossaryDraft = form?.sttGlossary ?? glossaryDraft;
   }
 
   async function saveName() {
@@ -192,6 +201,22 @@
           ]}
           onchange={(v) => patch({ audioRetention: v })}
         />
+      </div>
+      <div class="flex flex-col gap-2 py-5">
+        <div class="flex items-baseline justify-between gap-4">
+          <label class="label" for="glossary">{t.glossary}</label>
+          <span class="hint tabular">{t.glossaryCount(glossaryDraft.length, GLOSSARY_MAX)}</span>
+        </div>
+        <textarea
+          id="glossary"
+          class="field min-h-28 resize-y leading-relaxed"
+          rows="5"
+          maxlength={GLOSSARY_MAX}
+          placeholder={t.glossaryPlaceholder}
+          bind:value={glossaryDraft}
+          onblur={saveGlossary}
+        ></textarea>
+        <span class="hint max-w-prose">{t.glossaryHint}</span>
       </div>
       {@render toggleRow(t.meetingDetection, t.meetingDetectionNote, form.meetingDetection, (v) =>
         patch({ meetingDetection: v }),

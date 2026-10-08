@@ -165,6 +165,17 @@ pub fn list_by_status(conn: &Connection, status: MeetingStatus) -> AppResult<Vec
     Ok(rows)
 }
 
+/// Nama PJ yang paling sering muncul di meeting sejak `since` (untuk glosarium STT otomatis).
+pub fn recent_assignees(conn: &Connection, since: i64, limit: i64) -> AppResult<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT TRIM(a.assignee) AS name, COUNT(*) AS n FROM action_items a JOIN meetings m ON m.id = a.meeting_id \
+         WHERE m.started_at >= ?1 AND a.assignee IS NOT NULL AND TRIM(a.assignee) <> '' \
+         GROUP BY LOWER(TRIM(a.assignee)) ORDER BY n DESC LIMIT ?2",
+    )?;
+    let rows = stmt.query_map(params![since, limit], |r| r.get::<_, String>(0))?.collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
 /// Judul dari pengguna: set `title_edited = 1`.
 pub fn rename(conn: &Connection, id: &str, title: &str) -> AppResult<()> {
     let n = conn.execute(

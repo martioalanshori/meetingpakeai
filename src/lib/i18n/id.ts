@@ -259,6 +259,11 @@ export const id = {
     },
     general: "Umum",
     sectionRecording: "Rekaman",
+    glossary: "Nama & istilah",
+    glossaryHint:
+      "Satu per baris: nama rekan, klien, produk, atau singkatan yang sering muncul. Dipakai agar transkrip dan notulen menuliskannya dengan benar. Nama penanggung jawab dari meeting 30 hari terakhir ikut dipakai otomatis.",
+    glossaryPlaceholder: "Contoh:\nPutri Ramadhani\nPT Sinar Jaya\nOKR\nSprint review",
+    glossaryCount: (n: number, max: number) => `${n}/${max}`,
     sectionApp: "Aplikasi",
     sectionAi: "Layanan AI",
     sectionHelp: "Bantuan",
