@@ -37,6 +37,8 @@
   let pausedLongMin = $state<number | null>(null);
   /** Judul meeting yang sedang direkam (tooltip timer, feedback3 B4). */
   let meetingTitle = $state("");
+  /** Tugas terbuka dari meeting sebelumnya dalam rangkaian yang sama (feedback3 D3). */
+  let prevTasks = $state<{ meetingId: string; title: string; tasks: string[] } | null>(null);
   let bookmarkCount = $state(0);
   let bookmarkFlash = $state(false);
   let flashTimer: ReturnType<typeof setTimeout> | undefined;
@@ -53,6 +55,7 @@
   function applyState(s: RecordingState) {
     if (s.meetingId && s.meetingId !== rs.meetingId) {
       api.getMeeting(s.meetingId).then((m) => (meetingTitle = m.title), () => {});
+      api.previousOpenTasks(s.meetingId).then((p) => (prevTasks = p), () => {});
     }
     rs = s;
     baseMs = s.elapsedMs;
@@ -278,6 +281,20 @@
       {id.recorder.deviceLost(ch)}
     </div>
   {/each}
+
+  {#if prevTasks}
+    <div class="flex min-h-11 items-center gap-2 border-t border-white/10 px-3 py-2 text-xs" title={prevTasks.tasks.join("\n")}>
+      <span class="flex-1 leading-snug text-white/85">{id.recorder.prevTasks(prevTasks.tasks.length, prevTasks.title)}</span>
+      <button
+        type="button"
+        class="rounded-md bg-white/15 px-2 py-1 font-semibold"
+        onclick={() => prevTasks && api.openMeetingInMain(prevTasks.meetingId)}>{id.recorder.prevTasksOpen}</button
+      >
+      <button type="button" class="rounded p-1 text-white/60 hover:bg-white/15" aria-label={id.common.close} onclick={() => (prevTasks = null)}>
+        <Icon name="x" size={14} />
+      </button>
+    </div>
+  {/if}
 
   {#if pausedLongMin !== null && rs.status === "paused"}
     <div class="flex min-h-11 items-center gap-2 border-t border-white/10 bg-warn-deep px-3 py-2 text-xs text-warn-deep-text">

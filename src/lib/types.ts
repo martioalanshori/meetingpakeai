@@ -89,6 +89,9 @@ export type MeetingSummary = {
   /** Belum diputuskan / pertanyaan terbuka + sumber waktu (sejajar). */
   openQuestions: string[];
   openQuestionSources: (number | null)[];
+  /** Status tugas terbuka dari meeting sebelumnya dalam rangkaian yang sama. */
+  followupStatus: { itemId: number; task: string; status: "selesai" | "dibahas" | "belum_disebut"; note: string; done: boolean }[];
+  followupFrom: { meetingId: string; title: string } | null;
   /** Draf pesan tindak lanjut; null = belum dibuat. */
   followUp: FollowUp | null;
   topics: string[];

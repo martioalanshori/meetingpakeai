@@ -37,6 +37,8 @@ pub struct SummarizeInput {
     pub bahasa: String,
     /// Instruksi pengguna saat buat ulang (langkah 50).
     pub instruksi: String,
+    /// Tugas terbuka meeting sebelumnya yang berkaitan (langkah 55).
+    pub tugas_lalu: Vec<String>,
 }
 
 pub enum SummaryOutcome {
@@ -133,6 +135,7 @@ pub async fn summarize(caller: &dyn LlmCaller, input: &SummarizeInput, max_chunk
         catatan: &input.catatan,
         bahasa: &input.bahasa,
         instruksi: &input.instruksi,
+        tugas_lalu: &input.tugas_lalu,
     }));
     let transcript = input.lines.join("\n");
 

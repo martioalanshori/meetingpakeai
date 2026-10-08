@@ -390,6 +390,7 @@ pub fn run() {
             commands::meetings::save_notes,
             commands::meetings::toggle_bookmark_at,
             commands::meetings::ask_meeting,
+            commands::meetings::previous_open_tasks,
             commands::meetings::update_action_item,
             commands::meetings::add_action_item,
             commands::meetings::export_tasks_ics,

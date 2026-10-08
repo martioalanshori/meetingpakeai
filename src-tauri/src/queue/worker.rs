@@ -768,10 +768,17 @@ impl Worker {
         let id = &m.id;
         self.enter_step(id, MeetingStatus::Summarizing, 1)?;
         let (llm_endpoint, llm_key) = self.endpoint(Role::Llm)?;
-        let (input, model) = {
+        let (input, model, prev_tasks, prev_id) = {
             let conn = self.db.conn();
             let label_saya = settings::load(&conn)?.user_display_name;
             let (instruksi, bahasa_meeting) = repo_meetings::summary_prefs(&conn, id)?;
+            // Meeting rutin: tugas terbuka dari meeting sebelumnya yang berkaitan (maks 15).
+            let prev = repo_meetings::previous_related(&conn, m)?;
+            let prev_tasks: Vec<(i64, String)> = match &prev {
+                Some(p) => repo_meetings::open_tasks(&conn, &p.id)?.into_iter().take(15).collect(),
+                None => Vec::new(),
+            };
+            let prev_id = prev.map(|p| p.id).filter(|_| !prev_tasks.is_empty());
             let bahasa = bahasa_meeting.unwrap_or_else(|| settings::load(&conn).map(|s| s.notes_language).unwrap_or_default());
             // LLM selalu melihat label default; nama hasil kenali (1:1) disimpan setelahnya.
             let label_peserta = DEFAULT_SYSTEM_LABEL.to_string();
@@ -800,8 +807,11 @@ impl Worker {
                     catatan: crate::db::repo_notes::get(&conn, id)?,
                     bahasa: bahasa.clone(),
                     instruksi: instruksi.clone().unwrap_or_default(),
+                    tugas_lalu: prev_tasks.iter().map(|(_, t)| t.clone()).collect(),
                 },
                 llm_endpoint.model.clone(),
+                prev_tasks,
+                prev_id,
             )
         };
 
@@ -819,6 +829,9 @@ impl Worker {
             SummaryOutcome::Empty => repo_summary::save(&mut conn, id, None, &model, m.duration_ms)?,
             SummaryOutcome::Notes(notes) => {
                 repo_summary::save(&mut conn, id, Some(&notes), &model, m.duration_ms)?;
+                if let Some(prev_id) = &prev_id {
+                    repo_summary::save_followup(&conn, id, prev_id, &prev_tasks, &notes.tindak_lanjut)?;
+                }
                 repo_meetings::set_generated_title(&conn, id, &notes.judul)?;
             }
         }

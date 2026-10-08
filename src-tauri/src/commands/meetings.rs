@@ -889,6 +889,31 @@ pub async fn export_tasks_ics(app: tauri::AppHandle, state: State<'_, AppState>)
     Ok(true)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviousTasks {
+    pub meeting_id: String,
+    pub title: String,
+    pub started_at: i64,
+    pub tasks: Vec<String>,
+}
+
+/// Tambahan (langkah 55, feedback3 D3): tugas terbuka dari meeting sebelumnya dalam rangkaian yang sama
+/// (dipakai widget saat mulai merekam). `None` jika tidak ada.
+#[tauri::command]
+pub async fn previous_open_tasks(state: State<'_, AppState>, id: String) -> AppResult<Option<PreviousTasks>> {
+    let conn = state.db.conn();
+    let m = repo_meetings::get(&conn, &id)?;
+    let Some(prev) = repo_meetings::previous_related(&conn, &m)? else { return Ok(None) };
+    let tasks: Vec<String> = repo_meetings::open_tasks(&conn, &prev.id)?.into_iter().map(|(_, t)| t).collect();
+    Ok((!tasks.is_empty()).then_some(PreviousTasks {
+        meeting_id: prev.id,
+        title: prev.title,
+        started_at: prev.started_at,
+        tasks,
+    }))
+}
+
 /// Tambahan (langkah 44): hapus satu momen ditandai.
 #[tauri::command]
 pub async fn delete_bookmark(state: State<'_, AppState>, id: String, at_ms: i64) -> AppResult<()> {

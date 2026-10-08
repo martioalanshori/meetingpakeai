@@ -31,6 +31,8 @@ pub struct FinalNotes {
     pub keputusan: Vec<Decision>,
     /// Belum diputuskan / pertanyaan terbuka (langkah 50).
     pub pertanyaan_terbuka: Vec<Decision>,
+    /// Status tugas meeting sebelumnya: (nomor 1-based, status, catatan), langkah 55.
+    pub tindak_lanjut: Vec<(usize, String, String)>,
     pub action_items: Vec<ActionItem>,
     pub topik: Vec<String>,
 }
@@ -152,6 +154,19 @@ pub fn parse_final(raw: &str) -> Result<FinalNotes, String> {
         ringkasan,
         keputusan: decisions(v.get("keputusan"))?,
         pertanyaan_terbuka: decisions(v.get("pertanyaan_terbuka")).unwrap_or_default(),
+        tindak_lanjut: v
+            .get("tindak_lanjut")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| {
+                        let no = x.get("no").and_then(Value::as_u64)? as usize;
+                        let status = opt_string(x.get("status")).unwrap_or_else(|| "belum_disebut".into());
+                        Some((no, status, opt_string(x.get("catatan")).unwrap_or_default()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
         action_items: action_items(v.get("action_items"))?,
         topik: string_list(v.get("topik"))?.into_iter().take(8).collect(),
     })

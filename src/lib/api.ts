@@ -101,6 +101,8 @@ export const api = {
   summarizeSoFar: (id: string) => call<string[]>("summarize_so_far", { id }),
   askMeeting: (id: string, question: string) => call<QaItem>("ask_meeting", { id, question }),
   askAllMeetings: (question: string) => call<AskAllResult>("ask_all_meetings", { question }),
+  previousOpenTasks: (id: string) =>
+    call<{ meetingId: string; title: string; startedAt: number; tasks: string[] } | null>("previous_open_tasks", { id }),
   updateSegment: (segmentId: number, text: string) => call<void>("update_segment", { segmentId, text }),
   replaceInMeeting: (id: string, from: string, to: string, addToGlossary: boolean) =>
     call<{ replaced: number; addedToGlossary: boolean }>("replace_in_meeting", { id, from, to, addToGlossary }),

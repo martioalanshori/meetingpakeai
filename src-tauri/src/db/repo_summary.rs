@@ -25,6 +25,57 @@ pub struct SummaryView {
     pub edited: bool,
     /// Draf pesan tindak lanjut (langkah 43).
     pub follow_up: Option<FollowUp>,
+    /// Status tugas meeting sebelumnya (langkah 55).
+    pub followup_status: Vec<FollowupItem>,
+    /// Meeting sebelumnya (id, judul) bila ada status tindak lanjut.
+    pub followup_from: Option<FollowupFrom>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FollowupItem {
+    pub item_id: i64,
+    pub task: String,
+    /// `selesai` | `dibahas` | `belum_disebut`
+    pub status: String,
+    pub note: String,
+    /// Tugas lama sudah dicentang (dibaca saat tampil).
+    #[serde(default)]
+    pub done: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FollowupFrom {
+    pub meeting_id: String,
+    pub title: String,
+}
+
+/// Simpan status tindak lanjut (langkah 55): nomor dari LLM dipetakan ke tugas lama.
+pub fn save_followup(
+    conn: &Connection,
+    meeting_id: &str,
+    prev_id: &str,
+    prev_tasks: &[(i64, String)],
+    statuses: &[(usize, String, String)],
+) -> AppResult<()> {
+    let items: Vec<FollowupItem> = prev_tasks
+        .iter()
+        .enumerate()
+        .map(|(i, (item_id, task))| {
+            let found = statuses.iter().find(|(no, _, _)| *no == i + 1);
+            let status = found
+                .map(|(_, s, _)| s.to_lowercase())
+                .filter(|s| matches!(s.as_str(), "selesai" | "dibahas" | "belum_disebut"))
+                .unwrap_or_else(|| "belum_disebut".into());
+            FollowupItem { item_id: *item_id, task: task.clone(), status, note: found.map(|f| f.2.clone()).unwrap_or_default(), done: false }
+        })
+        .collect();
+    conn.execute(
+        "UPDATE summaries SET followup_status = ?2, followup_from = ?3 WHERE meeting_id = ?1",
+        params![meeting_id, serde_json::to_string(&items)?, prev_id],
+    )?;
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -153,7 +204,7 @@ pub fn get(conn: &Connection, meeting_id: &str) -> AppResult<Option<SummaryView>
     let row = conn
         .query_row(
             "SELECT status, summary, decisions, topics, edited, decision_sources, follow_up, key_points, open_questions,
-                    open_question_sources
+                    open_question_sources, followup_status, followup_from
              FROM summaries WHERE meeting_id = ?1",
             [meeting_id],
             |r| {
@@ -166,11 +217,26 @@ pub fn get(conn: &Connection, meeting_id: &str) -> AppResult<Option<SummaryView>
                     r.get::<_, String>(5)?,
                     r.get::<_, Option<String>>(6)?,
                     (r.get::<_, String>(7)?, r.get::<_, String>(8)?, r.get::<_, String>(9)?),
+                    (r.get::<_, String>(10)?, r.get::<_, Option<String>>(11)?),
                 ))
             },
         )
         .optional()?;
-    Ok(row.map(|(status, summary, decisions, topics, edited, sources, follow_up, (key_points, open, open_src))| {
+    let row = row.map(|(status, summary, decisions, topics, edited, sources, follow_up, kp, (fs, ff))| {
+        let mut items: Vec<FollowupItem> = serde_json::from_str(&fs).unwrap_or_default();
+        for it in &mut items {
+            it.done = conn
+                .query_row("SELECT done FROM action_items WHERE id = ?1", [it.item_id], |r| r.get::<_, bool>(0))
+                .unwrap_or(false);
+        }
+        let from = ff.and_then(|mid| {
+            conn.query_row("SELECT title FROM meetings WHERE id = ?1", [&mid], |r| r.get::<_, String>(0))
+                .ok()
+                .map(|title| FollowupFrom { meeting_id: mid, title })
+        });
+        (status, summary, decisions, topics, edited, sources, follow_up, kp, items, from)
+    });
+    Ok(row.map(|(status, summary, decisions, topics, edited, sources, follow_up, (key_points, open, open_src), followup_status, followup_from)| {
         let decisions: Vec<String> = serde_json::from_str(&decisions).unwrap_or_default();
         let mut decision_sources: Vec<Option<i64>> = serde_json::from_str(&sources).unwrap_or_default();
         decision_sources.resize(decisions.len(), None);
@@ -188,6 +254,8 @@ pub fn get(conn: &Connection, meeting_id: &str) -> AppResult<Option<SummaryView>
             topics: serde_json::from_str(&topics).unwrap_or_default(),
             edited,
             follow_up: follow_up.and_then(|f| serde_json::from_str(&f).ok()),
+            followup_status,
+            followup_from,
         }
     }))
 }

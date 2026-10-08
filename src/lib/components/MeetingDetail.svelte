@@ -416,6 +416,16 @@
     }
   }
 
+  /** Centang tugas meeting sebelumnya yang dinyatakan selesai di meeting ini (feedback3 D3). */
+  async function markFollowupDone(itemIds: number[]) {
+    try {
+      for (const itemId of itemIds) await api.setActionItemDone(itemId, true);
+      await load();
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+
   /** Tandai / batalkan tanda momen dari baris transkrip (feedback3 F4). */
   async function toggleMoment(ms: number) {
     if (!meeting) return;
@@ -863,6 +873,43 @@
                   </ul>
                 {/if}
               </div>
+              {#if meeting.summary.followupFrom && meeting.summary.followupStatus.length > 0}
+                {@const fu = meeting.summary.followupStatus}
+                <!-- Meeting rutin: status tugas dari meeting sebelumnya (feedback3 D3). -->
+                <div class="flex flex-col gap-2">
+                  <h2 class="section-title">
+                    <a href={`/meeting/${meeting.summary.followupFrom.meetingId}?tab=actions`} class="hover:underline"
+                      >{t.detail.followupTitle(meeting.summary.followupFrom.title)}</a
+                    >
+                  </h2>
+                  <ul class="flex flex-col gap-2">
+                    {#each fu as f (f.itemId)}
+                      <li class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 leading-relaxed">
+                        <span
+                          class={[
+                            "rounded-md px-1.5 py-px text-xs font-semibold",
+                            f.status === "selesai" ? "bg-ok/12 text-ok" : f.status === "dibahas" ? "bg-warn/12 text-warn" : "bg-wash text-ink-soft",
+                          ]}>{t.detail.followupStatus[f.status]}</span
+                        >
+                        <span class={f.done ? "text-ink-faint line-through" : ""}>{f.task}</span>
+                        {#if f.note}<span class="w-full pl-1 text-sm text-ink-soft">{f.note}</span>{/if}
+                        {#if f.status === "selesai" && !f.done}
+                          <button type="button" class="link text-sm" onclick={() => markFollowupDone([f.itemId])}>{t.detail.followupMarkDone}</button>
+                        {/if}
+                      </li>
+                    {/each}
+                  </ul>
+                  {#if fu.filter((f) => f.status === "selesai" && !f.done).length > 1}
+                    <button
+                      type="button"
+                      class="btn btn-line btn-sm self-start"
+                      onclick={() => markFollowupDone(fu.filter((f) => f.status === "selesai" && !f.done).map((f) => f.itemId))}
+                    >
+                      <Icon name="check" size={14} />{t.detail.followupMarkAll}
+                    </button>
+                  {/if}
+                </div>
+              {/if}
               {#if meeting.summary.openQuestions.length > 0}
                 <div class="flex flex-col gap-2">
                   <h2 class="section-title">{t.detail.openQuestions}</h2>

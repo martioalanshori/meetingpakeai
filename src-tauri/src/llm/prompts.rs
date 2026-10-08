@@ -105,6 +105,8 @@ pub struct Konteks<'a> {
     pub bahasa: &'a str,
     /// Instruksi pengguna saat buat ulang ringkasan (langkah 50).
     pub instruksi: &'a str,
+    /// Tugas terbuka dari meeting sebelumnya dalam rangkaian yang sama (langkah 55).
+    pub tugas_lalu: &'a [String],
 }
 
 fn aturan_bahasa(bahasa: &str) -> &'static str {
@@ -139,6 +141,16 @@ pub fn system(k: &Konteks<'_>) -> String {
         let catatan: String = catatan.chars().take(2_000).collect();
         s.push_str(&format!(
             "\nCatatan pribadi pengguna selama meeting (prioritas tinggi; poin-poin ini WAJIB tercermin dan dikembangkan dari transkrip, jangan menambah fakta di luar transkrip dan catatan):\n<<<\n{catatan}\n>>>"
+        ));
+    }
+    if !k.tugas_lalu.is_empty() {
+        let list: Vec<String> = k.tugas_lalu.iter().enumerate().map(|(i, t)| format!("{}. {t}", i + 1)).collect();
+        s.push_str(&format!(
+            "\nTugas yang masih terbuka dari meeting sebelumnya dalam rangkaian yang sama:\n{}\n\
+             Pada notulen final (bukan ekstraksi per bagian), tambahkan field \"tindak_lanjut\": [{{\"no\": 1, \"status\": \"selesai|dibahas|belum_disebut\", \"catatan\": \"...\"}}] \
+             untuk SETIAP tugas di atas: selesai = dinyatakan sudah beres di meeting ini; dibahas = disebut tetapi belum selesai \
+             (catatan berisi perkembangannya); belum_disebut = tidak disinggung.",
+            list.join("\n")
         ));
     }
     let instruksi = k.instruksi.trim();

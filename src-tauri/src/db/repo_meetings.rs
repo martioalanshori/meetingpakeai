@@ -193,6 +193,61 @@ pub fn set_summary_prefs(conn: &Connection, id: &str, instruction: Option<&str>,
     Ok(())
 }
 
+/// Judul untuk dibandingkan: huruf kecil, tanpa angka/tanggal/nama bulan ("Sync Mingguan 8 Okt" ≈ "Sync Mingguan 15 Okt").
+fn title_key(title: &str) -> String {
+    const MONTHS: [&str; 24] = [
+        "jan", "feb", "mar", "apr", "mei", "jun", "jul", "agu", "sep", "okt", "nov", "des", "januari", "februari", "maret",
+        "april", "juni", "juli", "agustus", "september", "oktober", "november", "desember", "may",
+    ];
+    title
+        .to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty() && !w.chars().all(|c| c.is_ascii_digit()) && !MONTHS.contains(w))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Meeting sebelumnya yang kemungkinan rangkaian yang sama (langkah 55, feedback3 D3): dalam 45 hari terakhir,
+/// judul mirip (Jaro-Winkler ≥ 0,88, judul bawaan diabaikan) atau aplikasi sama + hari sama + jam ±1.
+pub fn previous_related(conn: &Connection, m: &MeetingRow) -> AppResult<Option<MeetingRow>> {
+    use chrono::{Datelike, Local, TimeZone, Timelike};
+    let since = m.started_at - 45 * 24 * 3600 * 1000;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {COLS} FROM meetings WHERE status = 'done' AND id <> ?1 AND started_at < ?2 AND started_at >= ?3
+         ORDER BY started_at DESC LIMIT 60"
+    ))?;
+    let rows = stmt.query_map(params![m.id, m.started_at, since], map_row)?.collect::<Result<Vec<_>, _>>()?;
+    let key = title_key(&m.title);
+    let generic = key.is_empty() || key == "meeting" || key.starts_with("meeting ");
+    let when = |ms: i64| Local.timestamp_millis_opt(ms).single();
+    let me = when(m.started_at);
+    Ok(rows.into_iter().find(|p| {
+        let pk = title_key(&p.title);
+        let similar = !generic && !pk.is_empty() && strsim::jaro_winkler(&key, &pk) >= 0.88;
+        let same_slot = match (me, when(p.started_at), &m.source_app, &p.source_app) {
+            (Some(a), Some(b), Some(sa), Some(sb)) => {
+                sa == sb && sa != "import" && a.weekday() == b.weekday() && (a.hour() as i32 - b.hour() as i32).abs() <= 1
+            }
+            _ => false,
+        };
+        similar || same_slot
+    }))
+}
+
+/// Tugas terbuka sebuah meeting: (id, teks + PJ).
+pub fn open_tasks(conn: &Connection, meeting_id: &str) -> AppResult<Vec<(i64, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, task, assignee FROM action_items WHERE meeting_id = ?1 AND done = 0 ORDER BY idx",
+    )?;
+    let rows = stmt
+        .query_map([meeting_id], |r| {
+            let (id, task, who): (i64, String, Option<String>) = (r.get(0)?, r.get(1)?, r.get(2)?);
+            Ok((id, who.map_or(task.clone(), |w| format!("{task} (PJ: {w})"))))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
 /// Judul dari pengguna: set `title_edited = 1`.
 pub fn rename(conn: &Connection, id: &str, title: &str) -> AppResult<()> {
     let n = conn.execute(
