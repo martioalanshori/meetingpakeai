@@ -10,7 +10,7 @@ use tauri::menu::MenuItem;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder, Wry};
 use tauri_plugin_notification::NotificationExt;
 
-use crate::config::settings::{self, WindowPosition};
+use crate::config::settings::{self, MainGeometry, WindowPosition};
 use crate::db::Db;
 use crate::events::EventSink;
 
@@ -56,7 +56,52 @@ pub struct TauriBridge {
     processing: AtomicBool,
 }
 
-/// Tampilkan jendela main; dibuat ulang dari konfigurasi jika sudah dihancurkan.
+/// Simpan ukuran jendela main paling sering tiap 500 ms (event Moved/Resized beruntun saat menyeret).
+const GEOMETRY_SAVE_EVERY: Duration = Duration::from_millis(500);
+static LAST_GEOMETRY_SAVE: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// Titik (+ ruang untuk diklik) berada di area kerja salah satu monitor.
+fn point_on_screen(app: &AppHandle, x: i32, y: i32) -> bool {
+    const GRAB: i64 = 40;
+    let Ok(monitors) = app.available_monitors() else { return true };
+    monitors.iter().any(|m| {
+        let wa = m.work_area();
+        let (x0, y0) = (i64::from(wa.position.x), i64::from(wa.position.y));
+        let (x1, y1) = (x0 + i64::from(wa.size.width), y0 + i64::from(wa.size.height));
+        let (px, py) = (i64::from(x), i64::from(y));
+        px + GRAB >= x0 && px + GRAB <= x1 && py >= y0 && py + GRAB <= y1
+    })
+}
+
+/// Catat ukuran/posisi/maximize jendela main. `force` = abaikan pembatas (saat jendela ditutup).
+pub fn remember_main_geometry(app: &AppHandle, force: bool) {
+    {
+        let mut last = LAST_GEOMETRY_SAVE.lock().unwrap_or_else(|e| e.into_inner());
+        if !force && last.is_some_and(|t| t.elapsed() < GEOMETRY_SAVE_EVERY) {
+            return;
+        }
+        *last = Some(Instant::now());
+    }
+    let Some(w) = app.get_webview_window("main") else { return };
+    if w.is_minimized().unwrap_or(false) {
+        return;
+    }
+    let maximized = w.is_maximized().unwrap_or(false);
+    let (Ok(pos), Ok(size)) = (w.outer_position(), w.inner_size()) else { return };
+    let Some(state) = app.try_state::<crate::AppState>() else { return };
+    let conn = state.db.conn();
+    // Saat maximize, pertahankan ukuran normal terakhir agar "restore" kembali ke ukuran itu.
+    let previous = settings::main_geometry(&conn).ok().flatten();
+    let g = match (maximized, previous) {
+        (true, Some(p)) => MainGeometry { maximized: true, ..p },
+        _ => MainGeometry { x: pos.x, y: pos.y, width: size.width, height: size.height, maximized },
+    };
+    if let Err(e) = settings::set_main_geometry(&conn, g) {
+        tracing::warn!("ukuran jendela gagal disimpan: {}", e.message);
+    }
+}
+
+/// Tampilkan jendela main; dibuat ulang dari konfigurasi jika sudah dihancurkan (dengan ukuran terakhir).
 pub fn show_main_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
@@ -65,8 +110,20 @@ pub fn show_main_window(app: &AppHandle) {
         return;
     }
     let Some(cfg) = app.config().app.windows.iter().find(|w| w.label == "main").cloned() else { return };
+    let saved = app.try_state::<crate::AppState>().and_then(|s| settings::main_geometry(&s.db.conn()).ok().flatten());
     match WebviewWindowBuilder::from_config(app, &cfg).and_then(|b| b.build()) {
         Ok(w) => {
+            if let Some(g) = saved {
+                if g.width >= 640 && g.height >= 480 {
+                    let _ = w.set_size(tauri::PhysicalSize::new(g.width, g.height));
+                }
+                if point_on_screen(app, g.x, g.y) {
+                    let _ = w.set_position(PhysicalPosition::new(g.x, g.y));
+                }
+                if g.maximized {
+                    let _ = w.maximize();
+                }
+            }
             let _ = w.set_focus();
         }
         Err(e) => tracing::error!("jendela main gagal dibuat: {e}"),
@@ -132,15 +189,7 @@ impl TauriBridge {
 
     /// Pojok kiri-atas widget (+ sedikit ruang untuk diklik) ada di area kerja salah satu monitor.
     fn on_screen(&self, p: WindowPosition) -> bool {
-        const GRAB: i64 = 40;
-        let Ok(monitors) = self.app.available_monitors() else { return true };
-        monitors.iter().any(|m| {
-            let wa = m.work_area();
-            let (x0, y0) = (i64::from(wa.position.x), i64::from(wa.position.y));
-            let (x1, y1) = (x0 + i64::from(wa.size.width), y0 + i64::from(wa.size.height));
-            let (px, py) = (i64::from(p.x), i64::from(p.y));
-            px + GRAB >= x0 && px + GRAB <= x1 && py >= y0 && py + GRAB <= y1
-        })
+        point_on_screen(&self.app, p.x, p.y)
     }
 
     fn default_recorder_position(&self) -> Option<WindowPosition> {

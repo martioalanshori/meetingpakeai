@@ -302,7 +302,11 @@ pub fn run() {
             if window.label() != "main" {
                 return;
             }
+            if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
+                bridge::remember_main_geometry(window.app_handle(), false);
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
+                bridge::remember_main_geometry(window.app_handle(), true);
                 let to_tray = window
                     .try_state::<AppState>()
                     .is_none_or(|s| s.minimize_to_tray.load(Ordering::Relaxed));

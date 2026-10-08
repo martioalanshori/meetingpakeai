@@ -11,6 +11,7 @@
   import Icon from "$lib/components/Icon.svelte";
   import Menu, { type MenuEntry } from "$lib/components/Menu.svelte";
   import { confirmDialog } from "$lib/confirm.svelte";
+  import { detailTab, setWindowTitle } from "$lib/viewport.svelte";
   import { formatActionItems, formatMinutes, formatSummaryTab, formatTranscript } from "$lib/minutes";
   import { formatDateTime, formatDuration, formatTime, formatTimestamp } from "$lib/format";
   import { id as t } from "$lib/i18n/id";
@@ -86,7 +87,8 @@
       transcript = tr;
       notFound = false;
       if (fresh) {
-        const wanted = initialTab;
+        const remembered = detailTab.meetingId === mid ? detailTab.tab : null;
+        const wanted = remembered ?? initialTab;
         if (wanted === "summary" || wanted === "actions" || wanted === "transcript") tab = wanted;
         else if (m.status !== "done" && m.summary === null) tab = tr.length > 0 ? "transcript" : "summary";
         else tab = "summary";
@@ -311,6 +313,18 @@
     document.getElementById(`seg-${segId}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   });
 
+  // Tab aktif diingat per meeting (tata letak berganti saat jendela diubah ukurannya).
+  $effect(() => {
+    if (meeting && meeting.id === meetingId) {
+      detailTab.meetingId = meetingId;
+      detailTab.tab = tab;
+    }
+  });
+
+  $effect(() => {
+    if (meeting) setWindowTitle(meeting.title);
+  });
+
   /** Teks saat notulen belum ada, sesuai status (bukan "—"). */
   const emptyNote = $derived(
     !meeting
@@ -342,8 +356,8 @@
 
 <main
   class={[
-    "flex w-full flex-col gap-6 pt-7 pb-16 transition-opacity print:hidden",
-    embedded ? "max-w-6xl px-8 2xl:px-12" : "mx-auto max-w-3xl px-6 lg:px-10",
+    "@container flex w-full flex-col gap-6 pt-7 pb-16 transition-opacity print:hidden",
+    embedded ? "max-w-6xl px-8 2xl:px-12" : "mx-auto max-w-4xl px-6 xl:px-10",
     switching && "pointer-events-none opacity-50",
   ]}
   aria-busy={switching}
@@ -517,8 +531,10 @@
         {:else if tab === "summary" && meeting.summary.status === "empty"}
           <p class="text-ink-soft">{t.summary.noSpeech}</p>
         {:else if tab === "summary"}
-          <!-- ≥ 1536 px: tugas tampil di samping ringkasan. -->
-          <div class="flex flex-col gap-8 2xl:grid 2xl:grid-cols-[minmax(0,68ch)_minmax(15rem,22rem)] 2xl:items-start 2xl:gap-12">
+          <!-- Panel detail ≥ 60rem (bukan lebar layar): tugas tampil di samping ringkasan. -->
+          <div
+            class="flex flex-col gap-8 @min-[60rem]:grid @min-[60rem]:grid-cols-[minmax(0,68ch)_minmax(15rem,22rem)] @min-[60rem]:items-start @min-[60rem]:gap-10"
+          >
             <article class="flex max-w-[68ch] flex-col gap-7">
               <div class="flex flex-col gap-2">
                 <h2 class="section-title">{t.detail.summary}</h2>
@@ -550,7 +566,7 @@
               {/if}
             </article>
             {#if meeting.actionItems.length > 0}
-              <aside class="sticky top-4 hidden flex-col gap-1 rounded-xl border border-line bg-sheet p-4 2xl:flex">
+              <aside class="sticky top-4 hidden flex-col gap-1 rounded-xl border border-line bg-paper/60 p-4 @min-[60rem]:flex">
                 <button
                   type="button"
                   class="-mx-1 mb-1 flex items-baseline justify-between rounded-md px-1 text-left hover:bg-wash"

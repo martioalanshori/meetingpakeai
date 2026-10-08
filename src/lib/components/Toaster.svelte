@@ -4,10 +4,10 @@
   import Icon from "$lib/components/Icon.svelte";
 </script>
 
-<div class="pointer-events-none fixed right-5 bottom-5 z-50 flex flex-col items-end gap-2" aria-live="polite">
+<div class="pointer-events-none fixed right-5 bottom-5 z-50 flex flex-col items-end gap-2">
   {#each toasts as t (t.id)}
     <div
-      role="status"
+      role={t.kind === "error" ? "alert" : "status"}
       class="on-dark pointer-events-auto flex max-w-sm items-start gap-3 rounded-lg bg-ink py-2.5 pr-2 pl-3.5 text-sm text-white shadow-[0_12px_32px_-12px_rgb(30_36_51/0.5)]"
     >
       <span

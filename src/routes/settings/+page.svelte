@@ -6,6 +6,7 @@
   import ShortcutInput from "$lib/components/ShortcutInput.svelte";
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
+  import { setWindowTitle } from "$lib/viewport.svelte";
   import type { AppError, Settings, UpdateInfo } from "$lib/types";
 
   const t = id.settings;
@@ -51,6 +52,7 @@
   }
 
   onMount(async () => {
+    setWindowTitle(t.title);
     try {
       form = await api.getSettings();
       version = await getVersion();
@@ -74,7 +76,7 @@
   }
 </script>
 
-<main class="flex w-full max-w-3xl flex-col px-6 pt-7 pb-16 lg:px-10">
+<main class="mx-auto flex w-full max-w-3xl flex-col px-6 pt-7 pb-16 xl:px-10">
   <h1 class="mb-2 text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
 
   {#if form}
@@ -167,7 +169,7 @@
       <span class="max-w-prose text-sm text-ink-soft">{t.reportNote}</span>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <span class="tabular mr-2 text-ink-soft">{t.version(version)}</span>
+      {#if version}<span class="tabular mr-2 text-ink-soft">{t.version(version)}</span>{/if}
       {#if update}
         <button type="button" class="btn btn-ink" disabled={updateBusy} onclick={installUpdate}>{t.installUpdate}</button>
       {:else}

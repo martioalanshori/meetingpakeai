@@ -15,6 +15,7 @@ pub const KEY_DELETE_AUDIO: &str = "delete_audio_after_transcript";
 pub const KEY_AUDIO_RETENTION: &str = "audio_retention";
 pub const KEY_MINIMIZE_TO_TRAY: &str = "minimize_to_tray";
 pub const KEY_RECORDER_POSITION: &str = "recorder_position";
+pub const KEY_MAIN_GEOMETRY: &str = "main_window_geometry";
 pub const KEY_GLOBAL_SHORTCUT: &str = "global_shortcut";
 pub const KEY_AUTOSTART: &str = "autostart";
 pub const KEY_MEETING_DETECTION: &str = "meeting_detection";
@@ -142,6 +143,24 @@ pub fn onboarding_completed(conn: &Connection) -> AppResult<bool> {
 
 pub fn set_onboarding_completed(conn: &Connection) -> AppResult<()> {
     repo_settings::set(conn, KEY_ONBOARDING_COMPLETED, &true)
+}
+
+/// Ukuran & posisi jendela main terakhir (piksel fisik), dipulihkan saat jendela dibuat ulang.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct MainGeometry {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub maximized: bool,
+}
+
+pub fn main_geometry(conn: &Connection) -> AppResult<Option<MainGeometry>> {
+    repo_settings::get(conn, KEY_MAIN_GEOMETRY)
+}
+
+pub fn set_main_geometry(conn: &Connection, g: MainGeometry) -> AppResult<()> {
+    repo_settings::set(conn, KEY_MAIN_GEOMETRY, &g)
 }
 
 pub fn recorder_position(conn: &Connection) -> AppResult<Option<WindowPosition>> {

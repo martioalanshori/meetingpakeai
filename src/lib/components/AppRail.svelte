@@ -18,8 +18,8 @@
   ];
 </script>
 
-<!-- < 1024 px: rel ikon (label jadi tooltip) agar konten mendapat ruang; ≥ 1024 px: rel penuh. -->
-<aside class="flex h-full w-[4.25rem] shrink-0 flex-col gap-6 border-r border-line px-2.5 py-5 lg:w-56 lg:px-4">
+<!-- < 1280 px: rel ikon (label jadi tooltip) agar panel detail cukup lebar; ≥ 1280 px: rel penuh. -->
+<aside class="flex h-full w-[4.25rem] shrink-0 flex-col gap-6 px-2.5 py-5 xl:w-56 xl:px-4">
   <RecordButton />
 
   <nav aria-label={id.nav.label} class="flex flex-col gap-0.5">
@@ -30,17 +30,17 @@
         aria-current={active ? "page" : undefined}
         title={n.text}
         class={[
-          "flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-base lg:justify-start lg:py-2",
-          active ? "bg-sheet font-semibold text-ink shadow-[inset_0_0_0_1px_var(--color-line)]" : "text-ink-soft hover:bg-wash hover:text-ink",
+          "flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-base xl:justify-start xl:py-2",
+          active ? "bg-sheet font-semibold text-ink shadow-[0_1px_2px_rgb(28_31_38/0.08),inset_0_0_0_1px_var(--color-line)]" : "text-ink-soft hover:bg-wash hover:text-ink",
         ]}
       >
         <Icon name={n.icon} size={18} class="shrink-0" />
-        <span class="sr-only lg:not-sr-only">{n.text}</span>
+        <span class="sr-only xl:not-sr-only">{n.text}</span>
       </a>
     {/each}
   </nav>
 
   {#if shortcut}
-    <p class="mt-auto hidden px-1 text-xs leading-relaxed text-ink-faint lg:block">{id.rail.shortcutHint(shortcut)}</p>
+    <p class="mt-auto hidden px-1 text-xs leading-relaxed text-ink-faint xl:block">{id.rail.shortcutHint(shortcut)}</p>
   {/if}
 </aside>

@@ -11,7 +11,7 @@
   import { showToast } from "$lib/toast.svelte";
   import Highlight from "$lib/components/Highlight.svelte";
   import MeetingDetail from "$lib/components/MeetingDetail.svelte";
-  import { viewport } from "$lib/viewport.svelte";
+  import { detailTab, setWindowTitle, viewport } from "$lib/viewport.svelte";
   import { confirmDialog } from "$lib/confirm.svelte";
   import { formatTimestamp } from "$lib/format";
   import type { AppError, MeetingListItem, SearchHit } from "$lib/types";
@@ -21,6 +21,8 @@
   let items = $state<MeetingListItem[]>([]);
   let loaded = $state(false);
   let hasMore = $state(false);
+  let loadingMore = $state(false);
+  let loadError = $state<string | null>(null);
 
   let queuePaused = $state(false);
   let query = $state("");
@@ -97,6 +99,18 @@
     if (viewport.wide && !selected && items.length > 0) untrack(() => select(items[0].id));
   });
 
+  // Jendela diperkecil di bawah batas dua panel saat ada meeting terpilih → buka sebagai halaman sendiri.
+  $effect(() => {
+    if (!viewport.wide && selected) {
+      const tab = detailTab.meetingId === selected ? detailTab.tab : selectedTab;
+      untrack(() => goto(`/meeting/${selected}${tab ? `?tab=${tab}` : ""}`, { replaceState: true }));
+    }
+  });
+
+  $effect(() => {
+    if (!viewport.wide || !selected) setWindowTitle(null);
+  });
+
   /** Muat ulang semua item yang sedang tampil (minimal satu halaman). */
   async function reload() {
     try {
@@ -104,20 +118,27 @@
       const rows = await api.listMeetings(limit, 0);
       items = rows;
       hasMore = rows.length === limit;
+      loadError = null;
     } catch (e) {
-      showToast((e as AppError).message, "error");
+      if (!loaded) loadError = (e as AppError).message;
+      else showToast((e as AppError).message, "error");
     } finally {
       loaded = true;
     }
   }
 
   async function loadMore() {
+    if (loadingMore) return;
+    loadingMore = true;
     try {
       const rows = await api.listMeetings(PAGE, items.length);
-      items = [...items, ...rows];
+      const seen = new Set(items.map((m) => m.id));
+      items = [...items, ...rows.filter((m) => !seen.has(m.id))];
       hasMore = rows.length === PAGE;
     } catch (e) {
       showToast((e as AppError).message, "error");
+    } finally {
+      loadingMore = false;
     }
   }
 
@@ -223,7 +244,11 @@
               onclick={(e) => openHit(e, h)}
               class={[
                 "-mx-3 flex flex-col gap-1 rounded-lg px-3 py-3",
-                h.meetingId === selected && viewport.wide ? "bg-sheet shadow-[inset_0_0_0_1px_var(--color-line)]" : "hover:bg-sheet",
+                h.meetingId === selected && viewport.wide
+                  ? "bg-sheet shadow-[inset_0_0_0_1px_var(--color-line)]"
+                  : compact
+                    ? "hover:bg-sheet"
+                    : "hover:bg-wash",
               ]}
             >
               <span class="flex flex-wrap items-baseline gap-x-3 text-sm text-ink-soft">
@@ -241,7 +266,23 @@
       </ul>
     {/if}
   {:else if !loaded}
-    <p class="text-ink-soft">{id.common.loading}</p>
+    <!-- Kerangka daftar (layout tidak melompat saat data datang). -->
+    <ul class="flex flex-col gap-1 motion-safe:animate-pulse" aria-hidden="true">
+      {#each [0, 1, 2, 3, 4] as i (i)}
+        <li class="flex items-center gap-4 py-3">
+          <div class="h-4 w-12 rounded bg-line-soft"></div>
+          <div class="flex flex-1 flex-col gap-2">
+            <div class="h-4 w-3/4 rounded bg-line-soft"></div>
+            <div class="h-3 w-1/4 rounded bg-line-soft"></div>
+          </div>
+        </li>
+      {/each}
+    </ul>
+  {:else if loadError}
+    <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl bg-bad-wash px-4 py-3 text-bad">
+      <span class="flex-1 text-sm font-medium">{loadError}</span>
+      <button type="button" class="btn btn-ink btn-sm" onclick={reload}>{id.common.retry}</button>
+    </div>
   {:else if items.length === 0}
     <section class="flex flex-col items-start gap-2 rounded-xl border border-dashed border-line px-6 py-10">
       <p class="text-lg font-semibold">{id.home.emptyTitle}</p>
@@ -251,7 +292,12 @@
     <div class="flex flex-col gap-5">
       {#each groups as g (g.label)}
         <section aria-label={g.label}>
-          <h2 class="sticky top-0 z-10 -mx-3 bg-paper/95 px-3 py-1.5 text-sm font-semibold text-ink-soft backdrop-blur-sm">
+          <h2
+            class={[
+              "sticky top-0 z-10 -mx-3 px-3 py-1.5 text-sm font-semibold text-ink-soft backdrop-blur-sm",
+              compact ? "bg-paper/95" : "bg-sheet/95",
+            ]}
+          >
             {g.label}
           </h2>
           <ul class="flex flex-col">
@@ -265,7 +311,11 @@
                   class={[
                     "-mx-3 grid items-baseline gap-x-4 rounded-lg px-3 py-3",
                     compact ? "grid-cols-[3rem_minmax(0,1fr)]" : "grid-cols-[3.5rem_minmax(0,1fr)_auto]",
-                    active ? "bg-sheet shadow-[inset_0_0_0_1px_var(--color-line)]" : "hover:bg-sheet",
+                    active
+                      ? "bg-sheet shadow-[0_1px_2px_rgb(28_31_38/0.08),inset_0_0_0_1px_var(--color-line)]"
+                      : compact
+                        ? "hover:bg-sheet"
+                        : "hover:bg-wash",
                   ]}
                 >
                   <span class="tabular text-sm text-ink-soft">{formatTime(m.startedAt)}</span>
@@ -284,8 +334,10 @@
                       <span class="tabular text-sm text-ink-faint">{formatDuration(m.durationMs)}</span>
                     {/if}
                   </span>
-                  {#if !compact}
+                  {#if !compact && m.status !== "done"}
                     <StatusBadge status={m.status} progressDone={m.progressDone} progressTotal={m.progressTotal} />
+                  {:else if !compact}
+                    <span></span>
                   {/if}
                 </a>
               </li>
@@ -295,15 +347,17 @@
       {/each}
     </div>
     {#if hasMore}
-      <button type="button" class="btn btn-line self-start" onclick={loadMore}>{id.home.loadMore}</button>
+      <button type="button" class="btn btn-line self-start" disabled={loadingMore} onclick={loadMore}>
+        {loadingMore ? id.common.loading : id.home.loadMore}
+      </button>
     {/if}
   {/if}
 {/snippet}
 
 {#if viewport.wide}
   <!-- Layar lebar: daftar di kiri, notulen meeting terpilih di kanan; tiap panel bergulir sendiri. -->
-  <div class="grid h-full grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)] print:block">
-    <div class="flex min-h-0 flex-col gap-5 overflow-y-auto border-r border-line px-6 pt-7 pb-10 print:hidden">
+  <div class="grid h-full grid-cols-[minmax(17.5rem,24rem)_minmax(0,1fr)] print:block">
+    <div class="flex min-h-0 flex-col gap-5 overflow-y-auto border-r border-line bg-paper px-5 pt-7 pb-10 print:hidden">
       {@render listBody(true)}
     </div>
     <div class="min-h-0 overflow-y-auto print:overflow-visible">
@@ -311,13 +365,13 @@
         <MeetingDetail meetingId={selected} initialTab={selectedTab} embedded ondeleted={() => goto("/", { replaceState: true })} />
       {:else if loaded}
         <div class="flex h-full items-center justify-center px-10 text-center text-ink-soft">
-          <p class="max-w-sm">{items.length === 0 ? id.home.empty : id.home.pickMeeting}</p>
+          <p class="max-w-sm">{items.length === 0 ? id.home.emptyRight : id.home.pickMeeting}</p>
         </div>
       {/if}
     </div>
   </div>
 {:else}
-  <main class="flex w-full max-w-3xl flex-col gap-6 px-6 pt-7 pb-12 lg:px-10">
+  <main class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 pt-7 pb-12 xl:px-10">
     {@render listBody(false)}
   </main>
 {/if}

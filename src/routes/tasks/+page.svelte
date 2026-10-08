@@ -5,6 +5,7 @@
   import { formatDateTime } from "$lib/format";
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
+  import { setWindowTitle } from "$lib/viewport.svelte";
   import type { AppError, TaskItem } from "$lib/types";
 
   const t = id.tasks;
@@ -45,6 +46,7 @@
 
   const unlisten: UnlistenFn[] = [];
   onMount(async () => {
+    setWindowTitle(t.title);
     myName = await api.getSettings().then((s) => s.userDisplayName, () => "Saya");
     await load();
     unlisten.push(await events.meetingUpdated(() => load()));
@@ -52,7 +54,7 @@
   onDestroy(() => unlisten.forEach((u) => u()));
 </script>
 
-<main class="flex w-full max-w-4xl flex-col gap-5 px-6 pt-7 pb-12 lg:px-10">
+<main class="mx-auto flex w-full max-w-3xl flex-col gap-5 px-6 pt-7 pb-12 xl:px-10">
   <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
 
   <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
@@ -67,7 +69,17 @@
   </div>
 
   {#if !loaded}
-    <p class="text-ink-soft">{id.common.loading}</p>
+    <ul class="flex flex-col gap-1 motion-safe:animate-pulse" aria-hidden="true">
+      {#each [0, 1, 2, 3] as i (i)}
+        <li class="flex items-start gap-3 py-3">
+          <div class="h-4 w-4 rounded bg-line-soft"></div>
+          <div class="flex flex-1 flex-col gap-2">
+            <div class="h-4 w-2/3 rounded bg-line-soft"></div>
+            <div class="h-3 w-1/3 rounded bg-line-soft"></div>
+          </div>
+        </li>
+      {/each}
+    </ul>
   {:else if visible.length === 0}
     <section class="flex flex-col items-start gap-2 rounded-xl border border-dashed border-line px-6 py-10">
       <p class="text-lg font-semibold">{t.emptyTitle}</p>

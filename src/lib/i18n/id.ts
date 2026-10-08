@@ -8,6 +8,7 @@ export const id = {
     back: "Kembali",
     loading: "Memuat…",
     close: "Tutup",
+    retry: "Coba lagi",
   },
 
   nav: {
@@ -44,6 +45,7 @@ export const id = {
     searchLabel: "Cari meeting",
     searchPlaceholderShort: "Cari di semua meeting…",
     pickMeeting: "Pilih meeting di kiri untuk membaca notulennya.",
+    emptyRight: "Notulen meeting akan tampil di sini setelah rekaman pertama selesai diproses.",
     noResults: "Tidak ada hasil.",
     tasks: "Tugas",
     hitKind: {
