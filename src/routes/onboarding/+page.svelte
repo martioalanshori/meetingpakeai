@@ -5,6 +5,7 @@
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { api, events } from "$lib/api";
   import AiProviderSection from "$lib/components/AiProviderSection.svelte";
+  import Icon from "$lib/components/Icon.svelte";
   import Wordmark from "$lib/components/Wordmark.svelte";
   import { id } from "$lib/i18n/id";
   import type { AppError, AudioTestResult, MicPermission } from "$lib/types";
@@ -84,9 +85,10 @@
   const secondary = "btn btn-line";
 </script>
 
-<main class="mx-auto flex min-h-full w-full max-w-xl flex-col justify-center gap-8 px-8 py-10">
+<main class="flex min-h-full w-full items-center justify-center px-6 py-10">
+<div class="flex w-full max-w-xl flex-col gap-7 rounded-[var(--radius-box)] border border-line bg-sheet p-8 shadow-[0_24px_60px_-28px_rgb(28_31_38/0.35)]">
   <div class="flex items-center justify-between gap-4">
-    <Wordmark />
+    <Wordmark size={28} />
     <span class="tabular text-sm text-ink-soft">{id.onboarding.stepOf(step, 4)}</span>
   </div>
   <ol class="flex gap-1.5" aria-hidden="true">
@@ -119,9 +121,10 @@
       <div class="border-t border-line pt-5">
         <AiProviderSection showHeading={false} onchange={(ready) => (keyOk = ready)} />
       </div>
-      <button type="button" class={[primary, "self-start"]} disabled={!keyOk} onclick={() => (step = 3)}>
-        {t.next}
-      </button>
+      <div class="flex items-center gap-2">
+        <button type="button" class="btn btn-quiet" onclick={() => (step = 1)}><Icon name="arrow-left" size={16} />{t.back}</button>
+        <button type="button" class={primary} disabled={!keyOk} onclick={() => (step = 3)}>{t.next}</button>
+      </div>
     </section>
   {:else if step === 3}
     <section class="flex flex-col gap-5">
@@ -142,13 +145,12 @@
         {/if}
       </div>
 
-      <div class="flex flex-col gap-3 panel p-5">
+      <div class="flex flex-col gap-3 panel bg-paper/50 p-5">
+        <!-- Instruksi tampil sebelum tes dimulai agar sempat dibaca. -->
+        <p class={testing ? "font-semibold text-ink" : "text-ink-soft"}>{t.testing}</p>
         <button type="button" class={[primary, "self-start"]} disabled={testing} onclick={runTest}>
-          {t.startTest}
+          {testing ? t.testRunning : t.startTest}
         </button>
-        {#if testing}
-          <p class="text-ink-soft">{t.testing}</p>
-        {/if}
         <div class="grid grid-cols-[7.5rem_1fr] items-center gap-x-3 gap-y-2 text-sm" aria-hidden="true">
           <span class="font-semibold text-mic">{id.recorder.mic}</span>
           <div class="h-1.5 overflow-hidden rounded-full bg-line-soft">
@@ -170,9 +172,10 @@
         {/if}
       </div>
 
-      <button type="button" class={[primary, "self-start"]} disabled={!result?.micOk} onclick={() => (step = 4)}>
-        {t.next}
-      </button>
+      <div class="flex items-center gap-2">
+        <button type="button" class="btn btn-quiet" onclick={() => (step = 2)}><Icon name="arrow-left" size={16} />{t.back}</button>
+        <button type="button" class={primary} disabled={!result?.micOk} onclick={() => (step = 4)}>{t.next}</button>
+      </div>
     </section>
   {:else}
     <section class="flex flex-col gap-5">
@@ -185,10 +188,14 @@
         <input type="checkbox" class="h-4 w-4" bind:checked={autostart} />
         <span>{t.autostart}</span>
       </label>
-      <button type="button" class={[primary, "self-start"]} onclick={finish}>{t.start}</button>
+      <div class="flex items-center gap-2">
+        <button type="button" class="btn btn-quiet" onclick={() => (step = 3)}><Icon name="arrow-left" size={16} />{t.back}</button>
+        <button type="button" class={primary} onclick={finish}>{t.start}</button>
+      </div>
       {#if testError}
         <p class="text-bad">{testError}</p>
       {/if}
     </section>
   {/if}
+</div>
 </main>

@@ -16,11 +16,15 @@
   let onlyMine = $state(true);
   let showDone = $state(false);
 
-  /** PJ dianggap "saya" jika memuat nama pengguna atau label "Saya". */
+  /** PJ dianggap "saya" jika memuat nama pengguna atau "Saya" sebagai kata utuh ("Masayu" bukan "saya"). */
   function isMine(assignee: string | null): boolean {
     if (!assignee) return false;
-    const a = assignee.toLowerCase();
-    return [myName, "saya"].some((n) => n.trim() !== "" && a.includes(n.trim().toLowerCase()));
+    const words = assignee.toLowerCase().split(/[^\p{L}\p{N}]+/u);
+    const names = [myName, "saya"].map((n) => n.trim().toLowerCase()).filter((n) => n !== "");
+    return names.some((n) => {
+      const parts = n.split(/\s+/);
+      return words.some((_, i) => parts.every((p, k) => words[i + k] === p));
+    });
   }
 
   const visible = $derived(items.filter((a) => (showDone || !a.done) && (!onlyMine || isMine(a.assignee))));
@@ -60,7 +64,7 @@
   <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
     <label class="flex items-center gap-2">
       <input type="checkbox" class="h-4 w-4" bind:checked={onlyMine} />
-      {t.onlyMine(myName)}
+      {t.onlyMine}
     </label>
     <label class="flex items-center gap-2">
       <input type="checkbox" class="h-4 w-4" bind:checked={showDone} />
@@ -82,8 +86,8 @@
     </ul>
   {:else if visible.length === 0}
     <section class="flex flex-col items-start gap-2 rounded-xl border border-dashed border-line px-6 py-10">
-      <p class="text-lg font-semibold">{t.emptyTitle}</p>
-      <p class="max-w-prose text-ink-soft">{t.empty}</p>
+      <p class="text-lg font-semibold">{items.length === 0 ? t.emptyTitle : t.filteredTitle}</p>
+      <p class="max-w-prose text-ink-soft">{items.length === 0 ? t.empty : t.filtered}</p>
     </section>
   {:else}
     <ul class="flex flex-col">

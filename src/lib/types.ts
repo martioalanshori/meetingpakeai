@@ -183,8 +183,12 @@ export type DetectedKey = { provider: string; key: string };
 
 // Payload event (§12.4)
 export type LevelPayload = { micDbfs: number; systemDbfs: number };
-export type AutoStopWarningPayload = { reason: "silence" | "meeting_ended"; secondsLeft: number };
-export type RecordingWarningPayload = { code: "device_lost" | "system_silent" | "system_ok" | "write_failed"; channel: Channel };
+export type AutoStopWarningPayload = { reason: "silence" | "meeting_ended"; secondsLeft: number; silenceMin?: number };
+export type RecordingWarningPayload = {
+  code: "device_lost" | "system_silent" | "system_ok" | "write_failed";
+  channel: Channel;
+  minutes?: number;
+};
 export type JobProgressPayload = {
   meetingId: string;
   status: MeetingStatus;

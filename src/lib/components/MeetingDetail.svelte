@@ -9,6 +9,7 @@
   import AudioPlayer from "$lib/components/AudioPlayer.svelte";
   import CopyButton from "$lib/components/CopyButton.svelte";
   import Icon from "$lib/components/Icon.svelte";
+  import Wordmark from "$lib/components/Wordmark.svelte";
   import Menu, { type MenuEntry } from "$lib/components/Menu.svelte";
   import { confirmDialog } from "$lib/confirm.svelte";
   import { detailTab, setWindowTitle } from "$lib/viewport.svelte";
@@ -346,12 +347,47 @@
 </script>
 
 {#if meeting}
-  <!-- Hanya tampil saat dicetak (Cetak / simpan PDF lewat dialog print WebView2). -->
-  <pre class="hidden p-8 font-sans text-sm leading-relaxed whitespace-pre-wrap text-black print:block">{formatMinutes(
-      meeting,
-      "text",
-      transcript,
-    )}</pre>
+  <!-- Hanya tampil saat dicetak (Cetak / simpan PDF): dokumen notulen berformat, bukan teks polos. -->
+  <article class="print-doc hidden print:block">
+    <header class="print-head">
+      <span class="print-brand"><Wordmark size={18} /></span>
+      <h1>{meeting.title}</h1>
+      <p class="print-meta">
+        {formatDateTime(meeting.startedAt)}{#if meeting.endedAt}–{formatTime(meeting.endedAt)}{/if}{#if meeting.durationMs > 0}&ensp;·&ensp;{formatDuration(meeting.durationMs)}{/if}
+      </p>
+    </header>
+    {#if meeting.summary?.status === "ok"}
+      <h2>{t.detail.summary}</h2>
+      <p class="print-summary">{meeting.summary.summary}</p>
+      <h2>{t.detail.decisions}</h2>
+      {#if meeting.summary.decisions.length === 0}<p>{t.detail.noDecisions}</p>{:else}
+        <ul>{#each meeting.summary.decisions as d, i (i)}<li>{d}</li>{/each}</ul>
+      {/if}
+      <h2>{t.detail.tabActionItems}</h2>
+      {#if meeting.actionItems.length === 0}<p>{t.detail.noActionItems}</p>{:else}
+        <table>
+          <thead><tr><th>{t.edit.task}</th><th>{t.edit.assignee}</th><th>{t.edit.due}</th></tr></thead>
+          <tbody>
+            {#each meeting.actionItems as a (a.id)}
+              <tr><td>{a.done ? "✓ " : ""}{a.task}</td><td>{a.assignee ?? "—"}</td><td>{a.due ?? "—"}</td></tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
+      {#if meeting.summary.topics.length > 0}
+        <h2>{t.detail.topics}</h2>
+        <p>{meeting.summary.topics.join(", ")}</p>
+      {/if}
+    {:else if meeting.summary?.status === "empty"}
+      <p>{t.summary.noSpeech}</p>
+    {/if}
+    {#if transcript.length > 0}
+      <h2 class="print-break">{t.detail.tabTranscript}</h2>
+      <ol class="print-transcript">
+        {#each transcript as s (s.id)}<li><span>{formatTimestamp(s.startMs)}</span>{s.text.trim()}</li>{/each}
+      </ol>
+    {/if}
+  </article>
 {/if}
 
 <main
@@ -672,6 +708,76 @@
 </main>
 
 <style>
+  /* Dokumen cetak / PDF. */
+  @page {
+    margin: 18mm 16mm;
+  }
+  .print-doc {
+    color: #000;
+    font-size: 10.5pt;
+    line-height: 1.55;
+  }
+  .print-head {
+    border-bottom: 1.5pt solid #000;
+    padding-bottom: 8pt;
+    margin-bottom: 14pt;
+  }
+  .print-brand {
+    display: block;
+    margin-bottom: 8pt;
+  }
+  .print-doc h1 {
+    font-size: 18pt;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .print-meta {
+    margin-top: 4pt;
+    color: #444;
+  }
+  .print-doc h2 {
+    margin: 14pt 0 5pt;
+    font-size: 12pt;
+    font-weight: 700;
+    break-after: avoid;
+  }
+  .print-summary {
+    white-space: pre-line;
+  }
+  .print-doc ul {
+    padding-left: 14pt;
+    list-style: disc;
+  }
+  .print-doc table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .print-doc th,
+  .print-doc td {
+    border-bottom: 0.5pt solid #bbb;
+    padding: 4pt 6pt 4pt 0;
+    text-align: left;
+    vertical-align: top;
+  }
+  .print-doc th {
+    font-weight: 700;
+  }
+  .print-doc tr {
+    break-inside: avoid;
+  }
+  .print-break {
+    break-before: page;
+  }
+  .print-transcript li {
+    display: grid;
+    grid-template-columns: 52pt 1fr;
+    break-inside: avoid;
+  }
+  .print-transcript span {
+    color: #555;
+    font-variant-numeric: tabular-nums;
+  }
+
   /* Bar progres tak tentu: garis bergerak (bukan bar penuh yang terlihat sudah selesai). */
   .indeterminate {
     animation: slide 1.4s ease-in-out infinite;

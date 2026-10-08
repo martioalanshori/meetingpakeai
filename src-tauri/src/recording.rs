@@ -497,7 +497,10 @@ impl RecordingService {
             // Audio sistem tidak terdengar padahal mic aktif → beri tahu saat meeting, bukan setelahnya.
             if let Some(warn) = system_health.update(now, rec.is_paused(), rec.mic_muted(), mic_db, sys_db) {
                 let code = if warn { "system_silent" } else { "system_ok" };
-                self.events.emit_json(events::EV_RECORDING_WARNING, serde_json::json!({ "code": code, "channel": "system" }));
+                self.events.emit_json(
+                    events::EV_RECORDING_WARNING,
+                    serde_json::json!({ "code": code, "channel": "system", "minutes": SYSTEM_SILENT_WARN_AFTER.as_secs() / 60 }),
+                );
             }
 
             // Disk penuh / file terkunci: berhenti dengan aman sebelum audio bolong makin banyak.
@@ -541,7 +544,11 @@ impl RecordingService {
                 st.warning_deadline = Some(now + AUTO_STOP_GRACE);
                 self.events.emit_json(
                     events::EV_AUTO_STOP_WARNING,
-                    serde_json::json!({ "reason": "silence", "secondsLeft": AUTO_STOP_GRACE.as_secs() }),
+                    serde_json::json!({
+                        "reason": "silence",
+                        "secondsLeft": AUTO_STOP_GRACE.as_secs(),
+                        "silenceMin": self.config.auto_stop_silence_min,
+                    }),
                 );
             }
         };

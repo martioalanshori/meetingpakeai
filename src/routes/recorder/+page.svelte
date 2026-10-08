@@ -10,8 +10,6 @@
   import { id } from "$lib/i18n/id";
   import type { AppError, Channel, RecordingState } from "$lib/types";
 
-  const BASE_HEIGHT = 64;
-  const ROW_HEIGHT = 44;
 
   let rs = $state<RecordingState>({
     status: "idle",
@@ -33,15 +31,16 @@
   let liveTranscribing = $state(false);
   let autoStopDeadline = $state<number | null>(null);
   let autoStopReason = $state<"silence" | "meeting_ended">("silence");
+  let silenceMin = $state(10);
+  let systemSilentMin = $state(2);
+  let root = $state<HTMLDivElement | null>(null);
+  let errorTimer: ReturnType<typeof setTimeout> | undefined;
   let busy = $state(false);
   let error = $state<string | null>(null);
 
   const elapsed = $derived(rs.status === "recording" ? baseMs + Math.max(0, now - baseAt) : baseMs);
   const secondsLeft = $derived(
     autoStopDeadline === null ? 0 : Math.max(0, Math.ceil((autoStopDeadline - now) / 1000)),
-  );
-  const extraRows = $derived(
-    lostChannels.length + (systemSilent && !lostChannels.includes("system") ? 1 : 0) + (autoStopDeadline !== null ? 1 : 0) + (error ? 1 : 0),
   );
 
   function applyState(s: RecordingState) {
@@ -62,9 +61,23 @@
     return `${Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}%`;
   }
 
+  // Tinggi jendela mengikuti isi (baris peringatan bisa 1–3 baris teks), bukan jumlah baris × tinggi tetap.
   $effect(() => {
-    const h = BASE_HEIGHT + extraRows * ROW_HEIGHT;
-    getCurrentWindow().setSize(new LogicalSize(300, h)).catch(() => {});
+    if (!root) return;
+    const el = root;
+    const fit = () => getCurrentWindow().setSize(new LogicalSize(300, Math.ceil(el.scrollHeight))).catch(() => {});
+    const ro = new ResizeObserver(fit);
+    for (const child of el.children) ro.observe(child);
+    ro.observe(el);
+    fit();
+    return () => ro.disconnect();
+  });
+
+  // Pesan error hilang sendiri setelah 6 dtk.
+  $effect(() => {
+    if (!error) return;
+    clearTimeout(errorTimer);
+    errorTimer = setTimeout(() => (error = null), 6000);
   });
 
   const unlisten: UnlistenFn[] = [];
@@ -82,7 +95,10 @@
         sysDb = l.systemDbfs;
       }),
       await events.recordingWarning((w) => {
-        if (w.code === "system_silent") systemSilent = true;
+        if (w.code === "system_silent") {
+          systemSilent = true;
+          if (w.minutes) systemSilentMin = w.minutes;
+        }
         else if (w.code === "system_ok") systemSilent = false;
         else if (w.code === "write_failed") error = id.recorder.writeFailed;
         else if (!lostChannels.includes(w.channel)) lostChannels = [...lostChannels, w.channel];
@@ -90,6 +106,7 @@
       await events.recordingLive(() => (liveTranscribing = true)),
       await events.autoStopWarning((w) => {
         autoStopReason = w.reason;
+        if (w.silenceMin) silenceMin = w.silenceMin;
         autoStopDeadline = performance.now() + w.secondsLeft * 1000;
       }),
     );
@@ -140,8 +157,8 @@
   }
 </script>
 
-<div class="on-dark flex h-screen select-none flex-col bg-ink text-white">
-  <div data-tauri-drag-region class="flex h-16 shrink-0 items-center gap-2 px-3">
+<div class="on-dark flex min-h-screen select-none flex-col bg-ink text-white" bind:this={root}>
+  <div data-tauri-drag-region class="flex h-16 shrink-0 items-center gap-2.5 px-3">
     <span
       class={[
         "h-3 w-3 shrink-0 rounded-full",
@@ -163,12 +180,21 @@
       {/if}
     </button>
 
-    <div data-tauri-drag-region class="flex min-w-0 flex-1 flex-col gap-1.5" aria-hidden="true">
-      <div data-tauri-drag-region class="h-1.5 overflow-hidden rounded-full bg-white/12" title={id.recorder.mic}>
-        <div class="h-full rounded-full bg-mic-bright transition-[width] duration-100" style:width={meterWidth(micDb)}></div>
+    <!-- Meter berlabel ikon (mic = suara Anda, speaker = audio komputer), bukan hanya warna. -->
+    <div data-tauri-drag-region class="flex min-w-0 flex-1 flex-col gap-1.5">
+      <div data-tauri-drag-region class="flex items-center gap-1.5" title={id.recorder.mic}>
+        <Icon name="mic" size={11} class="shrink-0 text-white/60" />
+        <span class="sr-only">{id.recorder.mic}</span>
+        <div data-tauri-drag-region class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/12" aria-hidden="true">
+          <div class="h-full rounded-full bg-mic-bright transition-[width] duration-100" style:width={meterWidth(micDb)}></div>
+        </div>
       </div>
-      <div data-tauri-drag-region class="h-1.5 overflow-hidden rounded-full bg-white/12" title={id.recorder.system}>
-        <div class="h-full rounded-full bg-system-bright transition-[width] duration-100" style:width={meterWidth(sysDb)}></div>
+      <div data-tauri-drag-region class="flex items-center gap-1.5" title={id.recorder.system}>
+        <Icon name="speaker" size={11} class="shrink-0 text-white/60" />
+        <span class="sr-only">{id.recorder.system}</span>
+        <div data-tauri-drag-region class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/12" aria-hidden="true">
+          <div class="h-full rounded-full bg-system-bright transition-[width] duration-100" style:width={meterWidth(sysDb)}></div>
+        </div>
       </div>
     </div>
 
@@ -206,17 +232,23 @@
   </div>
 
   {#each lostChannels as ch (ch)}
-    <div class="flex h-11 items-center border-t border-white/10 bg-warn-deep px-3 text-xs text-warn-deep-text">{id.recorder.deviceLost(ch)}</div>
+    <div class="flex min-h-11 items-center border-t border-white/10 bg-warn-deep px-3 py-2 text-xs leading-snug text-warn-deep-text">
+      {id.recorder.deviceLost(ch)}
+    </div>
   {/each}
 
   {#if systemSilent && !lostChannels.includes("system")}
-    <div class="flex h-11 items-center border-t border-white/10 bg-warn-deep px-3 text-xs leading-tight text-warn-deep-text">{id.recorder.systemSilent}</div>
+    <div class="flex min-h-11 items-center border-t border-white/10 bg-warn-deep px-3 py-2 text-xs leading-snug text-warn-deep-text">
+      {id.recorder.systemSilent(systemSilentMin)}
+    </div>
   {/if}
 
   {#if autoStopDeadline !== null}
-    <div class="flex h-11 items-center gap-2 border-t border-white/10 px-3 text-xs">
-      <span class="flex-1 leading-tight">
-        {autoStopReason === "meeting_ended" ? id.recorder.meetingEnded : id.recorder.autoStop}<br /><span class="tabular text-white/60">{id.recorder.autoStopCountdown(secondsLeft)}</span>
+    <div class="flex min-h-11 items-center gap-2 border-t border-white/10 px-3 py-2 text-xs">
+      <span class="flex-1 leading-snug">
+        {autoStopReason === "meeting_ended" ? id.recorder.meetingEnded : id.recorder.autoStop(silenceMin)}<br /><span
+          class="tabular text-white/60">{id.recorder.autoStopCountdown(secondsLeft)}</span
+        >
       </span>
       <button type="button" class="rounded-md bg-rec px-2 py-1 font-semibold" onclick={() => respondAutoStop(false)}>
         {id.recorder.autoStopStop}
@@ -228,6 +260,6 @@
   {/if}
 
   {#if error}
-    <div class="flex h-11 items-center border-t border-white/10 bg-bad-deep px-3 text-xs">{error}</div>
+    <div class="flex min-h-11 items-center border-t border-white/10 bg-bad-deep px-3 py-2 text-xs leading-snug" role="alert">{error}</div>
   {/if}
 </div>

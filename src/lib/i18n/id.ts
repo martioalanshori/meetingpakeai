@@ -68,10 +68,12 @@ export const id = {
 
   tasks: {
     title: "Tugas",
-    onlyMine: (name: string) => `Hanya untuk saya (PJ: ${name})`,
+    onlyMine: "Hanya tugas saya",
     showDone: "Tampilkan yang sudah selesai",
     emptyTitle: "Tidak ada tugas",
-    empty: "Tugas dari notulen yang selesai akan muncul di sini. Ubah filter di atas untuk melihat tugas orang lain atau yang sudah selesai.",
+    empty: "Tugas dari notulen meeting akan muncul di sini setelah notulen selesai dibuat.",
+    filteredTitle: "Tidak ada tugas yang cocok",
+    filtered: "Matikan filter di atas untuk melihat tugas orang lain atau yang sudah selesai.",
   },
 
   status: {
@@ -118,12 +120,12 @@ export const id = {
       channel === "mic"
         ? "Mikrofon terputus. Rekaman lanjut tanpa mikrofon."
         : "Audio komputer terputus. Rekaman lanjut tanpa audio komputer.",
-    autoStop: "Tidak ada suara 10 menit. Hentikan rekaman?",
+    autoStop: (min: number) => `Tidak ada suara ${min} menit. Hentikan rekaman?`,
     meetingEnded: "Meeting sepertinya sudah selesai. Hentikan rekaman?",
     autoStopCountdown: (s: number) => `Berhenti otomatis dalam ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`,
     liveTranscribing: "Transkrip berjalan",
     writeFailed: "Audio tidak bisa disimpan (disk penuh?). Rekaman dihentikan; audio yang sudah terekam aman.",
-    systemSilent: "Audio komputer tidak terdengar 2 menit. Periksa volume dan perangkat output.",
+    systemSilent: (min: number) => `Audio komputer tidak terdengar ${min} menit. Periksa volume dan perangkat output.`,
     autoStopStop: "Hentikan",
     autoStopContinue: "Lanjut",
   },
@@ -335,7 +337,9 @@ export const id = {
     openPrivacy: "Buka Pengaturan Privasi",
     recheck: "Periksa lagi",
     startTest: "Mulai tes 5 detik",
-    testing: 'Ucapkan sekarang: "tes satu dua tiga". Setelah itu aplikasi memutar nada tes.',
+    testing: 'Saat tes dimulai, ucapkan "tes satu dua tiga". Setelah itu aplikasi memutar nada tes untuk mengecek audio komputer.',
+    testRunning: "Tes berjalan…",
+    back: "Kembali",
     micOk: "Mikrofon menangkap suara",
     micFail: "Mikrofon tidak menangkap suara. Periksa mikrofon lalu ulangi tes.",
     systemOk: "Audio komputer tertangkap",
