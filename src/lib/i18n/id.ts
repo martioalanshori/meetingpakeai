@@ -21,6 +21,7 @@ export const id = {
 
   nav: {
     label: "Navigasi",
+    home: "Beranda",
     meetings: "Meeting",
     tasks: "Tugas",
     settings: "Pengaturan",

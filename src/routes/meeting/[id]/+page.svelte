@@ -9,11 +9,11 @@
   const tab = $derived(page.url.searchParams.get("tab"));
   const at = $derived(Number(page.url.searchParams.get("at") ?? "NaN"));
 
-  // Jendela cukup lebar (juga saat diperbesar) → detail tampil di panel kanan Beranda; tab aktif dipertahankan.
+  // Jendela cukup lebar (juga saat diperbesar) → detail tampil di panel kanan halaman Meeting; tab aktif dipertahankan.
   $effect(() => {
     if (!viewport.wide) return;
     const current = detailTab.meetingId === meetingId ? detailTab.tab : tab;
-    untrack(() => goto(`/?m=${meetingId}${current ? `&tab=${current}` : ""}`, { replaceState: true }));
+    untrack(() => goto(`/meetings?m=${meetingId}${current ? `&tab=${current}` : ""}`, { replaceState: true }));
   });
 </script>
 

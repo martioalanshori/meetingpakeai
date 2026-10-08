@@ -13,7 +13,8 @@
   });
 
   const nav: { href: string; text: string; icon: IconName; match: (p: string) => boolean }[] = [
-    { href: "/", text: id.nav.meetings, icon: "list", match: (p) => p === "/" || p.startsWith("/meeting") },
+    { href: "/", text: id.nav.home, icon: "home", match: (p) => p === "/" },
+    { href: "/meetings", text: id.nav.meetings, icon: "list", match: (p) => p.startsWith("/meeting") },
     { href: "/tasks", text: id.nav.tasks, icon: "tasks", match: (p) => p.startsWith("/tasks") },
     { href: "/settings", text: id.nav.settings, icon: "settings", match: (p) => p.startsWith("/settings") },
   ];

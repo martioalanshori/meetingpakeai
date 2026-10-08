@@ -326,7 +326,7 @@
     try {
       const target = await api.mergeWithPrevious(meetingId);
       showToast(t.detail.merged, "success");
-      await goto(embedded ? `/?m=${target}` : `/meeting/${target}`, { replaceState: true });
+      await goto(embedded ? `/meetings?m=${target}` : `/meeting/${target}`, { replaceState: true });
     } catch (e) {
       showToast((e as AppError).message, "error");
     }
@@ -368,7 +368,7 @@
       await api.deleteMeeting(meetingId);
       showToast(t.toast.deleted);
       if (ondeleted) ondeleted();
-      else await goto("/");
+      else await goto("/meetings");
     } catch (e) {
       showToast((e as AppError).message, "error");
     }
@@ -711,7 +711,7 @@
   aria-busy={switching}
 >
   {#if !embedded}
-    <a href="/" class="btn btn-quiet btn-sm -mb-3 -ml-2.5 self-start">
+    <a href="/meetings" class="btn btn-quiet btn-sm -mb-3 -ml-2.5 self-start">
       <Icon name="arrow-left" size={16} />{t.common.back}
     </a>
   {/if}
