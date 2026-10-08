@@ -91,6 +91,10 @@ export const api = {
   regenerateSummary: (id: string) => call<void>("regenerate_summary", { id }),
   importRecording: (path?: string) => call<string | null>("import_recording", { path: path ?? null }),
   summarizeSoFar: (id: string) => call<string[]>("summarize_so_far", { id }),
+  getNotes: (id: string) => call<string>("get_notes", { id }),
+  saveNotes: (id: string, text: string) => call<void>("save_notes", { id, text }),
+  openNotesWindow: (id: string) => call<void>("open_notes_window", { id }),
+  toggleBookmarkAt: (id: string, atMs: number) => call<number[]>("toggle_bookmark_at", { id, atMs }),
   openMeetingInMain: (id: string) => call<void>("open_meeting_in_main", { id }),
   generateFollowUp: (id: string, lang: "id" | "en", force: boolean) =>
     call<FollowUp>("generate_follow_up", { id, lang, force }),

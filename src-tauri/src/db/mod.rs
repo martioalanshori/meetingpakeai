@@ -4,6 +4,7 @@ pub mod repo_bookmarks;
 pub mod repo_chunks;
 pub mod repo_live;
 pub mod repo_meetings;
+pub mod repo_notes;
 pub mod repo_parts;
 pub mod repo_search;
 pub mod repo_segments;
@@ -29,6 +30,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/007_sources.sql"),
     include_str!("migrations/008_follow_up.sql"),
     include_str!("migrations/009_bookmarks.sql"),
+    include_str!("migrations/010_notes.sql"),
 ];
 
 pub struct Db {

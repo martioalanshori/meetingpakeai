@@ -9,6 +9,7 @@
   import AudioPlayer from "$lib/components/AudioPlayer.svelte";
   import CopyButton from "$lib/components/CopyButton.svelte";
   import FollowUpPanel from "$lib/components/FollowUpPanel.svelte";
+  import NotesEditor from "$lib/components/NotesEditor.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import Wordmark from "$lib/components/Wordmark.svelte";
   import Menu, { type MenuEntry } from "$lib/components/Menu.svelte";
@@ -45,6 +46,8 @@
   let titleInput = $state<HTMLInputElement | null>(null);
   let editingSummary = $state(false);
   let soFar = $state<string[]>([]);
+  /** Bagian "Catatan saya" di Ringkasan terbuka bila catatan ada. */
+  let notesOpen = $state(false);
   let soFarBusy = $state(false);
   /** Transkrip belum final (id negatif dari Rust = segment sementara). */
   const isLive = $derived(transcript.length > 0 && transcript[0].id < 0);
@@ -343,6 +346,16 @@
   const markedSegIds = $derived(
     new Set((meeting?.bookmarks ?? []).map((b) => segmentAt(b)?.id).filter((x): x is number => x !== undefined)),
   );
+
+  /** Tandai / batalkan tanda momen dari baris transkrip (feedback3 F4). */
+  async function toggleMoment(ms: number) {
+    if (!meeting) return;
+    try {
+      meeting.bookmarks = await api.toggleBookmarkAt(meeting.id, ms);
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
 
   async function removeBookmark(ms: number) {
     if (!meeting) return;
@@ -728,6 +741,13 @@
                   </ul>
                 {/if}
               </div>
+              <details class="group flex flex-col gap-2" open={notesOpen}>
+                <summary class="section-title flex cursor-pointer list-none items-center gap-1.5">
+                  <Icon name="pencil" size={15} />{t.detail.myNotes}
+                  <Icon name="chevron-down" size={15} class="text-ink-faint transition-transform group-open:rotate-180" />
+                </summary>
+                <div class="pt-2"><NotesEditor meetingId={meeting.id} rows={4} /></div>
+              </details>
               {#if meeting.bookmarks.length > 0}
                 <div class="flex flex-col gap-2">
                   <h2 class="section-title flex items-center gap-1.5">
@@ -831,6 +851,12 @@
           {meeting.status === "recording" ? t.detail.liveEmpty : processing ? t.detail.processing : t.detail.emptyTranscript}
         </p>
       {:else}
+        {#if meeting.status === "recording"}
+          <div class="flex flex-col gap-2 rounded-xl border border-line p-4">
+            <span class="font-semibold">{t.detail.myNotes}</span>
+            <NotesEditor meetingId={meeting.id} rows={3} />
+          </div>
+        {/if}
         {#if isLive}
           <!-- Transkrip sementara (feedback3 B1) + Ringkas sejauh ini. -->
           <div class="-mt-1 flex flex-col gap-3 rounded-xl border border-line bg-paper/60 p-4">
@@ -897,7 +923,21 @@
                   onclick={() => playAt(s.startMs)}>{formatTimestamp(s.startMs)}</button
                 >
               {/if}
-              <p class="max-w-[70ch] leading-[1.7]">
+              <p class="group/row relative max-w-[70ch] leading-[1.7]">
+                {#if !isLive}
+                  <button
+                    type="button"
+                    class={[
+                      "absolute top-0.5 -right-8 rounded p-1 text-ink-faint hover:bg-wash hover:text-warn print:hidden",
+                      markedSegIds.has(s.id) ? "opacity-100" : "opacity-0 group-hover/row:opacity-100 focus:opacity-100",
+                    ]}
+                    title={markedSegIds.has(s.id) ? t.detail.unmarkMoment : t.detail.markMoment}
+                    aria-label={markedSegIds.has(s.id) ? t.detail.unmarkMoment : t.detail.markMoment}
+                    onclick={() => toggleMoment(s.startMs)}
+                  >
+                    <Icon name="star" size={14} />
+                  </button>
+                {/if}
                 {#if markedSegIds.has(s.id)}<Icon name="star" size={14} class="mr-1 inline -translate-y-px text-warn" /><span
                     class="sr-only">{t.detail.bookmarkMarker}:</span
                   >{/if}{s.text.trim()}

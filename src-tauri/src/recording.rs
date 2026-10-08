@@ -41,6 +41,8 @@ const SYSTEM_SILENT_WARN_AFTER: Duration = Duration::from_secs(120);
 const DEVICE_SWITCH_DEBOUNCE: Duration = Duration::from_secs(1);
 /// Peringatan sebelum batas durasi rekaman (lalu berlanjut sebagai meeting baru).
 const LIMIT_WARN_BEFORE: Duration = Duration::from_secs(600);
+/// Dijeda selama ini → pengingat "lanjutkan atau hentikan?" (langkah 49, feedback3 B3).
+const PAUSE_REMIND_AFTER: Duration = Duration::from_secs(600);
 
 const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
@@ -454,6 +456,8 @@ impl RecordingService {
         let mut system_health = SystemHealth::default();
         let mut switch_at: [Option<Instant>; 2] = [None, None];
         let mut limit_warned = false;
+        let mut paused_since: Option<Instant> = None;
+        let mut pause_warned = false;
 
         let stop_reason = loop {
             if active.monitor_stop.load(Ordering::SeqCst) {
@@ -536,6 +540,26 @@ impl RecordingService {
             if rec.write_failures() >= MAX_WRITE_FAILURES {
                 self.events.emit_json(events::EV_RECORDING_WARNING, serde_json::json!({ "code": "write_failed", "channel": "mic" }));
                 break StopReason::DiskFull;
+            }
+
+            // Jeda lama: ingatkan sekali per jeda.
+            if rec.is_paused() {
+                let since = *paused_since.get_or_insert(now);
+                if !pause_warned && now.duration_since(since) >= PAUSE_REMIND_AFTER {
+                    pause_warned = true;
+                    let minutes = PAUSE_REMIND_AFTER.as_secs() / 60;
+                    self.events.emit_json(
+                        events::EV_RECORDING_WARNING,
+                        serde_json::json!({ "code": "paused_long", "channel": "mic", "minutes": minutes }),
+                    );
+                    self.events.notify(
+                        "Rekaman masih dijeda",
+                        &format!("Sudah {minutes} menit dijeda. Lanjutkan atau hentikan rekaman dari widget."),
+                    );
+                }
+            } else {
+                paused_since = None;
+                pause_warned = false;
             }
 
             // Durasi maksimal: peringatan 10 menit sebelumnya, lalu berlanjut sebagai meeting baru.

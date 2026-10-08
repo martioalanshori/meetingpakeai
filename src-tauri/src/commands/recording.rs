@@ -47,6 +47,13 @@ pub async fn open_meeting_in_main(app: tauri::AppHandle, state: State<'_, AppSta
     Ok(())
 }
 
+/// Tambahan (langkah 49): jendela "Catatan saya" kecil di atas semua jendela selama merekam.
+#[tauri::command]
+pub async fn open_notes_window(app: tauri::AppHandle, id: String) -> AppResult<()> {
+    crate::bridge::open_notes_window(&app, &id);
+    Ok(())
+}
+
 /// Tambahan (langkah 46): tawaran rekam diabaikan → tidak diingatkan ulang untuk sesi mic ini.
 #[tauri::command]
 pub async fn dismiss_meeting_offer(state: State<'_, AppState>) -> AppResult<()> {

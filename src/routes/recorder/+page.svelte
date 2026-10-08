@@ -34,6 +34,9 @@
   let silenceMin = $state(10);
   let systemSilentMin = $state(2);
   let limitSoonMin = $state<number | null>(null);
+  let pausedLongMin = $state<number | null>(null);
+  /** Judul meeting yang sedang direkam (tooltip timer, feedback3 B4). */
+  let meetingTitle = $state("");
   let bookmarkCount = $state(0);
   let bookmarkFlash = $state(false);
   let flashTimer: ReturnType<typeof setTimeout> | undefined;
@@ -48,6 +51,9 @@
   );
 
   function applyState(s: RecordingState) {
+    if (s.meetingId && s.meetingId !== rs.meetingId) {
+      api.getMeeting(s.meetingId).then((m) => (meetingTitle = m.title), () => {});
+    }
     rs = s;
     baseMs = s.elapsedMs;
     baseAt = performance.now();
@@ -106,6 +112,7 @@
         else if (w.code === "system_ok") systemSilent = false;
         else if (w.code === "write_failed") error = id.recorder.writeFailed;
         else if (w.code === "limit_soon") limitSoonMin = w.minutes ?? 10;
+        else if (w.code === "paused_long") pausedLongMin = w.minutes ?? 10;
         else if (!lostChannels.includes(w.channel)) lostChannels = [...lostChannels, w.channel];
       }),
       await events.recordingLive(() => (liveTranscribing = true)),
@@ -181,7 +188,7 @@
     <button
       type="button"
       class="tabular flex flex-col items-start rounded px-1 text-base font-semibold hover:bg-white/10"
-      title={id.recorder.openMain}
+      title={meetingTitle ? `${meetingTitle} — ${id.recorder.openMain}` : id.recorder.openMain}
       onclick={focusMain}
     >
       {formatTimestamp(elapsed)}
@@ -210,6 +217,16 @@
       </div>
     </div>
 
+    <button
+      type="button"
+      class="rounded p-1.5 hover:bg-white/15 disabled:opacity-50"
+      title={id.notes.title}
+      aria-label={id.notes.title}
+      disabled={!rs.meetingId}
+      onclick={() => rs.meetingId && api.openNotesWindow(rs.meetingId).catch((e: AppError) => (error = e.message))}
+    >
+      <Icon name="pencil" />
+    </button>
     <button
       type="button"
       class={["relative rounded p-1.5 hover:bg-white/15 disabled:opacity-50", bookmarkFlash && "bg-white/20"]}
@@ -261,6 +278,13 @@
       {id.recorder.deviceLost(ch)}
     </div>
   {/each}
+
+  {#if pausedLongMin !== null && rs.status === "paused"}
+    <div class="flex min-h-11 items-center gap-2 border-t border-white/10 bg-warn-deep px-3 py-2 text-xs text-warn-deep-text">
+      <span class="flex-1 leading-snug">{id.recorder.pausedLong(pausedLongMin)}</span>
+      <button type="button" class="rounded-md bg-white/15 px-2 py-1 font-semibold" onclick={togglePause}>{id.recorder.resume}</button>
+    </div>
+  {/if}
 
   {#if limitSoonMin !== null}
     <div class="flex min-h-11 items-center border-t border-white/10 px-3 py-2 text-xs leading-snug text-white/85">

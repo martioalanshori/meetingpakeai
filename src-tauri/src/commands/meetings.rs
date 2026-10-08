@@ -479,6 +479,33 @@ pub async fn generate_follow_up(
     Ok(f)
 }
 
+/// Tambahan (langkah 49, feedback3 B2): catatan pribadi meeting.
+#[tauri::command]
+pub async fn get_notes(state: State<'_, AppState>, id: String) -> AppResult<String> {
+    crate::db::repo_notes::get(&state.db.conn(), &id)
+}
+
+#[tauri::command]
+pub async fn save_notes(state: State<'_, AppState>, id: String, text: String) -> AppResult<()> {
+    let conn = state.db.conn();
+    repo_meetings::get(&conn, &id)?;
+    crate::db::repo_notes::set(&conn, &id, &text)
+}
+
+/// Tambahan (langkah 49, feedback3 F4): tandai / batalkan tanda momen dari baris transkrip sesudah meeting.
+/// Tanda dalam ±5 dtk dari `at_ms` dihapus; jika tidak ada, tanda baru dibuat. Mengembalikan daftar baru.
+#[tauri::command]
+pub async fn toggle_bookmark_at(state: State<'_, AppState>, id: String, at_ms: i64) -> AppResult<Vec<i64>> {
+    let conn = state.db.conn();
+    repo_meetings::get(&conn, &id)?;
+    let existing = crate::db::repo_bookmarks::list(&conn, &id)?;
+    match existing.iter().find(|&&b| (b - at_ms).abs() <= 5_000) {
+        Some(&b) => crate::db::repo_bookmarks::delete(&conn, &id, b)?,
+        None => crate::db::repo_bookmarks::insert(&conn, &id, at_ms.max(0))?,
+    }
+    crate::db::repo_bookmarks::list(&conn, &id)
+}
+
 /// Tambahan (langkah 44): hapus satu momen ditandai.
 #[tauri::command]
 pub async fn delete_bookmark(state: State<'_, AppState>, id: String, at_ms: i64) -> AppResult<()> {

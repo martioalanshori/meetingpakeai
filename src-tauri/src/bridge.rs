@@ -110,6 +110,36 @@ fn open_card(app: &AppHandle, db: &Db, url: &str, title: &str) {
     }
 }
 
+/// Jendela catatan (langkah 49): di bawah widget rekaman, selalu di atas, bisa diubah ukurannya.
+pub fn open_notes_window(app: &AppHandle, meeting_id: &str) {
+    const NOTES_LABEL: &str = "notes";
+    if let Some(w) = app.get_webview_window(NOTES_LABEL) {
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+        return;
+    }
+    let url = format!("recorder/notes?id={meeting_id}");
+    let b = WebviewWindowBuilder::new(app, NOTES_LABEL, WebviewUrl::App(url.into()))
+        .title("Catatan saya — Meeting Pake AI")
+        .inner_size(RECORDER_WIDTH, 300.0)
+        .min_inner_size(260.0, 180.0)
+        .always_on_top(true)
+        .skip_taskbar(false)
+        .focused(true);
+    let pos = default_widget_position(app).map(|p| {
+        let scale = app.primary_monitor().ok().flatten().map_or(1.0, |m| m.scale_factor());
+        WindowPosition { x: p.x, y: p.y + (130.0 * scale) as i32 }
+    });
+    match b.build() {
+        Ok(w) => {
+            if let Some(pos) = pos {
+                let _ = w.set_position(PhysicalPosition::new(pos.x, pos.y));
+            }
+        }
+        Err(e) => tracing::error!("jendela catatan gagal dibuat: {e}"),
+    }
+}
+
 /// Pojok kanan atas monitor utama (margin 16 px).
 fn default_widget_position(app: &AppHandle) -> Option<WindowPosition> {
     let m = app.primary_monitor().ok().flatten()?;

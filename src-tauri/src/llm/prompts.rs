@@ -89,7 +89,7 @@ pub fn follow_up(english: bool, pengirim: &str, notulen: &str) -> String {
 pub const RETRY: &str =
     "Output sebelumnya tidak valid: {error}. Kembalikan ulang HANYA JSON valid sesuai format yang diminta.";
 
-pub fn system(label_saya: &str, label_peserta: &str, ejaan: &[String], momen: &[String]) -> String {
+pub fn system(label_saya: &str, label_peserta: &str, ejaan: &[String], momen: &[String], catatan: &str) -> String {
     let mut s = SYSTEM.replace("{label_saya}", label_saya).replace("{label_peserta}", label_peserta);
     if !ejaan.is_empty() {
         // Transkrip bisa salah dengar; notulen memakai ejaan dari glosarium pengguna.
@@ -103,6 +103,13 @@ pub fn system(label_saya: &str, label_peserta: &str, ejaan: &[String], momen: &[
         s.push_str(&format!(
             "\nPengguna menandai momen berikut sebagai penting: {}. Pembahasan di sekitar waktu itu WAJIB tercermin di ringkasan, keputusan, atau tugas (jika bagian transkrip ini memuatnya).",
             list.join(", ")
+        ));
+    }
+    let catatan = catatan.trim();
+    if !catatan.is_empty() {
+        let catatan: String = catatan.chars().take(2_000).collect();
+        s.push_str(&format!(
+            "\nCatatan pribadi pengguna selama meeting (prioritas tinggi; poin-poin ini WAJIB tercermin dan dikembangkan dari transkrip, jangan menambah fakta di luar transkrip dan catatan):\n<<<\n{catatan}\n>>>"
         ));
     }
     s
