@@ -78,8 +78,19 @@ pub async fn take_pending_meeting(state: State<'_, AppState>) -> AppResult<Optio
     Ok(state.bridge.take_pending_meeting())
 }
 
-/// Tambahan: jendela main yang baru dibuat dari menu tray menanyakan apakah popup consent perlu dibuka.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingConsent {
+    pub open: bool,
+    /// Jenis aplikasi dari deteksi meeting (`zoom` / `teams` / `browser`).
+    pub source_app: Option<String>,
+}
+
+/// Tambahan: jendela main (baru dibuat / mendapat fokus) menanyakan apakah popup consent perlu dibuka:
+/// dari menu tray / shortcut "Mulai rekam", atau dari notifikasi "Meeting terdeteksi".
 #[tauri::command]
-pub async fn take_pending_consent(state: State<'_, AppState>) -> AppResult<bool> {
-    Ok(state.pending_consent.swap(false, std::sync::atomic::Ordering::SeqCst))
+pub async fn take_pending_consent(state: State<'_, AppState>) -> AppResult<PendingConsent> {
+    let from_tray = state.pending_consent.swap(false, std::sync::atomic::Ordering::SeqCst);
+    let source_app = state.bridge.take_pending_offer();
+    Ok(PendingConsent { open: from_tray || source_app.is_some(), source_app })
 }

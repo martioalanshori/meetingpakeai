@@ -16,5 +16,12 @@
       "jangan lupa subscribe", "subtitle oleh", "thank you for watching", "thanks for watching"],
     "short_hallucination_phrases": ["terima kasih", "terima kasih banyak", "ya", "oke", "ok", "thank you", "thanks", "you"]
   },
-  "recording": { "auto_stop_silence_min": 10, "max_recording_hours": 4 }
+  "recording": { "auto_stop_silence_min": 10, "max_recording_hours": 4 },
+  "meeting_detection": {
+    "poll_sec": 10, "stop_grace_sec": 30, "stop_countdown_sec": 60,
+    "apps": {
+      "zoom.exe": "zoom", "ms-teams.exe": "teams", "teams.exe": "teams", "msteams": "teams", "microsoftteams": "teams",
+      "chrome.exe": "browser", "msedge.exe": "browser", "firefox.exe": "browser", "brave.exe": "browser"
+    }
+  }
 }

@@ -29,6 +29,7 @@
   let sysDb = $state(-90);
   let lostChannels = $state<Channel[]>([]);
   let autoStopDeadline = $state<number | null>(null);
+  let autoStopReason = $state<"silence" | "meeting_ended">("silence");
   let busy = $state(false);
   let error = $state<string | null>(null);
 
@@ -77,7 +78,10 @@
       await events.recordingWarning((w) => {
         if (!lostChannels.includes(w.channel)) lostChannels = [...lostChannels, w.channel];
       }),
-      await events.autoStopWarning((w) => (autoStopDeadline = performance.now() + w.secondsLeft * 1000)),
+      await events.autoStopWarning((w) => {
+        autoStopReason = w.reason;
+        autoStopDeadline = performance.now() + w.secondsLeft * 1000;
+      }),
     );
     try {
       applyState(await api.getRecordingState());
@@ -196,7 +200,7 @@
   {#if autoStopDeadline !== null}
     <div class="flex h-11 items-center gap-2 bg-gray-800 px-3 text-xs">
       <span class="flex-1 leading-tight">
-        {id.recorder.autoStop}<br /><span class="text-gray-400">{id.recorder.autoStopCountdown(secondsLeft)}</span>
+        {autoStopReason === "meeting_ended" ? id.recorder.meetingEnded : id.recorder.autoStop}<br /><span class="text-gray-400">{id.recorder.autoStopCountdown(secondsLeft)}</span>
       </span>
       <button type="button" class="rounded bg-red-600 px-2 py-1" onclick={() => respondAutoStop(false)}>
         {id.recorder.autoStopStop}

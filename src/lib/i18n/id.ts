@@ -76,6 +76,7 @@ export const id = {
         ? "Mikrofon terputus. Rekaman lanjut tanpa mikrofon."
         : "Audio sistem terputus. Rekaman lanjut tanpa audio sistem.",
     autoStop: "Tidak ada suara 10 menit. Stop rekam?",
+    meetingEnded: "Meeting sepertinya sudah selesai. Stop rekam?",
     autoStopCountdown: (s: number) => `Berhenti otomatis dalam ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`,
     autoStopStop: "Stop",
     autoStopContinue: "Lanjut",
@@ -160,6 +161,9 @@ export const id = {
     shortcutClear: "Matikan",
     autostart: "Jalankan saat Windows menyala",
     autostartNote: "Aplikasi berjalan tersembunyi di tray sehingga selalu siap merekam.",
+    meetingDetection: "Deteksi meeting otomatis",
+    meetingDetectionNote:
+      "Saat Zoom, Teams, atau browser mulai memakai mikrofon, muncul tawaran Mulai rekam. Saat meeting selesai, rekaman ditawarkan untuk dihentikan.",
     save: "Simpan",
     about: "Tentang",
     version: (v: string) => `Versi ${v}`,

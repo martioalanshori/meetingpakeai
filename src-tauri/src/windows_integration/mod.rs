@@ -1,5 +1,6 @@
 //! Integrasi Windows: sisa disk, izin mikrofon, pemutar nada tes.
 
+pub mod meeting_detect;
 pub mod mic_permission;
 
 use std::ffi::OsStr;

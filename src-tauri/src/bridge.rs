@@ -21,6 +21,10 @@ pub const TRAY_ICON_PROCESSING: &[u8] = include_bytes!("../icons/tray-processing
 const RECORDER_LABEL: &str = "recorder";
 /// Meeting dari notifikasi "Notulen siap" dibuka jika jendela main dibuka dalam waktu ini.
 const PENDING_MEETING_TTL: Duration = Duration::from_secs(60 * 60);
+/// Tawaran "Meeting terdeteksi" berlaku selama ini (lewat dari itu popup consent tidak dibuka otomatis).
+const PENDING_OFFER_TTL: Duration = Duration::from_secs(5 * 60);
+/// Ada hal tertunda untuk jendela main yang sedang fokus (meeting selesai / tawaran rekam).
+pub const EV_APP_PENDING: &str = "app://pending";
 const RECORDER_WIDTH: f64 = 300.0;
 /// Jarak widget dari tepi layar (logical px).
 const RECORDER_MARGIN: f64 = 16.0;
@@ -33,6 +37,8 @@ pub struct TauriBridge {
     /// Notifikasi desktop tidak punya handler klik: meeting terakhir yang selesai dibuka
     /// saat jendela main berikutnya mendapat fokus (klik notifikasi / tray).
     pending_meeting: Mutex<Option<(String, Instant)>>,
+    /// Tawaran rekam dari deteksi meeting: jenis aplikasi (`source_app`).
+    pending_offer: Mutex<Option<(String, Instant)>>,
     recording: AtomicBool,
     processing: AtomicBool,
 }
@@ -70,9 +76,20 @@ impl TauriBridge {
             db,
             record_item: Mutex::new(None),
             pending_meeting: Mutex::new(None),
+            pending_offer: Mutex::new(None),
             recording: AtomicBool::new(false),
             processing: AtomicBool::new(false),
         }
+    }
+
+    /// Tawaran rekam dari notifikasi "Meeting terdeteksi" (sekali ambil): jenis aplikasi.
+    pub fn take_pending_offer(&self) -> Option<String> {
+        let taken = self.pending_offer.lock().unwrap_or_else(|e| e.into_inner()).take();
+        taken.filter(|(_, at)| at.elapsed() < PENDING_OFFER_TTL).map(|(kind, _)| kind)
+    }
+
+    fn main_focused(&self) -> bool {
+        self.app.get_webview_window("main").is_some_and(|w| w.is_focused().unwrap_or(false))
     }
 
     /// Meeting yang menunggu dibuka dari notifikasi "Notulen siap" (sekali ambil).
@@ -180,10 +197,24 @@ impl EventSink for TauriBridge {
         }
     }
 
+    fn meeting_detected(&self, kind: &str) {
+        *self.pending_offer.lock().unwrap_or_else(|e| e.into_inner()) = Some((kind.to_string(), Instant::now()));
+        if self.main_focused() {
+            let _ = self.app.emit_to("main", EV_APP_PENDING, ());
+            return;
+        }
+        let name = match kind {
+            "zoom" => "Zoom",
+            "teams" => "Microsoft Teams",
+            "browser" => "browser",
+            other => other,
+        };
+        self.notify(&format!("Meeting terdeteksi ({name})"), "Mulai rekam? Klik untuk membuka Meeting Pake AI.");
+    }
+
     fn meeting_done(&self, meeting_id: &str, title: &str) {
         // Pengguna sedang melihat aplikasi: status di layar sudah cukup.
-        let focused = self.app.get_webview_window("main").is_some_and(|w| w.is_focused().unwrap_or(false));
-        if focused {
+        if self.main_focused() {
             return;
         }
         *self.pending_meeting.lock().unwrap_or_else(|e| e.into_inner()) = Some((meeting_id.to_string(), Instant::now()));

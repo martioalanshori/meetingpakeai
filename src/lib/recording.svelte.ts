@@ -15,6 +15,8 @@ export const rec = $state({
   } as RecordingState,
   busy: false,
   consentOpen: false,
+  /** Aplikasi meeting yang terdeteksi (zoom/teams/browser) untuk kolom source_app. */
+  sourceApp: null as string | null,
 });
 
 let initialized = false;
@@ -32,8 +34,9 @@ export async function initRecording() {
   }
 }
 
-export function openConsent() {
+export function openConsent(sourceApp: string | null = null) {
   if (rec.state.status !== "idle") return;
+  rec.sourceApp = sourceApp;
   rec.consentOpen = true;
 }
 
@@ -41,7 +44,7 @@ export function openConsent() {
 export async function startRecording() {
   rec.busy = true;
   try {
-    await api.startRecording();
+    await api.startRecording(rec.sourceApp ?? undefined);
     rec.consentOpen = false;
     rec.state = await api.getRecordingState();
   } catch (e) {

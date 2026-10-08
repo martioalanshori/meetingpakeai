@@ -101,7 +101,11 @@ export type Settings = {
   /** Shortcut global Mulai/Stop rekam, mis. "Ctrl+Alt+R"; "" = mati. */
   globalShortcut: string;
   autostart: boolean;
+  /** Tawarkan rekam saat Zoom/Teams/browser memakai mic; tawarkan Stop saat selesai. */
+  meetingDetection: boolean;
 };
+
+export type PendingConsent = { open: boolean; sourceApp: string | null };
 
 export type AudioTestResult = {
   micOk: boolean;
@@ -120,7 +124,7 @@ export type TestApiKeyResult = { ok: boolean; missingModels: string[] };
 
 // Payload event (§12.4)
 export type LevelPayload = { micDbfs: number; systemDbfs: number };
-export type AutoStopWarningPayload = { reason: "silence"; secondsLeft: number };
+export type AutoStopWarningPayload = { reason: "silence" | "meeting_ended"; secondsLeft: number };
 export type RecordingWarningPayload = { code: "device_lost"; channel: Channel };
 export type JobProgressPayload = {
   meetingId: string;

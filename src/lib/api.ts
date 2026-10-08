@@ -12,6 +12,7 @@ import type {
   MeetingUpdatedPayload,
   MicPermission,
   OnboardingStatus,
+  PendingConsent,
   RecordingState,
   RecordingWarningPayload,
   Settings,
@@ -53,7 +54,7 @@ export const api = {
   setMicMuted: (muted: boolean) => call<RecordingState>("set_mic_muted", { muted }),
   stopRecording: () => call<{ meetingId: string | null }>("stop_recording"),
   getRecordingState: () => call<RecordingState>("get_recording_state"),
-  takePendingConsent: () => call<boolean>("take_pending_consent"),
+  takePendingConsent: () => call<PendingConsent>("take_pending_consent"),
   takePendingMeeting: () => call<string | null>("take_pending_meeting"),
   respondAutoStop: (continueRecording: boolean) =>
     call<void>("respond_auto_stop", { continueRecording }),
@@ -92,4 +93,6 @@ export const events = {
   meetingUpdated: (cb: (p: MeetingUpdatedPayload) => void) => on("meeting://updated", cb),
   /** Menu tray "Mulai rekam" → buka popup consent di jendela main. */
   trayStartRecording: (cb: () => void) => on<null>("tray://start-recording", () => cb()),
+  /** Ada tawaran rekam / meeting selesai untuk jendela main yang sedang fokus. */
+  appPending: (cb: () => void) => on<null>("app://pending", () => cb()),
 };

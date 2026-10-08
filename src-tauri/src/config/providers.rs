@@ -19,6 +19,7 @@ pub struct ProvidersConfig {
     pub limits: Limits,
     pub pipeline: PipelineConfig,
     pub recording: RecordingConfig,
+    pub meeting_detection: MeetingDetectionConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +48,18 @@ pub struct PipelineConfig {
     /// Dibuang hanya jika sama persis dan region VAD < 1 dtk (lihat `pipeline/filter.rs`).
     #[serde(default)]
     pub short_hallucination_phrases: Vec<String>,
+}
+
+/// Deteksi meeting (PRD §14.8) dan tawaran Stop saat aplikasi meeting selesai memakai mic.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MeetingDetectionConfig {
+    pub poll_sec: u32,
+    /// Tunggu sejak aplikasi meeting berhenti memakai mic sebelum menawarkan Stop.
+    pub stop_grace_sec: u32,
+    /// Hitung mundur Stop otomatis setelah tawaran.
+    pub stop_countdown_sec: u32,
+    /// Nama exe (NonPackaged) atau nama paket sebelum "_" (packaged), lowercase → jenis aplikasi.
+    pub apps: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

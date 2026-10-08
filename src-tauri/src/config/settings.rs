@@ -16,6 +16,7 @@ pub const KEY_CONSENT_MESSAGE: &str = "consent_message";
 pub const KEY_RECORDER_POSITION: &str = "recorder_position";
 pub const KEY_GLOBAL_SHORTCUT: &str = "global_shortcut";
 pub const KEY_AUTOSTART: &str = "autostart";
+pub const KEY_MEETING_DETECTION: &str = "meeting_detection";
 
 pub const DEFAULT_USER_DISPLAY_NAME: &str = "Saya";
 pub const DEFAULT_SYSTEM_LABEL: &str = "Peserta lain";
@@ -51,6 +52,8 @@ pub struct Settings {
     pub global_shortcut: String,
     /// Jalankan tersembunyi di tray saat Windows menyala.
     pub autostart: bool,
+    /// Tawarkan rekam saat Zoom/Teams/browser memakai mic, dan tawarkan Stop saat selesai.
+    pub meeting_detection: bool,
 }
 
 /// `Partial<Settings>` dari `update_settings`.
@@ -64,6 +67,7 @@ pub struct SettingsPatch {
     pub consent_message: Option<String>,
     pub global_shortcut: Option<String>,
     pub autostart: Option<bool>,
+    pub meeting_detection: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -84,6 +88,7 @@ pub fn load(conn: &Connection) -> AppResult<Settings> {
         global_shortcut: repo_settings::get(conn, KEY_GLOBAL_SHORTCUT)?
             .unwrap_or_else(|| DEFAULT_GLOBAL_SHORTCUT.to_string()),
         autostart: repo_settings::get(conn, KEY_AUTOSTART)?.unwrap_or(false),
+        meeting_detection: repo_settings::get(conn, KEY_MEETING_DETECTION)?.unwrap_or(true),
     })
 }
 
@@ -114,6 +119,9 @@ pub fn apply_patch(conn: &Connection, patch: SettingsPatch) -> AppResult<Setting
     }
     if let Some(v) = patch.autostart {
         repo_settings::set(conn, KEY_AUTOSTART, &v)?;
+    }
+    if let Some(v) = patch.meeting_detection {
+        repo_settings::set(conn, KEY_MEETING_DETECTION, &v)?;
     }
     load(conn)
 }

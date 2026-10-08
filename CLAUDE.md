@@ -109,6 +109,9 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Shortcut global (langkah 21) | Setting `globalShortcut` (default `Ctrl+Alt+R`, kosong = mati), didaftarkan dari Rust (`desktop.rs`). Idle → jendela main + popup consent; merekam → Stop. Shortcut baru gagal didaftarkan → setting tidak disimpan, shortcut lama dipulihkan. |
 | Autostart (langkah 21) | `tauri-plugin-autostart` dengan argumen `--minimized`; setting `autostart` (default mati, dicentang di langkah akhir onboarding). Jendela main `"create": false` di konfigurasi dan dibuat di `setup` kecuali start dengan `--minimized` setelah onboarding selesai. |
 | Consent cepat (langkah 21) | Pesan consent otomatis disalin ke clipboard saat popup dibuka; fokus di checkbox; centang lalu Enter = Mulai. |
+| Deteksi meeting (langkah 22) | `meeting_watch.rs` polling ConsentStore HKCU tiap `meeting_detection.poll_sec` (10 dtk) via `windows_integration/meeting_detect.rs`. Daftar aplikasi di `providers.json` → `meeting_detection.apps` (nama exe NonPackaged / nama paket sebelum `_`, lowercase). Exe sendiri dikecualikan. Hanya aktif setelah onboarding dan jika setting `meetingDetection` (default nyala). Tawaran sekali per sesi mic; tidak saat merekam. |
+| Tawaran consent dari notifikasi (langkah 22) | `TauriBridge.pending_offer` (berlaku 5 menit). `take_pending_consent` kini mengembalikan `{ open, sourceApp }`. Jendela main fokus → event tambahan `app://pending` → layout memanggil `takePendingMeeting` + `takePendingConsent`. |
+| Stop saat meeting selesai (langkah 22) | Selama merekam, jika semua aplikasi meeting yang sempat memakai mic berhenti selama `stop_grace_sec` (30 dtk) → `RecordingService::offer_stop_meeting_ended`: event `recording://auto-stop-warning` dengan `reason: "meeting_ended"` + notifikasi; tanpa respons `stop_countdown_sec` (60 dtk) → `StopReason::MeetingEnded`. Satu kali per rekaman sampai aplikasi meeting memakai mic lagi. |
 
 ## Hasil verifikasi §21
 
@@ -122,6 +125,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - 2026-10-06 tes audio onboarding: nada 1 kHz −12 dBFS via PlaySound tertangkap loopback, puncak −12,07 dBFS. Registry izin mic di Windows 11 terbaca `allowed`.
 - 2026-10-06 **E2E** (`e2e` 50 dtk, TTS Inggris via speaker, bahasa auto): VAD → 2 chunk (mic+system) → STT → merge → dedup (salinan echo di mic dibuang) → ringkasan single pass. Done 8 dtk setelah Stop. Judul, ringkasan Indonesia, 2 keputusan, 4 topik, 2 action item dengan PJ & tenggat ("Jumat depan (2026-10-16)").
 - 2026-10-06 repair header: file dengan header ukuran 0 + byte ganjil → diperbaiki benar.
+- 2026-10-08 registry ConsentStore (Windows 11, mesin dev): aplikasi packaged langsung di bawah `microphone\` (mis. `MSTeams_8wekyb3d8bbwe`), desktop di `microphone\NonPackaged\C:#…#chrome.exe`. Windows 10 belum diverifikasi.
 
 ## Hasil ukur NFR (langkah 15, build release, 2026-10-06)
 

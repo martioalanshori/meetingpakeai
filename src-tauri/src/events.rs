@@ -17,6 +17,10 @@ pub trait EventSink: Send + Sync {
     fn notify(&self, title: &str, body: &str);
     /// Rekaman mulai/berhenti: ikon tray, label menu tray, jendela widget.
     fn recording_changed(&self, recording: bool);
+    /// Aplikasi meeting mulai memakai mic: tawarkan "Mulai rekam?" (tetap lewat popup consent).
+    fn meeting_detected(&self, kind: &str) {
+        self.notify("Meeting terdeteksi", &format!("{kind}: mulai rekam?"));
+    }
     /// Worker mulai/selesai memproses meeting (ikon tray "memproses").
     fn processing_changed(&self, _processing: bool) {}
     /// Job selesai: notifikasi "Notulen siap" yang membuka detail meeting.

@@ -91,6 +91,14 @@
         </span>
       </label>
 
+      <label class="flex items-start gap-3">
+        <input type="checkbox" class="mt-1 h-4 w-4" bind:checked={form.meetingDetection} />
+        <span class="flex flex-col">
+          <span>{t.meetingDetection}</span>
+          <span class="text-sm text-gray-500">{t.meetingDetectionNote}</span>
+        </span>
+      </label>
+
       <div class="flex flex-col gap-1">
         <span class="text-sm font-medium">{t.shortcut}</span>
         <ShortcutInput bind:value={form.globalShortcut} />

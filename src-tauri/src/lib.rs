@@ -8,6 +8,7 @@ pub mod error;
 pub mod events;
 pub mod groq;
 pub mod llm;
+pub mod meeting_watch;
 pub mod pipeline;
 pub mod preprocess;
 pub mod queue;
@@ -229,6 +230,12 @@ pub fn run() {
             let state = init_state(app.handle())?;
             build_tray(app.handle(), &state.bridge)?;
             tauri::async_runtime::spawn(state.worker.clone().run());
+            meeting_watch::spawn(
+                state.db.clone(),
+                state.recording.clone(),
+                state.bridge.clone(),
+                state.providers.meeting_detection.clone(),
+            );
             let (s, onboarded) = {
                 let conn = state.db.conn();
                 (settings::load(&conn)?, settings::onboarding_completed(&conn)?)

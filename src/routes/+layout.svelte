@@ -5,7 +5,7 @@
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
-  import { api } from "$lib/api";
+  import { api, events } from "$lib/api";
   import ConsentDialog from "$lib/components/ConsentDialog.svelte";
   import Toaster from "$lib/components/Toaster.svelte";
   import { initRecording, openConsent, rec } from "$lib/recording.svelte";
@@ -15,27 +15,31 @@
   // Jendela widget rekaman memakai halaman /recorder tanpa elemen jendela main.
   const isRecorderWindow = $derived(page.url.pathname.startsWith("/recorder"));
 
-  /** Notifikasi "Notulen siap" diklik / jendela dibuka → tampilkan meeting yang baru selesai. */
-  async function openPendingMeeting() {
+  /** Notifikasi diklik / jendela dibuka: buka meeting yang baru selesai, atau popup consent dari tawaran rekam. */
+  async function openPending() {
     const meetingId = await api.takePendingMeeting().catch(() => null);
     if (meetingId) await goto(`/meeting/${meetingId}`);
+    const consent = await api.takePendingConsent().catch(() => null);
+    if (consent?.open) openConsent(consent.sourceApp);
   }
 
-  let unlistenFocus: UnlistenFn | undefined;
-  onDestroy(() => unlistenFocus?.());
+  const unlisten: UnlistenFn[] = [];
+  onDestroy(() => unlisten.forEach((u) => u()));
 
   onMount(async () => {
     if (page.url.pathname.startsWith("/recorder")) return;
     await initRecording();
-    unlistenFocus = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-      if (focused) openPendingMeeting();
-    });
-    // Jendela dibuat ulang dari menu tray "Mulai rekam" → langsung buka popup consent.
-    if (await api.takePendingConsent().catch(() => false)) openConsent();
+    unlisten.push(
+      await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+        if (focused) openPending();
+      }),
+      await events.appPending(() => openPending()),
+    );
     try {
       const s = await api.getOnboardingStatus();
       if (!s.completed && !page.url.pathname.startsWith("/onboarding")) await goto("/onboarding");
-      else await openPendingMeeting();
+      // Jendela dibuat dari menu tray / shortcut / notifikasi → popup consent atau detail meeting.
+      else await openPending();
     } catch {
       /* tetap di halaman sekarang */
     }

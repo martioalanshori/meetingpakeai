@@ -61,6 +61,7 @@ pub enum StopReason {
     MaxDuration,
     DiskFull,
     DeviceLost,
+    MeetingEnded,
 }
 
 #[derive(Default)]
@@ -74,6 +75,8 @@ struct ChannelHealth {
 struct AutoStopState {
     silent_since: Option<Instant>,
     warning_deadline: Option<Instant>,
+    /// Alasan peringatan aktif (hening / aplikasi meeting selesai).
+    meeting_ended: bool,
 }
 
 struct Active {
@@ -276,12 +279,34 @@ impl RecordingService {
             self.with_active(|a| {
                 let mut st = a.auto_stop.lock().unwrap_or_else(|e| e.into_inner());
                 st.warning_deadline = None;
+                st.meeting_ended = false;
                 st.silent_since = Some(Instant::now());
             })?;
             Ok(())
         } else {
             self.stop(StopReason::Manual).map(|_| ())
         }
+    }
+
+    /// Aplikasi meeting selesai memakai mic: peringatan + hitung mundur Stop (bisa dibatalkan "Lanjut").
+    pub fn offer_stop_meeting_ended(&self, countdown: Duration) {
+        let Some(a) = self.current() else { return };
+        {
+            let mut st = a.auto_stop.lock().unwrap_or_else(|e| e.into_inner());
+            if st.warning_deadline.is_some() {
+                return;
+            }
+            st.warning_deadline = Some(Instant::now() + countdown);
+            st.meeting_ended = true;
+        }
+        self.events.emit_json(
+            events::EV_AUTO_STOP_WARNING,
+            serde_json::json!({ "reason": "meeting_ended", "secondsLeft": countdown.as_secs() }),
+        );
+        self.events.notify(
+            "Meeting sudah selesai?",
+            &format!("Rekaman berhenti otomatis dalam {} detik. Pilih Lanjut di widget untuk terus merekam.", countdown.as_secs()),
+        );
     }
 
     /// Stop. `Ok(None)` jika durasi < 5 detik (meeting & file dibuang).
@@ -326,6 +351,7 @@ impl RecordingService {
             StopReason::MaxDuration => Some("Durasi maksimal rekaman tercapai. Rekaman dihentikan dan sedang diproses."),
             StopReason::DiskFull => Some("Ruang disk hampir habis. Rekaman dihentikan dan sedang diproses."),
             StopReason::DeviceLost => Some("Perangkat audio tidak tersedia. Rekaman dihentikan dan sedang diproses."),
+            StopReason::MeetingEnded => Some("Meeting sudah selesai. Rekaman dihentikan otomatis dan sedang diproses."),
         };
         if let Some(body) = note {
             self.events.notify("Rekaman dihentikan", body);
@@ -465,7 +491,7 @@ impl RecordingService {
             let mut st = active.auto_stop.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(deadline) = st.warning_deadline {
                 if now >= deadline {
-                    break StopReason::Silence;
+                    break if st.meeting_ended { StopReason::MeetingEnded } else { StopReason::Silence };
                 }
                 continue;
             }
