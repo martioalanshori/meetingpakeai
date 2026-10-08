@@ -1,6 +1,7 @@
 //! Capture audio (PRD §7). Format internal: 16 kHz, mono, PCM 16-bit.
 
 pub mod capture;
+pub mod device_watch;
 pub mod devices;
 pub mod level;
 pub mod recorder;

@@ -217,13 +217,15 @@ impl Recorder {
         (self.mic.level.get(), self.system.level.get())
     }
 
-    /// Buka ulang default device untuk channel yang mati (PRD §7.5). Celah terisi nol oleh timeline.
+    /// Buka ulang default device untuk channel (PRD §7.5): channel mati, atau default device diganti.
+    /// Celah terisi nol oleh timeline. Gagal → channel dianggap mati (monitor mencoba lagi).
     pub fn reopen(&self, channel: Channel) -> Result<(), AudioError> {
         let shared = self.shared(channel).clone();
         let mut handles = self.handles.lock().unwrap_or_else(|e| e.into_inner());
         let slot = &mut handles[channel_index(channel)];
-        // Thread lama sudah keluar (on_error); join agar resource WASAPI lepas.
+        // Hentikan thread lama (jika masih jalan) dan join agar resource WASAPI lepas.
         if let Some(old) = slot.take() {
+            shared.alive.store(false, Ordering::SeqCst);
             old.stop();
         }
         let handle = capture::spawn(channel, Sink { shared: shared.clone(), controls: self.controls.clone() })?;

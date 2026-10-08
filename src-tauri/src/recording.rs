@@ -3,11 +3,13 @@
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{mpsc, Arc, Mutex, MutexGuard};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
+use crate::audio::device_watch::DeviceWatcher;
 use crate::audio::recorder::Recorder;
 use crate::audio::test_tone::{self, AudioTestResult};
 use crate::audio::writer::PartEvent;
@@ -29,6 +31,8 @@ const DISK_CHECK_EVERY: Duration = Duration::from_secs(30);
 const REOPEN_EVERY: Duration = Duration::from_secs(1);
 const REOPEN_MAX_ATTEMPTS: u32 = 10;
 const MONITOR_TICK: Duration = Duration::from_millis(100);
+/// Windows sering mengirim beberapa notifikasi default device beruntun; tunggu sebelum membuka ulang.
+const DEVICE_SWITCH_DEBOUNCE: Duration = Duration::from_secs(1);
 
 const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
@@ -78,6 +82,8 @@ struct Active {
     recorder: Recorder,
     monitor_stop: Arc<AtomicBool>,
     auto_stop: Mutex<AutoStopState>,
+    /// Thread pencatat part ke DB (selesai sendiri setelah semua writer ditutup).
+    part_db: Option<JoinHandle<()>>,
 }
 
 pub struct RecordingService {
@@ -170,27 +176,21 @@ impl RecordingService {
 
         let rel_dir = format!("recordings/{meeting_id}");
         let dir = self.data_dir.join(&rel_dir);
-        let db = self.db.clone();
-        let mid = meeting_id.clone();
+        // Thread capture tidak boleh menunggu kunci DB (worker bisa memegangnya lama):
+        // event part dikirim lewat channel ke thread pencatat.
+        let (part_tx, part_rx) = mpsc::channel::<PartEvent>();
+        let part_db = self.spawn_part_db(meeting_id.clone(), rel_dir, part_rx);
         let on_part = Arc::new(move |ev: PartEvent| {
-            let conn = db.conn();
-            let res = match ev {
-                PartEvent::Opened { channel, part_index, .. } => {
-                    let rel = format!("{rel_dir}/{}", crate::audio::writer::PartWriter::part_file_name(channel, part_index));
-                    repo_parts::insert_open(&conn, &mid, channel.as_str(), part_index as i64, &rel)
-                }
-                PartEvent::Finalized { channel, part_index, samples } => {
-                    repo_parts::mark_finalized(&conn, &mid, channel.as_str(), part_index as i64, samples as i64)
-                }
-            };
-            if let Err(e) = res {
-                tracing::error!("catat part gagal: {}", e.message);
-            }
+            let _ = part_tx.send(ev);
         });
 
         let recorder = match Recorder::start(&dir, on_part) {
             Ok(r) => r,
             Err(e) => {
+                // Semua writer sudah di-drop → thread pencatat selesai; tunggu sebelum menghapus meeting.
+                if let Some(j) = part_db {
+                    let _ = j.join();
+                }
                 let _ = repo_meetings::delete(&self.db.conn(), &meeting_id);
                 let _ = std::fs::remove_dir_all(&dir);
                 tracing::warn!("start rekaman gagal: {e}");
@@ -203,6 +203,7 @@ impl RecordingService {
             recorder,
             monitor_stop: Arc::new(AtomicBool::new(false)),
             auto_stop: Mutex::new(AutoStopState::default()),
+            part_db,
         });
         *guard = Some(active.clone());
         drop(guard);
@@ -290,8 +291,12 @@ impl RecordingService {
         let ended_at = now_ms();
         // Monitor memegang Arc juga; ambil Recorder lewat try_unwrap setelah monitor lepas.
         let active = wait_unique(active);
-        let Active { meeting_id, dir, recorder, .. } = active;
+        let Active { meeting_id, dir, recorder, part_db, .. } = active;
         let result = recorder.stop();
+        // Writer sudah ditutup → pencatat part selesai; tunggu agar status part final sebelum masuk antrean.
+        if let Some(j) = part_db {
+            let _ = j.join();
+        }
         self.events.recording_changed(false);
         self.emit_state();
 
@@ -328,6 +333,34 @@ impl RecordingService {
         Ok(Some(meeting_id))
     }
 
+    fn spawn_part_db(&self, meeting_id: String, rel_dir: String, rx: mpsc::Receiver<PartEvent>) -> Option<JoinHandle<()>> {
+        let db = self.db.clone();
+        let spawned = std::thread::Builder::new().name("part-db".into()).spawn(move || {
+            for ev in rx {
+                let conn = db.conn();
+                let res = match ev {
+                    PartEvent::Opened { channel, part_index, .. } => {
+                        let rel = format!("{rel_dir}/{}", crate::audio::writer::PartWriter::part_file_name(channel, part_index));
+                        repo_parts::insert_open(&conn, &meeting_id, channel.as_str(), part_index as i64, &rel)
+                    }
+                    PartEvent::Finalized { channel, part_index, samples } => {
+                        repo_parts::mark_finalized(&conn, &meeting_id, channel.as_str(), part_index as i64, samples as i64)
+                    }
+                };
+                if let Err(e) = res {
+                    tracing::error!("catat part gagal: {}", e.message);
+                }
+            }
+        });
+        match spawned {
+            Ok(j) => Some(j),
+            Err(e) => {
+                tracing::error!("thread pencatat part gagal dibuat: {e}");
+                None
+            }
+        }
+    }
+
     fn spawn_monitor(self: &Arc<Self>, active: Arc<Active>) {
         let svc = Arc::clone(self);
         let spawned = std::thread::Builder::new().name("recording-monitor".into()).spawn(move || {
@@ -344,6 +377,8 @@ impl RecordingService {
         let mut health = [ChannelHealth::default(), ChannelHealth::default()];
         let mut last_disk_check = Instant::now();
         let mut last_alive = [true, true];
+        let watcher = DeviceWatcher::start();
+        let mut switch_at: [Option<Instant>; 2] = [None, None];
 
         let stop_reason = loop {
             if active.monitor_stop.load(Ordering::SeqCst) {
@@ -359,6 +394,24 @@ impl RecordingService {
                 events::EV_RECORDING_LEVEL,
                 serde_json::json!({ "micDbfs": mic_db, "systemDbfs": sys_db }),
             );
+
+            // Default device diganti di Windows → pindah ke device baru (stream lama tidak ikut pindah).
+            if let Some(w) = &watcher {
+                for channel in w.changes() {
+                    switch_at[channel_idx(channel)] = Some(now + DEVICE_SWITCH_DEBOUNCE);
+                }
+            }
+            for (i, channel) in [Channel::Mic, Channel::System].into_iter().enumerate() {
+                if switch_at[i].is_none_or(|t| now < t) {
+                    continue;
+                }
+                switch_at[i] = None;
+                match rec.reopen(channel) {
+                    Ok(()) => health[i] = ChannelHealth::default(),
+                    // Channel ditandai mati; reconnect di bawah mencoba lagi.
+                    Err(e) => tracing::warn!("pindah device {} gagal: {e}", channel.as_str()),
+                }
+            }
 
             // Reconnect device (§7.5).
             for (i, channel) in [Channel::Mic, Channel::System].into_iter().enumerate() {
@@ -438,6 +491,13 @@ impl RecordingService {
         if let Err(e) = self.stop(stop_reason) {
             tracing::warn!("auto-stop gagal: {}", e.message);
         }
+    }
+}
+
+fn channel_idx(channel: Channel) -> usize {
+    match channel {
+        Channel::Mic => 0,
+        Channel::System => 1,
     }
 }
 

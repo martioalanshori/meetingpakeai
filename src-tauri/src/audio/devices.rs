@@ -8,6 +8,9 @@ use wasapi::{
 
 use super::{AudioError, Channel, SAMPLE_RATE};
 
+/// 200 ms dalam satuan 100 ns.
+const MIN_BUFFER_HNS: i64 = 2_000_000;
+
 pub struct OpenStream {
     pub client: AudioClient,
     pub capture: AudioCaptureClient,
@@ -30,7 +33,8 @@ pub fn open_default(channel: Channel) -> Result<OpenStream, AudioError> {
 
     let format = WaveFormat::new(16, 16, &SampleType::Int, SAMPLE_RATE as usize, 1, None);
     let (default_period, _min_period) = client.get_device_period().map_err(err)?;
-    let mode = StreamMode::EventsShared { autoconvert: true, buffer_duration_hns: default_period };
+    // Buffer ≥ 200 ms: thread capture yang sempat tertahan tidak langsung kehilangan audio.
+    let mode = StreamMode::EventsShared { autoconvert: true, buffer_duration_hns: default_period.max(MIN_BUFFER_HNS) };
     // Device render + Direction::Capture = loopback (AUDCLNT_STREAMFLAGS_LOOPBACK).
     client.initialize_client(&format, &Direction::Capture, &mode).map_err(err)?;
     let event = client.set_get_eventhandle().map_err(err)?;

@@ -65,7 +65,9 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | UI API key | Bagian API key di Pengaturan dibuat di langkah 3 (agar bisa diuji); key diuji dulu, disimpan hanya jika lolos. |
 | Fallback `rubato` (§7.1) | Belum dibuat: autoconvert WASAPI terbukti jalan di mesin dev (lihat Hasil verifikasi). Ditambahkan hanya jika ada laporan device yang menolak format 16 kHz mono. |
 | Baca buffer WASAPI | Pakai `read_from_device` (bukan `read_from_device_to_deque` yang memanggil `.unwrap()` saat ReleaseBuffer → panic jika device dicabut). Paket bertanda `silent` ditulis sebagai nol. |
-| Buffer WASAPI | `buffer_duration_hns` = default device period (bukan min period seperti contoh crate) agar CPU lebih hemat. |
+| Buffer WASAPI | `buffer_duration_hns` = maks(default device period, 200 ms) (langkah 16): thread capture yang tertahan sesaat tidak kehilangan audio. |
+| Pindah default device (langkah 16) | `audio/device_watch.rs` mendaftarkan `IMMNotificationClient` (role Console) selama merekam; monitor membuka ulang channel 1 dtk setelah notifikasi terakhir (debounce). Gagal buka → jalur reconnect biasa. |
+| Pencatatan part ke DB (langkah 16) | `PartEvent` dikirim lewat `mpsc` ke thread `part-db`; thread capture tidak pernah memegang kunci DB. Stop menunggu thread ini selesai sebelum `finish_recording`. |
 | Isi celah saat loopback diam | Selain saat paket datang (§7.2), tiap putaran loop (≤100 ms) channel yang tertinggal > 200 ms langsung diisi nol sampai `expected`, agar file di disk mengikuti timeline (penting untuk recovery crash). |
 | Batas saat Stop | Saat Stop, jam dibekukan, panjang final dihitung, lalu tulisan dibatasi ke panjang itu dan kekurangan di-pad nol → kedua channel sama persis. |
 | `loopback.rs` (§6.2) | Tidak dibuat terpisah: `audio/devices.rs` membuka mic & loopback, `audio/capture.rs` dipakai keduanya. Orkestrasi dua channel di `audio/recorder.rs`. |
