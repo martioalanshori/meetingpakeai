@@ -174,11 +174,17 @@ impl RecordingService {
         let meeting_id = uuid::Uuid::new_v4().to_string();
         let now = now_ms();
         let language = settings::load(&self.db.conn())?.stt_language;
+        // Nama meeting dari jendela Teams / tab Google Meet (langkah 46, A2); judul AI tetap boleh menggantikan.
+        let detected = crate::windows_integration::meeting_window::meeting_title(
+            &crate::windows_integration::meeting_window::default_meet_patterns(),
+        );
+        let source_app = source_app.or_else(|| detected.as_ref().map(|(k, _)| k.clone()));
+        let title = detected.map_or_else(|| default_title(now), |(_, t)| t.chars().take(100).collect());
         repo_meetings::insert(
             &self.db.conn(),
             &NewMeeting {
                 id: &meeting_id,
-                title: &default_title(now),
+                title: &title,
                 started_at: now,
                 language: language.as_str(),
                 source_app: source_app.as_deref(),

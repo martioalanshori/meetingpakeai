@@ -60,6 +60,9 @@ pub struct MeetingDetectionConfig {
     pub stop_countdown_sec: u32,
     /// Nama exe (NonPackaged) atau nama paket sebelum "_" (packaged), lowercase → jenis aplikasi.
     pub apps: std::collections::BTreeMap<String, String>,
+    /// Pola judul tab Google Meet (langkah 46); kosong → bawaan `meeting_window::default_meet_patterns`.
+    #[serde(default)]
+    pub meet_title_patterns: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

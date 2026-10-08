@@ -354,6 +354,7 @@ pub fn run() {
             commands::recording::resume_recording,
             commands::recording::set_mic_muted,
             commands::recording::add_bookmark,
+            commands::recording::dismiss_meeting_offer,
             commands::recording::stop_recording,
             commands::recording::get_recording_state,
             commands::recording::respond_auto_stop,

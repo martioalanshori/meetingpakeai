@@ -32,6 +32,8 @@ pub fn tray_icon_idle() -> &'static [u8] {
     themed(TRAY_IDLE)
 }
 const RECORDER_LABEL: &str = "recorder";
+/// Jendela tawaran rekam (langkah 46): terlihat walau Do Not Disturb menyala.
+const OFFER_LABEL: &str = "offer";
 /// Meeting dari notifikasi "Notulen siap" dibuka jika jendela main dibuka dalam waktu ini.
 const PENDING_MEETING_TTL: Duration = Duration::from_secs(60 * 60);
 /// Tawaran "Meeting terdeteksi" berlaku selama ini (lewat dari itu banner tidak ditampilkan).
@@ -71,6 +73,46 @@ fn point_on_screen(app: &AppHandle, x: i32, y: i32) -> bool {
         let (px, py) = (i64::from(x), i64::from(y));
         px + GRAB >= x0 && px + GRAB <= x1 && py >= y0 && py + GRAB <= y1
     })
+}
+
+/// Widget tawaran "Zoom terdeteksi · Rekam · Abaikan" (atau hitung mundur rekam otomatis), langkah 46.
+/// Fungsi bebas agar bisa dijalankan di main thread tanpa memegang `TauriBridge`.
+fn open_offer(app: &AppHandle, db: &Db, kind: &str, auto: bool) {
+    if let Some(w) = app.get_webview_window(OFFER_LABEL) {
+        let _ = w.destroy();
+    }
+    let url = format!("recorder/offer?kind={kind}&auto={}", u8::from(auto));
+    let b = WebviewWindowBuilder::new(app, OFFER_LABEL, WebviewUrl::App(url.into()))
+        .title("Meeting Pake AI - Meeting terdeteksi")
+        .inner_size(RECORDER_WIDTH, 92.0)
+        .resizable(false)
+        .decorations(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .focused(false);
+    let pos = settings::recorder_position(&db.conn())
+        .ok()
+        .flatten()
+        .filter(|p| point_on_screen(app, p.x, p.y))
+        .or_else(|| default_widget_position(app));
+    match b.build() {
+        Ok(w) => {
+            if let Some(pos) = pos {
+                let _ = w.set_position(PhysicalPosition::new(pos.x, pos.y));
+            }
+        }
+        Err(e) => tracing::error!("widget tawaran gagal dibuat: {e}"),
+    }
+}
+
+/// Pojok kanan atas monitor utama (margin 16 px).
+fn default_widget_position(app: &AppHandle) -> Option<WindowPosition> {
+    let m = app.primary_monitor().ok().flatten()?;
+    let wa = m.work_area();
+    let scale = m.scale_factor();
+    let width = ((RECORDER_WIDTH + RECORDER_MARGIN) * scale) as i32;
+    let margin = (RECORDER_MARGIN * scale) as i32;
+    Some(WindowPosition { x: wa.position.x + wa.size.width as i32 - width, y: wa.position.y + margin })
 }
 
 /// Catat ukuran/posisi/maximize jendela main. `force` = abaikan pembatas (saat jendela ditutup).
@@ -193,12 +235,7 @@ impl TauriBridge {
     }
 
     fn default_recorder_position(&self) -> Option<WindowPosition> {
-        let m = self.app.primary_monitor().ok().flatten()?;
-        let wa = m.work_area();
-        let scale = m.scale_factor();
-        let width = ((RECORDER_WIDTH + RECORDER_MARGIN) * scale) as i32;
-        let margin = (RECORDER_MARGIN * scale) as i32;
-        Some(WindowPosition { x: wa.position.x + wa.size.width as i32 - width, y: wa.position.y + margin })
+        default_widget_position(&self.app)
     }
 
     /// Ikon & tooltip tray: merekam > memproses > idle; label menu "Mulai/Stop rekam".
@@ -207,6 +244,7 @@ impl TauriBridge {
         let processing = self.processing.load(Ordering::SeqCst);
         let app = self.app.clone();
         let item = self.record_item.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let watching = settings::load(&self.db.conn()).is_ok_and(|s| s.meeting_detection);
         // Operasi tray dijalankan di main thread.
         let _ = self.app.run_on_main_thread(move || {
             if let Some(tray) = app.tray_by_id(TRAY_ID) {
@@ -215,7 +253,10 @@ impl TauriBridge {
                 } else if processing {
                     (themed(TRAY_PROCESSING), "Meeting Pake AI — memproses notulen")
                 } else {
-                    (themed(TRAY_IDLE), "Meeting Pake AI")
+                    (
+                        themed(TRAY_IDLE),
+                        if watching { "Meeting Pake AI — siap, deteksi meeting aktif" } else { "Meeting Pake AI" },
+                    )
                 };
                 if let Ok(img) = Image::from_bytes(bytes) {
                     let _ = tray.set_icon(Some(img));
@@ -226,6 +267,12 @@ impl TauriBridge {
                 let _ = item.set_text(if recording { "Hentikan rekaman" } else { "Mulai rekam" });
             }
         });
+    }
+
+    fn close_offer(&self) {
+        if let Some(w) = self.app.get_webview_window(OFFER_LABEL) {
+            let _ = w.destroy();
+        }
     }
 
     fn close_recorder(&self) {
@@ -250,19 +297,27 @@ impl EventSink for TauriBridge {
         }
     }
 
-    fn meeting_detected(&self, kind: &str) {
+    fn meeting_detected(&self, kind: &str, auto: bool) {
         *self.pending_offer.lock().unwrap_or_else(|e| e.into_inner()) = Some((kind.to_string(), Instant::now()));
+        let name = match kind {
+            "zoom" => "Zoom",
+            "teams" => "Microsoft Teams",
+            "meet" => "Google Meet",
+            "browser" => "browser",
+            other => other,
+        };
+        // Widget di atas semua jendela: tetap terlihat saat Do Not Disturb menahan notifikasi.
+        let (app, db, kind_s) = (self.app.clone(), self.db.clone(), kind.to_string());
+        let _ = self.app.run_on_main_thread(move || open_offer(&app, &db, &kind_s, auto));
         if self.main_focused() {
             let _ = self.app.emit_to("main", EV_APP_PENDING, ());
             return;
         }
-        let name = match kind {
-            "zoom" => "Zoom",
-            "teams" => "Microsoft Teams",
-            "browser" => "browser",
-            other => other,
-        };
-        self.notify(&format!("Meeting terdeteksi ({name})"), "Mulai rekam? Klik untuk membuka Meeting Pake AI, atau tekan shortcut rekam.");
+        if auto {
+            self.notify(&format!("Meeting terdeteksi ({name})"), "Rekaman dimulai otomatis dalam 10 detik. Batalkan dari widget.");
+        } else {
+            self.notify(&format!("Meeting terdeteksi ({name})"), "Mulai rekam dari widget, atau tekan shortcut rekam.");
+        }
     }
 
     fn meeting_done(&self, meeting_id: &str, title: &str) {
@@ -285,6 +340,7 @@ Klik untuk membuka notulen."));
         self.recording.store(recording, Ordering::SeqCst);
         self.update_tray();
         if recording {
+            self.close_offer();
             self.open_recorder();
         } else {
             self.close_recorder();

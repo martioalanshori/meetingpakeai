@@ -1,6 +1,7 @@
 //! Integrasi Windows: sisa disk, izin mikrofon, pemutar nada tes, teks clipboard.
 
 pub mod meeting_detect;
+pub mod meeting_window;
 pub mod mic_permission;
 
 /// Taskbar memakai tema terang (`SystemUsesLightTheme = 1`); tidak terbaca → anggap gelap (default Windows 11).

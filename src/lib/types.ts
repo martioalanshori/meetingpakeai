@@ -128,6 +128,8 @@ export type Settings = {
   sttGlossary: string;
   /** Shortcut global tandai momen saat merekam; "" = mati. */
   bookmarkShortcut: string;
+  /** Rekam otomatis (hitung mundur) saat Zoom/Teams/Google Meet terdeteksi. */
+  autoRecord: boolean;
 };
 
 export type UpdateInfo = { version: string; notes: string | null };

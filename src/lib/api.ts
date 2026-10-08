@@ -64,6 +64,7 @@ export const api = {
   resumeRecording: () => call<RecordingState>("resume_recording"),
   setMicMuted: (muted: boolean) => call<RecordingState>("set_mic_muted", { muted }),
   addBookmark: () => call<number>("add_bookmark"),
+  dismissMeetingOffer: () => call<void>("dismiss_meeting_offer"),
   deleteBookmark: (id: string, atMs: number) => call<void>("delete_bookmark", { id, atMs }),
   stopRecording: () => call<{ meetingId: string | null }>("stop_recording"),
   getRecordingState: () => call<RecordingState>("get_recording_state"),

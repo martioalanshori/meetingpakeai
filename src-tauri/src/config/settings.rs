@@ -21,6 +21,7 @@ pub const KEY_AUTOSTART: &str = "autostart";
 pub const KEY_MEETING_DETECTION: &str = "meeting_detection";
 pub const KEY_STT_GLOSSARY: &str = "stt_glossary";
 pub const KEY_BOOKMARK_SHORTCUT: &str = "bookmark_shortcut";
+pub const KEY_AUTO_RECORD: &str = "auto_record";
 pub const DEFAULT_BOOKMARK_SHORTCUT: &str = "Ctrl+Alt+B";
 /// Batas glosarium (= batas prompt STT).
 pub const GLOSSARY_MAX_CHARS: usize = 800;
@@ -74,6 +75,8 @@ pub struct Settings {
     pub stt_glossary: String,
     /// Shortcut global tandai momen penting saat merekam; kosong = mati.
     pub bookmark_shortcut: String,
+    /// Rekam otomatis (hitung mundur 10 dtk) saat Zoom/Teams/Google Meet terdeteksi; default mati.
+    pub auto_record: bool,
 }
 
 /// `Partial<Settings>` dari `update_settings`.
@@ -89,6 +92,7 @@ pub struct SettingsPatch {
     pub meeting_detection: Option<bool>,
     pub stt_glossary: Option<String>,
     pub bookmark_shortcut: Option<String>,
+    pub auto_record: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -119,6 +123,7 @@ pub fn load(conn: &Connection) -> AppResult<Settings> {
         stt_glossary: repo_settings::get(conn, KEY_STT_GLOSSARY)?.unwrap_or_default(),
         bookmark_shortcut: repo_settings::get(conn, KEY_BOOKMARK_SHORTCUT)?
             .unwrap_or_else(|| DEFAULT_BOOKMARK_SHORTCUT.to_string()),
+        auto_record: repo_settings::get(conn, KEY_AUTO_RECORD)?.unwrap_or(false),
     })
 }
 
@@ -147,6 +152,9 @@ pub fn apply_patch(conn: &Connection, patch: SettingsPatch) -> AppResult<Setting
     }
     if let Some(v) = patch.meeting_detection {
         repo_settings::set(conn, KEY_MEETING_DETECTION, &v)?;
+    }
+    if let Some(v) = patch.auto_record {
+        repo_settings::set(conn, KEY_AUTO_RECORD, &v)?;
     }
     if let Some(sc) = patch.bookmark_shortcut {
         repo_settings::set(conn, KEY_BOOKMARK_SHORTCUT, &sc.trim())?;

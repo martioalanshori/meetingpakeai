@@ -221,6 +221,19 @@
       {@render toggleRow(t.meetingDetection, t.meetingDetectionNote, form.meetingDetection, (v) =>
         patch({ meetingDetection: v }),
       )}
+      {#if form.meetingDetection}
+        {@render toggleRow(t.autoRecord, t.autoRecordNote, form.autoRecord, (v) => patch({ autoRecord: v }))}
+      {/if}
+      {#if !form.meetingDetection || !form.autostart}
+        <!-- Status deteksi (feedback3 A0.5): jelaskan kapan meeting bisa terlewat. -->
+        <div class="flex flex-wrap items-center gap-3 py-4">
+          <Icon name="alert-circle" size={18} class="shrink-0 text-warn" />
+          <span class="hint flex-1 text-warn">{form.meetingDetection ? t.detectionNoAutostart : t.detectionOff}</span>
+          {#if form.meetingDetection}
+            <button type="button" class="btn btn-line btn-sm" onclick={() => patch({ autostart: true })}>{t.enableAutostart}</button>
+          {/if}
+        </div>
+      {/if}
       <div class="flex flex-col gap-2 py-5">
         <label class="label" for="shortcut-input">{t.shortcut}</label>
         <ShortcutInput inputId="shortcut-input" value={form.globalShortcut} onchange={(v) => patch({ globalShortcut: v })} />

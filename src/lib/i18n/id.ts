@@ -98,7 +98,12 @@ export const id = {
     text: (app: string) => `Meeting terdeteksi (${app}). Mulai rekam?`,
     start: "Mulai rekam",
     dismiss: "Abaikan",
-    apps: { zoom: "Zoom", teams: "Microsoft Teams", browser: "browser" },
+    apps: { zoom: "Zoom", teams: "Microsoft Teams", meet: "Google Meet", browser: "browser" } as Record<string, string>,
+    detected: (app: string) => `${app} terdeteksi`,
+    question: "Rekam meeting ini?",
+    record: "Rekam",
+    autoIn: (s: number) => `Merekam otomatis dalam ${s} dtk`,
+    cancel: "Batal",
   },
 
   toast: {
@@ -317,6 +322,12 @@ export const id = {
     minimizeToTrayNote: "Tombol tutup menyembunyikan aplikasi ke tray; antrean tetap diproses.",
     shortcut: "Shortcut mulai/hentikan rekaman",
     shortcutPlaceholder: "Tekan kombinasi tombol",
+    autoRecord: "Rekam otomatis saat meeting terdeteksi",
+    autoRecordNote:
+      "Zoom, Teams, dan Google Meet langsung direkam setelah hitung mundur 10 detik (bisa dibatalkan). Browser lain tetap ditanya dulu. Pastikan peserta sudah tahu meeting direkam.",
+    detectionOff: "Deteksi meeting mati: meeting tidak akan ditawarkan untuk direkam.",
+    detectionNoAutostart: "Aplikasi tidak berjalan otomatis saat Windows menyala, jadi meeting bisa terlewat jika aplikasi belum dibuka.",
+    enableAutostart: "Jalankan saat Windows menyala",
     bookmarkShortcut: "Shortcut tandai momen",
     bookmarkShortcutHint:
       "Saat merekam, tekan kombinasi ini (mis. Ctrl+Alt+B) dari aplikasi mana pun untuk menandai momen penting. Momen ditandai pasti dibahas di notulen. Kosongkan untuk mematikan.",

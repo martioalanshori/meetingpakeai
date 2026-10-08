@@ -38,6 +38,14 @@ pub async fn resume_recording(state: State<'_, AppState>) -> AppResult<Recording
     state.recording.resume()
 }
 
+/// Tambahan (langkah 46): tawaran rekam diabaikan → tidak diingatkan ulang untuk sesi mic ini.
+#[tauri::command]
+pub async fn dismiss_meeting_offer(state: State<'_, AppState>) -> AppResult<()> {
+    crate::meeting_watch::dismiss_offer();
+    let _ = state.bridge.take_pending_offer();
+    Ok(())
+}
+
 /// Tambahan (langkah 44): tandai momen penting saat merekam. Mengembalikan posisi (ms).
 #[tauri::command]
 pub async fn add_bookmark(state: State<'_, AppState>) -> AppResult<i64> {

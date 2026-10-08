@@ -4,7 +4,8 @@
   "description": "Capability untuk jendela main dan recorder",
   "windows": [
     "main",
-    "recorder"
+    "recorder",
+    "offer"
   ],
   "permissions": [
     "core:default",
