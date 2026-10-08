@@ -40,7 +40,7 @@
 {:else}
   <!-- Rel ringkas: lampu + timer + tombol Stop persegi. -->
   <div class="flex flex-col items-center gap-2 lg:hidden" role="status">
-    <span class="tabular text-[0.6875rem] font-semibold text-rec">{formatTimestamp(elapsed)}</span>
+    <span class="tabular text-2xs font-semibold text-rec">{formatTimestamp(elapsed)}</span>
     <button
       type="button"
       class="btn btn-ink aspect-square w-full p-0"

@@ -30,7 +30,7 @@
         aria-current={active ? "page" : undefined}
         title={n.text}
         class={[
-          "flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-[0.9375rem] lg:justify-start lg:py-2",
+          "flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-base lg:justify-start lg:py-2",
           active ? "bg-sheet font-semibold text-ink shadow-[inset_0_0_0_1px_var(--color-line)]" : "text-ink-soft hover:bg-wash hover:text-ink",
         ]}
       >

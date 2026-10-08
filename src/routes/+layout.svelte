@@ -7,6 +7,7 @@
   import { page } from "$app/state";
   import { api, events } from "$lib/api";
   import AppRail from "$lib/components/AppRail.svelte";
+  import ConfirmHost from "$lib/components/ConfirmHost.svelte";
   import MeetingOfferBanner from "$lib/components/MeetingOfferBanner.svelte";
   import Toaster from "$lib/components/Toaster.svelte";
   import { initRecording, rec } from "$lib/recording.svelte";
@@ -61,5 +62,6 @@
 
 {#if !isRecorderWindow}
   <MeetingOfferBanner />
+  <ConfirmHost />
   <Toaster />
 {/if}

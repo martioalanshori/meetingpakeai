@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$lib/components/Icon.svelte";
   import { id as t } from "$lib/i18n/id";
   import type { MeetingDetail, SummaryEdit } from "$lib/types";
 
@@ -81,6 +82,7 @@
       </div>
     {/each}
     <button type="button" class="self-start btn btn-quiet" onclick={addRow}>
+      <Icon name="plus" size={16} />
       {t.edit.addItem}
     </button>
   </fieldset>

@@ -7,6 +7,9 @@
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import SummaryEditor from "$lib/components/SummaryEditor.svelte";
   import CopyButton from "$lib/components/CopyButton.svelte";
+  import Icon from "$lib/components/Icon.svelte";
+  import Menu, { type MenuEntry } from "$lib/components/Menu.svelte";
+  import { confirmDialog } from "$lib/confirm.svelte";
   import { formatActionItems, formatMinutes, formatSummaryTab, formatTranscript } from "$lib/minutes";
   import { formatDateTime, formatDuration, formatTime, formatTimestamp } from "$lib/format";
   import { id as t } from "$lib/i18n/id";
@@ -33,13 +36,9 @@
   let transcript = $state<TranscriptSegment[]>([]);
   let notFound = $state(false);
   let tab = $state<Tab>("summary");
-  let menuOpen = $state(false);
-  let copyOpen = $state(false);
   let editing = $state(false);
   let titleDraft = $state("");
   let titleInput = $state<HTMLInputElement | null>(null);
-  let deleteDialog = $state<HTMLDialogElement | null>(null);
-  let regenerateDialog = $state<HTMLDialogElement | null>(null);
   let editingSummary = $state(false);
   let audioSrc = $state<string | null>(null);
   let audioEl = $state<HTMLAudioElement | null>(null);
@@ -96,8 +95,6 @@
       transcript = [];
       notFound = false;
       tab = "summary";
-      menuOpen = false;
-      copyOpen = false;
       editing = false;
       editingSummary = false;
       audioSrc = null;
@@ -123,7 +120,6 @@
   onDestroy(() => unlisten.forEach((u) => u()));
 
   async function act(action: () => Promise<unknown>, okText?: string) {
-    menuOpen = false;
     try {
       await action();
       if (okText) showToast(okText, "success");
@@ -150,11 +146,62 @@
     await act(() => api.renameMeeting(meetingId, title), t.toast.titleSaved);
   }
 
-  function requestRegenerate() {
-    menuOpen = false;
-    if (meeting?.summary?.edited) regenerateDialog?.showModal();
-    else act(() => api.regenerateSummary(meetingId), t.toast.requeued);
+  async function requestRegenerate() {
+    if (meeting?.summary?.edited) {
+      const ok = await confirmDialog({
+        title: t.edit.regenerateTitle,
+        message: t.edit.regenerateConfirm,
+        confirmText: t.edit.regenerateButton,
+      });
+      if (!ok) return;
+    }
+    act(() => api.regenerateSummary(meetingId), t.toast.requeued);
   }
+
+  async function requestDelete() {
+    if (!meeting) return;
+    const ok = await confirmDialog({
+      title: t.detail.deleteTitle(meeting.title),
+      message: t.detail.deleteConfirm,
+      confirmText: t.detail.deleteButton,
+      danger: true,
+    });
+    if (ok) confirmDelete();
+  }
+
+  /** Semua aksi sekunder dalam satu menu "Lainnya" (ekspor + aksi meeting). */
+  const menuItems = $derived.by((): MenuEntry[] => {
+    if (!meeting) return [];
+    const m = meeting;
+    const items: MenuEntry[] = [];
+    if (m.summary) {
+      items.push(
+        { label: t.minutes.exportMd, icon: "download", onselect: () => exportFile("markdown") },
+        { label: t.minutes.exportTxt, icon: "download", onselect: () => exportFile("text") },
+        { label: t.minutes.print, icon: "printer", onselect: printMinutes },
+        { separator: true },
+      );
+    }
+    items.push(
+      {
+        label: t.detail.regenerate,
+        icon: "refresh",
+        disabled: !canRegenerate,
+        hint: canRegenerate ? undefined : t.detail.regenerateUnavailable,
+        onselect: requestRegenerate,
+      },
+      {
+        label: t.detail.retranscribe,
+        icon: "refresh",
+        disabled: !canRetranscribe,
+        hint: m.audioDeleted ? t.detail.audioDeleted : canRetranscribe ? undefined : t.detail.retranscribeUnavailable,
+        onselect: () => act(() => api.retranscribe(meetingId), t.toast.requeued),
+      },
+      { separator: true },
+      { label: t.detail.delete, icon: "trash", danger: true, disabled: m.status === "recording", onselect: requestDelete },
+    );
+    return items;
+  });
 
   async function saveSummary(edit: SummaryEdit) {
     try {
@@ -168,7 +215,6 @@
   }
 
   async function confirmDelete() {
-    deleteDialog?.close();
     try {
       await api.deleteMeeting(meetingId);
       showToast(t.toast.deleted);
@@ -197,7 +243,6 @@
   }
 
   async function exportFile(style: "markdown" | "text") {
-    copyOpen = false;
     if (!meeting) return;
     try {
       const saved = await api.saveExport(exportName(style === "markdown" ? "md" : "txt"), formatMinutes(meeting, style, transcript));
@@ -208,7 +253,6 @@
   }
 
   async function printMinutes() {
-    copyOpen = false;
     await tick();
     window.print();
   }
@@ -238,15 +282,6 @@
     { key: "transcript", text: t.detail.tabTranscript },
   ];
 </script>
-
-<svelte:window
-  onkeydown={(e) => {
-    if (e.key === "Escape") {
-      menuOpen = false;
-      copyOpen = false;
-    }
-  }}
-/>
 
 {#if meeting}
   <!-- Hanya tampil saat dicetak (Cetak / simpan PDF lewat dialog print WebView2). -->
@@ -294,80 +329,9 @@
           </button>
         {/if}
 
-        {#if meeting.summary}
-          <div class="relative">
-            <button
-              type="button"
-              class="btn btn-line"
-              aria-haspopup="menu"
-              aria-expanded={copyOpen}
-              onclick={() => {
-                copyOpen = !copyOpen;
-                menuOpen = false;
-              }}
-            >
-              {t.minutes.menu}
-            </button>
-            {#if copyOpen}
-              <div role="menu" class="menu">
-                <button type="button" role="menuitem" class="menu-item" onclick={() => exportFile("markdown")}>
-                  {t.minutes.exportMd}
-                </button>
-                <button type="button" role="menuitem" class="menu-item" onclick={() => exportFile("text")}>
-                  {t.minutes.exportTxt}
-                </button>
-                <button type="button" role="menuitem" class="menu-item" onclick={printMinutes}>
-                  {t.minutes.print}
-                </button>
-              </div>
-            {/if}
-          </div>
-        {/if}
-
-        <div class="relative">
-          <button
-            type="button"
-            class="btn btn-quiet px-2.5 text-lg leading-5"
-            aria-label={t.detail.menu}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onclick={() => {
-              menuOpen = !menuOpen;
-              copyOpen = false;
-            }}
-          >
-            ⋯
-          </button>
-          {#if menuOpen}
-            <div role="menu" class="menu">
-              <button type="button" role="menuitem" class="menu-item" disabled={!canRegenerate} onclick={requestRegenerate}>
-                {t.detail.regenerate}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                class="menu-item"
-                disabled={!canRetranscribe}
-                onclick={() => act(() => api.retranscribe(meetingId), t.toast.requeued)}
-              >
-                {t.detail.retranscribe}
-                {#if meeting.audioDeleted}<span class="block text-xs text-ink-faint">{t.detail.audioDeleted}</span>{/if}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                class="menu-item text-bad"
-                disabled={meeting.status === "recording"}
-                onclick={() => {
-                  menuOpen = false;
-                  deleteDialog?.showModal();
-                }}
-              >
-                {t.detail.delete}
-              </button>
-            </div>
-          {/if}
-        </div>
+        <Menu label={t.detail.menu} items={menuItems}>
+          {#snippet trigger()}<Icon name="more" size={20} />{/snippet}
+        </Menu>
       </div>
 
       <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-ink-soft">
@@ -425,7 +389,7 @@
           role="tab"
           aria-selected={tab === tb.key}
           class={[
-            "-mb-px border-b-2 pt-1 pb-2.5 text-[0.9375rem]",
+            "-mb-px border-b-2 pt-1 pb-2.5 text-base",
             tab === tb.key ? "border-ink font-semibold text-ink" : "border-transparent text-ink-soft hover:text-ink",
           ]}
           onclick={() => (tab = tb.key)}
@@ -463,7 +427,7 @@
           <article class="flex max-w-[68ch] flex-col gap-7">
             <div class="flex flex-col gap-2">
               <h2 class="text-lg font-bold">{t.detail.summary}</h2>
-              <p class="text-[1.0625rem] leading-[1.75] whitespace-pre-line">{meeting.summary.summary}</p>
+              <p class="text-lg leading-[1.75] whitespace-pre-line">{meeting.summary.summary}</p>
             </div>
             <div class="flex flex-col gap-2">
               <h2 class="text-lg font-bold">{t.detail.decisions}</h2>
@@ -472,7 +436,7 @@
               {:else}
                 <ul class="flex flex-col gap-2">
                   {#each meeting.summary.decisions as d, i (i)}
-                    <li class="grid grid-cols-[1rem_1fr] text-[1.0625rem] leading-relaxed">
+                    <li class="grid grid-cols-[1rem_1fr] text-lg leading-relaxed">
                       <span class="mt-[0.7em] h-1.5 w-1.5 rounded-full bg-ink" aria-hidden="true"></span>{d}
                     </li>
                   {/each}
@@ -603,37 +567,6 @@
     </section>
   {/if}
 </main>
-
-<dialog bind:this={deleteDialog} class="sheet-dialog" aria-labelledby="delete-title">
-  <div class="flex flex-col gap-5 p-6">
-    <p id="delete-title" class="leading-relaxed">{t.detail.deleteConfirm}</p>
-    <div class="flex justify-end gap-2">
-      <button type="button" class="btn btn-quiet" onclick={() => deleteDialog?.close()}>{t.common.cancel}</button>
-      <button type="button" class="btn bg-bad text-white hover:bg-[#931c13]" onclick={confirmDelete}>
-        {t.detail.deleteButton}
-      </button>
-    </div>
-  </div>
-</dialog>
-
-<dialog bind:this={regenerateDialog} class="sheet-dialog" aria-labelledby="regen-title">
-  <div class="flex flex-col gap-5 p-6">
-    <p id="regen-title" class="leading-relaxed">{t.edit.regenerateConfirm}</p>
-    <div class="flex justify-end gap-2">
-      <button type="button" class="btn btn-quiet" onclick={() => regenerateDialog?.close()}>{t.common.cancel}</button>
-      <button
-        type="button"
-        class="btn btn-ink"
-        onclick={() => {
-          regenerateDialog?.close();
-          act(() => api.regenerateSummary(meetingId), t.toast.requeued);
-        }}
-      >
-        {t.edit.regenerateButton}
-      </button>
-    </div>
-  </div>
-</dialog>
 
 <style>
   /* Transkrip panjang: browser hanya me-render baris yang terlihat (PRD §14.5). */

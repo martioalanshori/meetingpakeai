@@ -12,6 +12,7 @@
   import Highlight from "$lib/components/Highlight.svelte";
   import MeetingDetail from "$lib/components/MeetingDetail.svelte";
   import { viewport } from "$lib/viewport.svelte";
+  import { confirmDialog } from "$lib/confirm.svelte";
   import { formatTimestamp } from "$lib/format";
   import type { AppError, MeetingListItem, SearchHit } from "$lib/types";
 
@@ -121,6 +122,15 @@
   }
 
   async function resolve(meetingId: string, action: "process" | "discard") {
+    if (action === "discard") {
+      const ok = await confirmDialog({
+        title: id.home.discardTitle,
+        message: id.home.discardMessage,
+        confirmText: id.home.interruptedDiscard,
+        danger: true,
+      });
+      if (!ok) return;
+    }
     try {
       await api.resolveInterrupted(meetingId, action);
       if (action === "discard") showToast(id.toast.deleted);
@@ -195,7 +205,7 @@
       <button type="button" class="btn btn-ink" onclick={() => resolve(m.id, "process")}>
         {id.home.interruptedProcess}
       </button>
-      <button type="button" class="btn btn-quiet" onclick={() => resolve(m.id, "discard")}>
+      <button type="button" class="btn btn-danger" onclick={() => resolve(m.id, "discard")}>
         {id.home.interruptedDiscard}
       </button>
     </div>

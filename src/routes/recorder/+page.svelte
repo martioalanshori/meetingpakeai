@@ -137,24 +137,24 @@
   }
 </script>
 
-<div class="flex h-screen select-none flex-col bg-ink text-white">
+<div class="on-dark flex h-screen select-none flex-col bg-ink text-white">
   <div data-tauri-drag-region class="flex h-16 shrink-0 items-center gap-2 px-3">
     <span
       class={[
         "h-3 w-3 shrink-0 rounded-full",
-        rs.status === "paused" ? "bg-[#f0b43c]" : "bg-rec motion-safe:animate-pulse",
+        rs.status === "paused" ? "bg-warn-bright" : "bg-rec motion-safe:animate-pulse",
       ]}
       aria-hidden="true"
     ></span>
     <button
       type="button"
-      class="tabular flex flex-col items-start rounded px-1 text-[0.9375rem] font-semibold hover:bg-white/10"
+      class="tabular flex flex-col items-start rounded px-1 text-base font-semibold hover:bg-white/10"
       title={id.recorder.openMain}
       onclick={focusMain}
     >
       {formatTimestamp(elapsed)}
       {#if rs.status === "paused"}
-        <span class="text-[10px] leading-none font-medium text-[#f0b43c]">{id.recorder.paused}</span>
+        <span class="text-2xs leading-none font-medium text-warn-bright">{id.recorder.paused}</span>
       {/if}
     </button>
 
@@ -196,16 +196,16 @@
       disabled={busy}
       onclick={stop}
     >
-      <Icon name="stop" size={16} class="text-[#ff7a6e]" />
+      <Icon name="stop" size={16} class="text-rec-bright" />
     </button>
   </div>
 
   {#each lostChannels as ch (ch)}
-    <div class="flex h-11 items-center border-t border-white/10 bg-[#4a3410] px-3 text-xs text-[#f7d58c]">{id.recorder.deviceLost(ch)}</div>
+    <div class="flex h-11 items-center border-t border-white/10 bg-warn-deep px-3 text-xs text-warn-deep-text">{id.recorder.deviceLost(ch)}</div>
   {/each}
 
   {#if systemSilent && !lostChannels.includes("system")}
-    <div class="flex h-11 items-center border-t border-white/10 bg-[#4a3410] px-3 text-xs leading-tight text-[#f7d58c]">{id.recorder.systemSilent}</div>
+    <div class="flex h-11 items-center border-t border-white/10 bg-warn-deep px-3 text-xs leading-tight text-warn-deep-text">{id.recorder.systemSilent}</div>
   {/if}
 
   {#if autoStopDeadline !== null}
@@ -223,6 +223,6 @@
   {/if}
 
   {#if error}
-    <div class="flex h-11 items-center border-t border-white/10 bg-[#5c1a14] px-3 text-xs">{error}</div>
+    <div class="flex h-11 items-center border-t border-white/10 bg-bad-deep px-3 text-xs">{error}</div>
   {/if}
 </div>

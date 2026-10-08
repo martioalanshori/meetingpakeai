@@ -11,7 +11,21 @@
     | "search"
     | "check"
     | "list"
-    | "tasks";
+    | "tasks"
+    | "more"
+    | "x"
+    | "plus"
+    | "check-circle"
+    | "alert-circle"
+    | "arrow-left"
+    | "speaker"
+    | "download"
+    | "pencil"
+    | "printer"
+    | "refresh"
+    | "trash"
+    | "send"
+    | "chevron-down";
 </script>
 
 <script lang="ts">
@@ -75,5 +89,53 @@
   {:else if name === "tasks"}
     <rect width="18" height="18" x="3" y="3" rx="2" />
     <path d="m9 12 2 2 4-4" />
+  {:else if name === "more"}
+    <circle cx="12" cy="12" r="1" fill="currentColor" />
+    <circle cx="19" cy="12" r="1" fill="currentColor" />
+    <circle cx="5" cy="12" r="1" fill="currentColor" />
+  {:else if name === "x"}
+    <path d="M18 6 6 18" />
+    <path d="m6 6 12 12" />
+  {:else if name === "plus"}
+    <path d="M5 12h14" />
+    <path d="M12 5v14" />
+  {:else if name === "check-circle"}
+    <circle cx="12" cy="12" r="10" />
+    <path d="m9 12 2 2 4-4" />
+  {:else if name === "alert-circle"}
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" x2="12" y1="8" y2="12" />
+    <line x1="12" x2="12.01" y1="16" y2="16" />
+  {:else if name === "arrow-left"}
+    <path d="m12 19-7-7 7-7" />
+    <path d="M19 12H5" />
+  {:else if name === "speaker"}
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+  {:else if name === "download"}
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" x2="12" y1="15" y2="3" />
+  {:else if name === "pencil"}
+    <path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z" />
+  {:else if name === "printer"}
+    <polyline points="6 9 6 2 18 2 18 9" />
+    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+    <rect width="12" height="8" x="6" y="14" />
+  {:else if name === "refresh"}
+    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+    <path d="M21 3v5h-5" />
+    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+    <path d="M8 16H3v5" />
+  {:else if name === "trash"}
+    <path d="M3 6h18" />
+    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+  {:else if name === "send"}
+    <path d="m22 2-7 20-4-9-9-4Z" />
+    <path d="M22 2 11 13" />
+  {:else if name === "chevron-down"}
+    <path d="m6 9 6 6 6-6" />
   {/if}
 </svg>

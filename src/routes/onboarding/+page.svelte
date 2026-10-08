@@ -98,7 +98,7 @@
   {#if step === 1}
     <section class="flex flex-col gap-5">
       <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.welcomeTitle}</h1>
-      <p class="text-[1.0625rem] leading-[1.75]">{t.privacy}</p>
+      <p class="text-lg leading-[1.75]">{t.privacy}</p>
       <button type="button" class={[primary, "self-start"]} onclick={() => (step = 2)}>{t.understand}</button>
     </section>
   {:else if step === 2}

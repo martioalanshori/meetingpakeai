@@ -2,6 +2,7 @@
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { api } from "$lib/api";
   import ClipboardKeyHint from "$lib/components/ClipboardKeyHint.svelte";
+  import { confirmDialog } from "$lib/confirm.svelte";
   import { id } from "$lib/i18n/id";
   import type { AiConfig, AiRole, AppError, Endpoint } from "$lib/types";
 
@@ -68,7 +69,13 @@
   }
 
   async function removeKey() {
-    if (!confirm(t.removeConfirm(preset?.name ?? draft.provider))) return;
+    const ok = await confirmDialog({
+      title: t.removeConfirm(preset?.name ?? draft.provider),
+      message: t.removeMessage,
+      confirmText: t.removeKey,
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteAiKey(draft.provider);
       message = { kind: "ok", text: t.removed };
