@@ -71,6 +71,8 @@ export const api = {
   setActionItemDone: (id: number, done: boolean) =>
     call<void>("set_action_item_done", { id, done }),
   deleteMeeting: (id: string) => call<void>("delete_meeting", { id }),
+  preparePlayback: (id: string) => call<string>("prepare_playback", { id }),
+  saveExport: (fileName: string, contents: string) => call<boolean>("save_export", { fileName, contents }),
   updateSummary: (id: string, edit: SummaryEdit) => call<void>("update_summary", { id, edit }),
   setSpeakerName: (id: string, name: string) => call<void>("set_speaker_name", { id, name }),
   retryJob: (id: string) => call<void>("retry_job", { id }),

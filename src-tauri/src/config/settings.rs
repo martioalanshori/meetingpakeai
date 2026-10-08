@@ -10,7 +10,9 @@ use crate::error::AppResult;
 pub const KEY_ONBOARDING_COMPLETED: &str = "onboarding_completed";
 pub const KEY_USER_DISPLAY_NAME: &str = "user_display_name";
 pub const KEY_STT_LANGUAGE: &str = "stt_language";
+/// Lama (MVP): bool. Dibaca hanya untuk migrasi ke `audio_retention`.
 pub const KEY_DELETE_AUDIO: &str = "delete_audio_after_transcript";
+pub const KEY_AUDIO_RETENTION: &str = "audio_retention";
 pub const KEY_MINIMIZE_TO_TRAY: &str = "minimize_to_tray";
 pub const KEY_CONSENT_MESSAGE: &str = "consent_message";
 pub const KEY_RECORDER_POSITION: &str = "recorder_position";
@@ -39,13 +41,24 @@ impl SttLanguage {
     }
 }
 
+/// Retensi audio (F13, langkah 26).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioRetention {
+    /// Hapus setelah transkrip selesai (perilaku MVP).
+    AfterTranscript,
+    /// Simpan 7 hari setelah meeting (bisa diputar & ditranskrip ulang), lalu hapus.
+    Days7,
+    Forever,
+}
+
 /// Tipe `Settings` di UI (PRD §12.2).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub user_display_name: String,
     pub stt_language: SttLanguage,
-    pub delete_audio_after_transcript: bool,
+    pub audio_retention: AudioRetention,
     pub minimize_to_tray: bool,
     pub consent_message: String,
     /// Shortcut global Mulai/Stop rekam; kosong = mati.
@@ -62,7 +75,7 @@ pub struct Settings {
 pub struct SettingsPatch {
     pub user_display_name: Option<String>,
     pub stt_language: Option<SttLanguage>,
-    pub delete_audio_after_transcript: Option<bool>,
+    pub audio_retention: Option<AudioRetention>,
     pub minimize_to_tray: Option<bool>,
     pub consent_message: Option<String>,
     pub global_shortcut: Option<String>,
@@ -81,7 +94,15 @@ pub fn load(conn: &Connection) -> AppResult<Settings> {
         user_display_name: repo_settings::get(conn, KEY_USER_DISPLAY_NAME)?
             .unwrap_or_else(|| DEFAULT_USER_DISPLAY_NAME.to_string()),
         stt_language: repo_settings::get(conn, KEY_STT_LANGUAGE)?.unwrap_or(SttLanguage::Id),
-        delete_audio_after_transcript: repo_settings::get(conn, KEY_DELETE_AUDIO)?.unwrap_or(true),
+        audio_retention: match repo_settings::get(conn, KEY_AUDIO_RETENTION)? {
+            Some(r) => r,
+            // Pilihan eksplisit dari versi lama dipertahankan; default baru = 7 hari.
+            None => match repo_settings::get::<bool>(conn, KEY_DELETE_AUDIO)? {
+                Some(true) => AudioRetention::AfterTranscript,
+                Some(false) => AudioRetention::Forever,
+                None => AudioRetention::Days7,
+            },
+        },
         minimize_to_tray: repo_settings::get(conn, KEY_MINIMIZE_TO_TRAY)?.unwrap_or(true),
         consent_message: repo_settings::get(conn, KEY_CONSENT_MESSAGE)?
             .unwrap_or_else(|| DEFAULT_CONSENT_MESSAGE.to_string()),
@@ -102,8 +123,8 @@ pub fn apply_patch(conn: &Connection, patch: SettingsPatch) -> AppResult<Setting
     if let Some(lang) = patch.stt_language {
         repo_settings::set(conn, KEY_STT_LANGUAGE, &lang)?;
     }
-    if let Some(v) = patch.delete_audio_after_transcript {
-        repo_settings::set(conn, KEY_DELETE_AUDIO, &v)?;
+    if let Some(v) = patch.audio_retention {
+        repo_settings::set(conn, KEY_AUDIO_RETENTION, &v)?;
     }
     if let Some(v) = patch.minimize_to_tray {
         repo_settings::set(conn, KEY_MINIMIZE_TO_TRAY, &v)?;

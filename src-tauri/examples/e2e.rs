@@ -41,7 +41,7 @@ fn main() {
     let db = Arc::new(Db::open(&dir.join("db/app.sqlite")).unwrap());
     settings::apply_patch(
         &db.conn(),
-        SettingsPatch { stt_language: Some(lang), delete_audio_after_transcript: Some(false), ..Default::default() },
+        SettingsPatch { stt_language: Some(lang), audio_retention: Some(meeting_pake_ai_lib::config::settings::AudioRetention::Forever), ..Default::default() },
     )
     .unwrap();
     let providers = ProvidersConfig::default();

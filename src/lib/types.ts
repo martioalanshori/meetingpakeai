@@ -101,10 +101,13 @@ export type TranscriptSegment = {
   text: string;
 };
 
+export type AudioRetention = "after_transcript" | "days7" | "forever";
+
 export type Settings = {
   userDisplayName: string;
   sttLanguage: "id" | "auto";
-  deleteAudioAfterTranscript: boolean;
+  /** Retensi audio: hapus setelah transkrip / simpan 7 hari / selamanya. */
+  audioRetention: AudioRetention;
   minimizeToTray: boolean;
   consentMessage: string;
   /** Shortcut global Mulai/Stop rekam, mis. "Ctrl+Alt+R"; "" = mati. */

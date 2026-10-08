@@ -240,6 +240,17 @@ pub fn set_duration(conn: &Connection, id: &str, duration_ms: i64) -> AppResult<
     Ok(())
 }
 
+/// Meeting yang audionya masih ada dan berakhir sebelum `cutoff` (retensi 7 hari).
+/// Hanya status akhir (`done` / `failed`); meeting yang masih diproses tidak disentuh.
+pub fn audio_expired(conn: &Connection, cutoff: i64) -> AppResult<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT id FROM meetings WHERE audio_deleted = 0 AND status IN ('done', 'failed')
+         AND COALESCE(ended_at, started_at) < ?1",
+    )?;
+    let ids = stmt.query_map([cutoff], |r| r.get(0))?.collect::<Result<Vec<String>, _>>()?;
+    Ok(ids)
+}
+
 pub fn set_audio_deleted(conn: &Connection, id: &str) -> AppResult<()> {
     conn.execute(
         "UPDATE meetings SET audio_deleted = 1, updated_at = ?2 WHERE id = ?1",

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from "svelte";
+  import { convertFileSrc } from "@tauri-apps/api/core";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import type { UnlistenFn } from "@tauri-apps/api/event";
@@ -30,6 +31,9 @@
   let regenerateDialog = $state<HTMLDialogElement | null>(null);
   let editingSummary = $state(false);
   let speakerDraft = $state("");
+  let audioSrc = $state<string | null>(null);
+  let audioEl = $state<HTMLAudioElement | null>(null);
+  let audioLoading = $state(false);
 
   const PROCESSING: MeetingStatus[] = [
     "queued",
@@ -168,6 +172,49 @@
     }
   }
 
+  /** `{judul}_{YYYY-MM-DD}.{ext}`; karakter ilegal Windows diganti `_` (PRD §14.7). */
+  function exportName(ext: string): string {
+    const d = new Date(meeting!.startedAt);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const title = meeting!.title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim() || "Meeting";
+    return `${title}_${date}.${ext}`;
+  }
+
+  async function exportFile(style: "markdown" | "text") {
+    copyOpen = false;
+    if (!meeting) return;
+    try {
+      const saved = await api.saveExport(exportName(style === "markdown" ? "md" : "txt"), formatMinutes(meeting, style, transcript));
+      if (saved) showToast(t.minutes.exported, "success");
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+
+  async function printMinutes() {
+    copyOpen = false;
+    await tick();
+    window.print();
+  }
+
+  async function playAt(ms: number) {
+    if (!meeting || meeting.audioDeleted) return;
+    try {
+      if (!audioSrc) {
+        audioLoading = true;
+        audioSrc = convertFileSrc(await api.preparePlayback(meetingId));
+        await tick();
+      }
+      if (!audioEl) return;
+      audioEl.currentTime = ms / 1000;
+      await audioEl.play();
+    } catch (e) {
+      showToast((e as AppError).message ?? t.errors.INTERNAL, "error");
+    } finally {
+      audioLoading = false;
+    }
+  }
+
   const copyMinutes = (style: MinutesStyle) => meeting && copyText(formatMinutes(meeting, style), t.minutes.copied);
   const copyActions = () => meeting && copyText(formatActionItems(meeting, "text"), t.minutes.actionsCopied);
 
@@ -191,7 +238,16 @@
   }}
 />
 
-<main class="mx-auto flex min-h-full max-w-4xl flex-col gap-5 p-6">
+{#if meeting}
+  <!-- Hanya tampil saat dicetak (Cetak / simpan PDF lewat dialog print WebView2). -->
+  <pre class="hidden p-8 font-sans text-sm leading-relaxed whitespace-pre-wrap text-black print:block">{formatMinutes(
+      meeting,
+      "text",
+      transcript,
+    )}</pre>
+{/if}
+
+<main class="mx-auto flex min-h-full max-w-4xl flex-col gap-5 p-6 print:hidden">
   <a href="/" class="text-sm text-indigo-700 hover:underline">{t.common.back}</a>
 
   {#if notFound}
@@ -234,7 +290,7 @@
               onclick={() => (copyOpen = !copyOpen)}
             >
               <Icon name="copy" size={16} />
-              {t.minutes.copy}
+              {t.minutes.menu}
             </button>
             {#if copyOpen}
               <div
@@ -254,6 +310,21 @@
                 </button>
                 <button type="button" role="menuitem" class="px-4 py-2 text-left hover:bg-gray-100" onclick={copyActions}>
                   {t.minutes.copyActions}
+                </button>
+                <hr class="my-1 border-gray-200" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="px-4 py-2 text-left hover:bg-gray-100"
+                  onclick={() => exportFile("markdown")}
+                >
+                  {t.minutes.exportMd}
+                </button>
+                <button type="button" role="menuitem" class="px-4 py-2 text-left hover:bg-gray-100" onclick={() => exportFile("text")}>
+                  {t.minutes.exportTxt}
+                </button>
+                <button type="button" role="menuitem" class="px-4 py-2 text-left hover:bg-gray-100" onclick={printMinutes}>
+                  {t.minutes.print}
                 </button>
               </div>
             {/if}
@@ -485,10 +556,29 @@
           </button>
           <span class="w-full text-xs text-gray-500">{t.edit.speakerHint}</span>
         </form>
+        {#if audioSrc || audioLoading}
+          <div class="sticky top-0 z-10 flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
+            {#if audioLoading && !audioSrc}<span class="text-sm text-gray-600">{t.detail.preparingAudio}</span>{/if}
+            {#if audioSrc}
+              <audio bind:this={audioEl} src={audioSrc} controls preload="auto" class="h-9 w-full"></audio>
+            {/if}
+          </div>
+        {/if}
         <ol class={["flex flex-col gap-1.5", transcript.length > 500 && "virtualized"]}>
           {#each transcript as s (s.id)}
             <li class="segment leading-relaxed">
-              <span class="font-mono text-xs text-gray-500">[{formatTimestamp(s.startMs)}]</span>
+              {#if meeting.audioDeleted}
+                <span class="font-mono text-xs text-gray-500">[{formatTimestamp(s.startMs)}]</span>
+              {:else}
+                <button
+                  type="button"
+                  class="rounded font-mono text-xs text-indigo-700 hover:bg-indigo-50 hover:underline"
+                  title={t.detail.playFrom}
+                  onclick={() => playAt(s.startMs)}
+                >
+                  [{formatTimestamp(s.startMs)}]
+                </button>
+              {/if}
               <span class={["font-semibold", s.channel === "mic" ? "text-mic" : "text-system"]}>{label(s.channel)}:</span>
               <span class="text-gray-800">{s.text}</span>
             </li>

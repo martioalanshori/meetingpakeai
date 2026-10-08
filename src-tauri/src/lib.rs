@@ -10,6 +10,7 @@ pub mod groq;
 pub mod llm;
 pub mod meeting_watch;
 pub mod pipeline;
+pub mod playback;
 pub mod preprocess;
 pub mod queue;
 pub mod recording;
@@ -300,6 +301,8 @@ pub fn run() {
             commands::meetings::rename_meeting,
             commands::meetings::set_action_item_done,
             commands::meetings::update_summary,
+            commands::meetings::prepare_playback,
+            commands::meetings::save_export,
             commands::meetings::set_speaker_name,
             commands::meetings::delete_meeting,
             commands::meetings::retry_job,

@@ -94,13 +94,22 @@
         <span class="text-sm text-gray-500">{t.langAutoNote}</span>
       </fieldset>
 
-      <label class="flex items-start gap-3">
-        <input type="checkbox" class="mt-1 h-4 w-4" bind:checked={form.deleteAudioAfterTranscript} />
-        <span class="flex flex-col">
-          <span>{t.deleteAudio}</span>
-          <span class="text-sm text-gray-500">{t.deleteAudioNote}</span>
-        </span>
-      </label>
+      <fieldset class="flex flex-col gap-1">
+        <legend class="mb-1 text-sm font-medium">{t.retention}</legend>
+        <label class="flex items-center gap-2">
+          <input type="radio" name="retention" value="after_transcript" bind:group={form.audioRetention} />
+          {t.retentionAfter}
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="radio" name="retention" value="days7" bind:group={form.audioRetention} />
+          {t.retentionDays7}
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="radio" name="retention" value="forever" bind:group={form.audioRetention} />
+          {t.retentionForever}
+        </label>
+        <span class="text-sm text-gray-500">{t.retentionNote}</span>
+      </fieldset>
 
       <label class="flex items-start gap-3">
         <input type="checkbox" class="mt-1 h-4 w-4" bind:checked={form.minimizeToTray} />

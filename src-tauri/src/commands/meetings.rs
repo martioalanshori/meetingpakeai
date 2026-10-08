@@ -115,6 +115,33 @@ pub async fn rename_meeting(state: State<'_, AppState>, id: String, title: Strin
     Ok(())
 }
 
+/// Tambahan (langkah 26): path WAV campuran mic+sistem untuk diputar (dibuat sekali, dipakai ulang).
+#[tauri::command]
+pub async fn prepare_playback(state: State<'_, AppState>, id: String) -> AppResult<String> {
+    let m = repo_meetings::get(&state.db.conn(), &id)?;
+    if m.audio_deleted || m.status == MeetingStatus::Recording {
+        return Err(AppError::new(ErrorCode::AudioNotAvailable));
+    }
+    let (data_dir, db) = (state.data_dir.clone(), state.db.clone());
+    let path = tauri::async_runtime::spawn_blocking(move || crate::playback::prepare(&data_dir, &db, &id))
+        .await
+        .map_err(AppError::internal)??;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+/// Tambahan (langkah 26): simpan ekspor notulen ke file pilihan pengguna. Dialog dibuka di sini
+/// sehingga UI tidak bisa menulis ke path sembarang. `false` jika dialog dibatalkan.
+#[tauri::command]
+pub async fn save_export(app: tauri::AppHandle, file_name: String, contents: String) -> AppResult<bool> {
+    use tauri_plugin_dialog::DialogExt;
+    let (label, ext) = if file_name.ends_with(".txt") { ("Teks", "txt") } else { ("Markdown", "md") };
+    let picked = app.dialog().file().set_file_name(&file_name).add_filter(label, &[ext]).blocking_save_file();
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else { return Ok(false) };
+    std::fs::write(&path, contents)?;
+    tracing::info!("notulen diekspor ({ext})");
+    Ok(true)
+}
+
 /// Tambahan (langkah 23): simpan ringkasan & action item hasil edit pengguna.
 #[tauri::command]
 pub async fn update_summary(state: State<'_, AppState>, id: String, edit: SummaryEdit) -> AppResult<()> {
