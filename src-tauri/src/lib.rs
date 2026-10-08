@@ -429,7 +429,6 @@ pub fn run() {
             commands::meetings::previous_open_tasks,
             commands::meetings::update_action_item,
             commands::meetings::add_action_item,
-            commands::meetings::export_tasks_ics,
             commands::meetings::ask_all_meetings,
             commands::meetings::update_segment,
             commands::meetings::replace_in_meeting,

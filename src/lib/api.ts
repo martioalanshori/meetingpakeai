@@ -82,7 +82,6 @@ export const api = {
     call<void>("update_action_item", { itemId, task: patch.task ?? null, assignee: patch.assignee ?? null, dueDate: patch.dueDate ?? null }),
   addActionItem: (id: string, task: string, assignee?: string, dueDate?: string) =>
     call<number>("add_action_item", { id, task, assignee: assignee ?? null, dueDate: dueDate ?? null }),
-  exportTasksIcs: () => call<boolean>("export_tasks_ics"),
   listMeetings: (limit: number, offset: number, tag?: string | null) =>
     call<MeetingListItem[]>("list_meetings", { limit, offset, tag: tag ?? null }),
   getMeeting: (id: string) => call<MeetingDetail>("get_meeting", { id }),

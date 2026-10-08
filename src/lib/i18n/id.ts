@@ -87,8 +87,6 @@ export const id = {
 
   tasks: {
     title: "Tugas",
-    subtitle: "Hal yang perlu dikerjakan setelah meeting, dari semua notulen. Centang saat sudah beres.",
-    subtitleCount: (n: number) => `${n} tugas belum selesai dari semua meeting. Centang saat sudah beres.`,
     overdue: "lewat tenggat",
     dueToday: "hari ini",
     assigneePlaceholder: "Penanggung jawab",
@@ -98,9 +96,6 @@ export const id = {
     cancel: "Batal",
     add: "Tambah tugas",
     addPlaceholder: "Tugas baru, mis. Kirim penawaran revisi",
-    exportIcs: "Tambahkan ke kalender (.ics)",
-    exported: "File kalender disimpan. Buka file itu untuk menambahkan tenggat ke kalender Anda.",
-    reminderHint: "Pengingat muncul setiap pagi untuk tugas yang bertenggat hari ini atau sudah lewat.",
     allDone: "Semua tugas sudah selesai.",
     doneSection: (n: number) => `Sudah selesai (${n})`,
     markDone: (task: string) => `Tandai selesai: ${task}`,

@@ -40,7 +40,6 @@
   }
 
   const open = $derived(groupByMeeting(items.filter((a) => !a.done)));
-  const openCount = $derived(items.filter((a) => !a.done).length);
   const done = $derived(items.filter((a) => a.done));
 
   function todayIso(): string {
@@ -127,14 +126,6 @@
     }
   }
 
-  async function exportIcs() {
-    try {
-      if (await api.exportTasksIcs()) showToast(t.exported, "success");
-    } catch (e) {
-      showToast((e as AppError).message, "error");
-    }
-  }
-
   const unlisten: UnlistenFn[] = [];
   onMount(async () => {
     await load();
@@ -202,18 +193,7 @@
 {/snippet}
 
 <main class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 pt-7 pb-12 xl:px-10">
-  <div class="flex flex-wrap items-start justify-between gap-3">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
-      <p class="text-ink-soft">{loaded && openCount > 0 ? t.subtitleCount(openCount) : t.subtitle}</p>
-      <p class="hint">{t.reminderHint}</p>
-    </div>
-    {#if openCount > 0}
-      <button type="button" class="btn btn-line btn-sm" onclick={exportIcs}>
-        <Icon name="download" size={14} />{t.exportIcs}
-      </button>
-    {/if}
-  </div>
+  <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
 
   {#if !loaded}
     <ul class="flex flex-col gap-1 motion-safe:animate-pulse" aria-hidden="true">

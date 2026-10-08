@@ -879,45 +879,6 @@ pub async fn add_action_item(
     Ok(item)
 }
 
-/// Tambahan (langkah 54): ekspor tugas terbuka bertenggat ke kalender (.ics, acara sehari penuh).
-#[tauri::command]
-pub async fn export_tasks_ics(app: tauri::AppHandle, state: State<'_, AppState>) -> AppResult<bool> {
-    use tauri_plugin_dialog::DialogExt;
-    let tasks: Vec<repo_summary::TaskView> = repo_summary::all_action_items(&state.db.conn())?
-        .into_iter()
-        .filter(|t| !t.done && t.due_date.is_some())
-        .collect();
-    if tasks.is_empty() {
-        return Err(AppError::with_message(ErrorCode::InvalidState, "Belum ada tugas terbuka yang punya tanggal tenggat."));
-    }
-    let esc = |s: &str| s.replace('\\', "\\\\").replace(';', "\\;").replace(',', "\\,").replace('\n', "\\n");
-    let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
-    let mut ics = String::from("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Meeting Pake AI//ID\r\nCALSCALE:GREGORIAN\r\n");
-    for t in &tasks {
-        let Some(date) = t.due_date.as_deref().and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok()) else {
-            continue;
-        };
-        let next = date.succ_opt().unwrap_or(date);
-        let who = t.assignee.as_deref().map(|a| format!(" ({a})")).unwrap_or_default();
-        ics.push_str("BEGIN:VEVENT\r\n");
-        ics.push_str(&format!("UID:task-{}@meetingpakeai\r\nDTSTAMP:{stamp}\r\n", t.id));
-        ics.push_str(&format!("DTSTART;VALUE=DATE:{}\r\nDTEND;VALUE=DATE:{}\r\n", date.format("%Y%m%d"), next.format("%Y%m%d")));
-        ics.push_str(&format!("SUMMARY:{}\r\n", esc(&format!("Tenggat: {}{who}", t.task))));
-        ics.push_str(&format!("DESCRIPTION:{}\r\n", esc(&format!("Dari meeting: {}", t.meeting_title))));
-        ics.push_str("END:VEVENT\r\n");
-    }
-    ics.push_str("END:VCALENDAR\r\n");
-    let picked = app
-        .dialog()
-        .file()
-        .set_file_name("tugas-meeting.ics")
-        .add_filter("Kalender", &["ics"])
-        .blocking_save_file();
-    let Some(path) = picked.and_then(|p| p.into_path().ok()) else { return Ok(false) };
-    std::fs::write(&path, ics)?;
-    Ok(true)
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PreviousTasks {
