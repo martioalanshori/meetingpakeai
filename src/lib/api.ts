@@ -93,6 +93,8 @@ export const api = {
   getSettings: () => call<Settings>("get_settings"),
   updateSettings: (patch: Partial<Settings>) => call<Settings>("update_settings", { patch }),
   checkUpdate: () => call<UpdateInfo | null>("check_update"),
+  getStorageUsage: () => call<{ recordingsBytes: number; clearableMeetings: number }>("get_storage_usage"),
+  clearOldAudio: () => call<number>("clear_old_audio"),
   saveProblemReport: () => call<boolean>("save_problem_report"),
   installUpdate: () => call<void>("install_update"),
 };

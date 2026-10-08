@@ -6,6 +6,7 @@
   import ShortcutInput from "$lib/components/ShortcutInput.svelte";
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
+  import { confirmDialog } from "$lib/confirm.svelte";
   import { setWindowTitle } from "$lib/viewport.svelte";
   import type { AppError, Settings, UpdateInfo } from "$lib/types";
 
@@ -14,6 +15,28 @@
   let form = $state<Settings | null>(null);
   let saving = $state(false);
   let version = $state("");
+  let storage = $state<{ recordingsBytes: number; clearableMeetings: number } | null>(null);
+
+  const formatBytes = (b: number) =>
+    b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1).replace(".", ",")} GB` : `${Math.max(0, Math.round(b / 1024 ** 2))} MB`;
+
+  async function clearAudio() {
+    if (!storage || storage.clearableMeetings === 0) return;
+    const ok = await confirmDialog({
+      title: t.storageClearTitle,
+      message: t.storageClearMessage(storage.clearableMeetings),
+      confirmText: t.storageClear,
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const n = await api.clearOldAudio();
+      showToast(t.storageCleared(n), "success");
+      storage = await api.getStorageUsage();
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
 
 
   async function saveReport() {
@@ -56,6 +79,7 @@
     try {
       form = await api.getSettings();
       version = await getVersion();
+      storage = await api.getStorageUsage().catch(() => null);
     } catch (e) {
       showToast((e as AppError).message, "error");
     }
@@ -161,6 +185,17 @@
   <section class="border-b border-line py-7">
     <AiProviderSection />
   </section>
+
+  {#if storage}
+    <section class="flex flex-col items-start gap-2 border-b border-line py-7">
+      <h2 class="section-title">{t.storage}</h2>
+      <p>{t.storageUsed(formatBytes(storage.recordingsBytes))}</p>
+      <button type="button" class="btn btn-line btn-sm" disabled={storage.clearableMeetings === 0} onclick={clearAudio}>
+        {t.storageClear}
+      </button>
+      {#if storage.clearableMeetings === 0}<span class="hint">{t.storageNothing}</span>{/if}
+    </section>
+  {/if}
 
   <section class="flex flex-col gap-4 py-7">
     <h2 class="text-lg font-bold">{t.sectionHelp}</h2>

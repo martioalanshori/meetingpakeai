@@ -81,12 +81,22 @@ fn install_panic_hook(log_dir: PathBuf, version: String) {
 
 fn init_logging(log_dir: &Path) -> Result<WorkerGuard, Box<dyn std::error::Error>> {
     std::fs::create_dir_all(log_dir)?;
-    // Nama file: app.log.YYYY-MM-DD, rotasi harian, simpan 7 file (PRD §6.1, §6.3).
+    // Rotasi per jam, simpan 72 file (±3 hari): ukuran log terbatas walau satu hari bermasalah.
     let appender = RollingBuilder::new()
-        .rotation(Rotation::DAILY)
+        .rotation(Rotation::HOURLY)
         .filename_prefix("app.log")
-        .max_log_files(7)
+        .max_log_files(72)
         .build(log_dir)?;
+    // Simpan 20 laporan crash terbaru.
+    let mut crashes: Vec<_> = std::fs::read_dir(log_dir)?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with("crash-")))
+        .collect();
+    crashes.sort();
+    while crashes.len() > 20 {
+        let _ = std::fs::remove_file(crashes.remove(0));
+    }
     let (writer, guard) = tracing_appender::non_blocking(appender);
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
@@ -332,6 +342,8 @@ pub fn run() {
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::settings::check_update,
+            commands::settings::get_storage_usage,
+            commands::settings::clear_old_audio,
             commands::settings::save_problem_report,
             commands::settings::install_update,
             commands::recording::start_recording,

@@ -9,7 +9,11 @@ use serde::Deserialize;
 use super::{SttProvider, SttRequest, SttSegment};
 use crate::ai_http::{self, ProviderError};
 
-const TIMEOUT: Duration = Duration::from_secs(120);
+/// Timeout unggah+transkrip: 60 dtk + 20 dtk per MB (koneksi ±0,5 Mbps tetap lolos), maks 15 menit.
+fn timeout_for(bytes: usize) -> Duration {
+    let mb = bytes as u64 / (1024 * 1024) + 1;
+    Duration::from_secs((60 + 20 * mb).min(900))
+}
 const PROMPT_MAX_CHARS: usize = 800;
 
 pub struct OpenAiStt {
@@ -55,6 +59,7 @@ impl SttProvider for OpenAiStt {
         let bytes = tokio::fs::read(&req.wav_path)
             .await
             .map_err(|e| ProviderError::BadRequest(format!("file chunk tidak bisa dibaca: {e}")))?;
+        let timeout = timeout_for(bytes.len());
         let file = reqwest::multipart::Part::bytes(bytes)
             .file_name("audio.wav")
             .mime_str("audio/wav")
@@ -73,7 +78,7 @@ impl SttProvider for OpenAiStt {
             form = form.text("prompt", p.chars().take(PROMPT_MAX_CHARS).collect::<String>());
         }
         let req = self.http.post(format!("{}/audio/transcriptions", self.base_url.trim_end_matches('/')));
-        let resp = ai_http::with_key(req, self.api_key.as_deref()).timeout(TIMEOUT).multipart(form).send().await?;
+        let resp = ai_http::with_key(req, self.api_key.as_deref()).timeout(timeout).multipart(form).send().await?;
         let body: VerboseJson = ai_http::check_status(resp)
             .await?
             .json()

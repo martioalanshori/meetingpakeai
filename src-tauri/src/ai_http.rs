@@ -50,6 +50,8 @@ impl From<reqwest::Error> for ProviderError {
 pub fn build_client() -> reqwest::Client {
     reqwest::Client::builder()
         .user_agent(concat!("MeetingPakeAI/", env!("CARGO_PKG_VERSION")))
+        // Gagal sambung cepat diketahui; durasi total diatur per request (unggahan besar butuh lama).
+        .connect_timeout(Duration::from_secs(15))
         .build()
         .expect("reqwest client")
 }

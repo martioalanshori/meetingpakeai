@@ -251,6 +251,20 @@ pub fn audio_expired(conn: &Connection, cutoff: i64) -> AppResult<Vec<String>> {
     Ok(ids)
 }
 
+/// Rekaman terputus yang audionya masih ada dan dimulai sebelum `cutoff`.
+pub fn interrupted_older_than(conn: &Connection, cutoff: i64) -> AppResult<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT id FROM meetings WHERE audio_deleted = 0 AND status = 'interrupted' AND started_at < ?1")?;
+    let ids = stmt.query_map([cutoff], |r| r.get(0))?.collect::<Result<Vec<String>, _>>()?;
+    Ok(ids)
+}
+
+/// Meeting yang audionya boleh dibersihkan pengguna: selesai/gagal (bukan sedang direkam, diproses, atau terputus).
+pub fn audio_clearable(conn: &Connection) -> AppResult<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT id FROM meetings WHERE audio_deleted = 0 AND status IN ('done', 'failed')")?;
+    let ids = stmt.query_map([], |r| r.get(0))?.collect::<Result<Vec<String>, _>>()?;
+    Ok(ids)
+}
+
 pub fn set_audio_deleted(conn: &Connection, id: &str) -> AppResult<()> {
     conn.execute(
         "UPDATE meetings SET audio_deleted = 1, updated_at = ?2 WHERE id = ?1",

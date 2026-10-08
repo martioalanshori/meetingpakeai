@@ -39,6 +39,8 @@ const IDLE_MAX_SLEEP: Duration = Duration::from_secs(60);
 /// Retensi "7 hari": audio meeting selesai yang lebih tua dari ini dihapus.
 const AUDIO_KEEP_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 const RETENTION_SWEEP_EVERY: Duration = Duration::from_secs(60 * 60);
+/// Rekaman terputus yang tidak pernah diproses: audionya dibuang setelah 30 hari.
+const INTERRUPTED_KEEP_MS: i64 = 30 * 24 * 60 * 60 * 1000;
 /// Chunk yang ditolak 413 dipecah dua, maksimal sedalam ini (≤ 4 bagian).
 const MAX_SPLIT_DEPTH: u32 = 2;
 /// `delete_meeting` menunggu worker melepas meeting yang dibatalkan maksimal selama ini.
@@ -167,30 +169,45 @@ impl Worker {
         }
     }
 
-    fn delete_audio(&self, id: &str) -> Result<(), AppError> {
-        let dir = self.data_dir.join("recordings").join(id);
-        if dir.exists() {
-            if let Err(e) = std::fs::remove_dir_all(&dir) {
-                tracing::warn!("hapus audio gagal: {e}");
-            }
+    /// Hapus folder `path` di thread blocking (folder rekaman bisa berisi ratusan MB).
+    async fn remove_dir(&self, path: PathBuf) {
+        let result = tokio::task::spawn_blocking(move || if path.exists() { std::fs::remove_dir_all(&path) } else { Ok(()) }).await;
+        if let Ok(Err(e)) = result {
+            tracing::warn!("hapus folder gagal: {e}");
         }
+    }
+
+    async fn delete_audio(&self, id: &str) -> Result<(), AppError> {
+        self.remove_dir(self.data_dir.join("recordings").join(id)).await;
         repo_meetings::set_audio_deleted(&self.db.conn(), id)
     }
 
-    /// Retensi "7 hari" (langkah 26): hapus audio meeting selesai yang sudah lewat 7 hari.
-    fn sweep_retention(&self) {
+    /// Retensi: "7 hari" untuk meeting selesai/gagal; rekaman terputus yang tidak diproses dibuang setelah
+    /// 30 hari (apa pun pilihan retensi) dan ditandai gagal agar bannernya hilang.
+    async fn sweep_retention(&self) {
         let retention = settings::load(&self.db.conn()).map(|s| s.audio_retention);
-        if retention.ok() != Some(AudioRetention::Days7) {
-            return;
-        }
-        let expired = repo_meetings::audio_expired(&self.db.conn(), now_ms() - AUDIO_KEEP_MS).unwrap_or_default();
-        for id in expired {
-            match self.delete_audio(&id) {
-                Ok(()) => {
-                    tracing::info!("audio meeting {id} dihapus (retensi 7 hari)");
-                    events::emit(self.events.as_ref(), events::EV_MEETING_UPDATED, &MeetingUpdated { meeting_id: &id });
+        if retention.ok() == Some(AudioRetention::Days7) {
+            let expired = repo_meetings::audio_expired(&self.db.conn(), now_ms() - AUDIO_KEEP_MS).unwrap_or_default();
+            for id in expired {
+                match self.delete_audio(&id).await {
+                    Ok(()) => {
+                        tracing::info!("audio meeting {id} dihapus (retensi 7 hari)");
+                        events::emit(self.events.as_ref(), events::EV_MEETING_UPDATED, &MeetingUpdated { meeting_id: &id });
+                    }
+                    Err(e) => tracing::warn!("retensi {id} gagal: {}", e.message),
                 }
-                Err(e) => tracing::warn!("retensi {id} gagal: {}", e.message),
+            }
+        }
+        let stale = repo_meetings::interrupted_older_than(&self.db.conn(), now_ms() - INTERRUPTED_KEEP_MS).unwrap_or_default();
+        for id in stale {
+            if self.delete_audio(&id).await.is_ok() {
+                let err = AppError::with_message(
+                    ErrorCode::AudioNotAvailable,
+                    "Rekaman terputus ini tidak diproses selama 30 hari, jadi audionya dihapus otomatis.",
+                );
+                let _ = repo_meetings::set_failed(&self.db.conn(), &id, MeetingStatus::Preprocessing, &err);
+                tracing::info!("audio rekaman terputus {id} dihapus (30 hari)");
+                events::emit(self.events.as_ref(), events::EV_MEETING_UPDATED, &MeetingUpdated { meeting_id: &id });
             }
         }
     }
@@ -201,7 +218,7 @@ impl Worker {
         loop {
             if last_sweep.is_none_or(|t| t.elapsed() >= RETENTION_SWEEP_EVERY) {
                 last_sweep = Some(std::time::Instant::now());
-                self.sweep_retention();
+                self.sweep_retention().await;
             }
             let next = if self.is_paused() { Ok(None) } else { repo_meetings::next_job(&self.db.conn(), now_ms()) };
             match next {
@@ -553,9 +570,12 @@ impl Worker {
         repo_segments::replace_all(&mut self.db.conn(), id, &segments)?;
         tracing::info!("meeting {id}: {} segment, {filtered} difilter, {dups} duplikat", segments.len());
 
+        // Chunk unggah tidak dibutuhkan lagi setelah transkrip tersusun (transkrip ulang membuatnya kembali).
+        self.remove_dir(self.data_dir.join("recordings").join(id).join("upload")).await;
+
         // Retensi (PRD §8.7): hapus audio setelah merging sukses (opsi "setelah transkrip").
         if settings::load(&self.db.conn())?.audio_retention == AudioRetention::AfterTranscript {
-            self.delete_audio(id)?;
+            self.delete_audio(id).await?;
         }
         self.set_progress(id, MeetingStatus::Merging, 1, 1);
         Ok(())
