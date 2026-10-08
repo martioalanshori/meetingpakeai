@@ -175,3 +175,20 @@ Installer: `src-tauri/target/release/bundle/nsis/Meeting Pake AI_0.1.0_x64-setup
 - [x] 13. Worker + state machine + recovery + retensi
 - [x] 14. UI Beranda + Detail + Pengaturan
 - [x] 15. Uji end-to-end, ukur NFR, build NSIS
+
+### Perbaikan dari `feedback.md` (rencana: `PLAN-perbaikan.md`)
+
+- [x] 16. Pindah default device otomatis, buffer 200 ms, part → DB di thread terpisah
+- [x] 17. CSP, validasi posisi widget, ikon SVG, judul ganda, reload Beranda
+- [x] 18. Notifikasi "Notulen siap", salin notulen
+- [x] 19. Frasa halusinasi pendek, tes mic sebelum nada, `ended_at` recovery, ikon tray memproses
+- [ ] 20. Checklist uji manual (`PLAN-perbaikan.md` §9), bump versi, build NSIS — **belum, menunggu uji pemilik**
+- [x] 21. Shortcut global, autostart, consent cepat
+- [x] 22. Deteksi meeting + tawaran Stop saat meeting selesai
+- [x] 23. Edit ringkasan & action item, rename "Peserta lain"
+- [x] 24. Peringatan audio sistem diam, deteksi API key dari clipboard
+- [x] 25. Auto-update (aktif jika env build tersedia)
+- [x] 26. Ekspor MD/TXT/PDF, retensi 7 hari, putar audio dari timestamp
+- [x] 27. Unit test terbatas, pembatalan job, pecah chunk 413
+- [x] 28. Pencarian FTS5, halaman Tugas, `queuePaused`
+- [x] 29. Template ringkasan, estimasi kuota, laporan masalah
