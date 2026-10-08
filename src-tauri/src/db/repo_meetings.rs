@@ -261,6 +261,7 @@ pub fn set_audio_deleted(conn: &Connection, id: &str) -> AppResult<()> {
 
 /// Hapus meeting; tabel anak ikut terhapus lewat ON DELETE CASCADE.
 pub fn delete(conn: &Connection, id: &str) -> AppResult<()> {
+    crate::db::repo_search::delete(conn, id)?;
     conn.execute("DELETE FROM meetings WHERE id = ?1", [id])?;
     Ok(())
 }

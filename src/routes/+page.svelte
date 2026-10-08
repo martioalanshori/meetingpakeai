@@ -8,7 +8,9 @@
   import { formatDateTime, formatDuration } from "$lib/format";
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
-  import type { AppError, MeetingListItem } from "$lib/types";
+  import Highlight from "$lib/components/Highlight.svelte";
+  import { formatTimestamp } from "$lib/format";
+  import type { AppError, MeetingListItem, SearchHit } from "$lib/types";
 
   const PAGE = 50;
 
@@ -16,10 +18,40 @@
   let loaded = $state(false);
   let hasMore = $state(false);
 
+  let queuePaused = $state(false);
+  let query = $state("");
+  let hits = $state<SearchHit[] | null>(null);
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
   const interrupted = $derived(items.filter((m) => m.status === "interrupted"));
-  const queuePaused = $derived(
-    items.some((m) => m.status === "failed" && (m.errorCode === "INVALID_API_KEY" || m.errorCode === "NO_API_KEY")),
-  );
+
+  /** Status dari worker (A9): tidak bergantung pada halaman daftar yang sudah dimuat. */
+  async function refreshQueuePaused() {
+    queuePaused = await api.getOnboardingStatus().then((s) => s.queuePaused, () => false);
+  }
+
+  function onSearchInput() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(runSearch, 250);
+  }
+
+  async function runSearch() {
+    const q = query.trim();
+    if (q === "") {
+      hits = null;
+      return;
+    }
+    try {
+      hits = await api.searchMeetings(q);
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+
+  function hitHref(h: SearchHit): string {
+    const tab = h.kind === "transcript" ? "transcript" : h.kind === "action" ? "actions" : "summary";
+    return `/meeting/${h.meetingId}?tab=${tab}`;
+  }
 
   /** Muat ulang semua item yang sedang tampil (minimal satu halaman). */
   async function reload() {
@@ -61,6 +93,7 @@
   const unlisten: UnlistenFn[] = [];
   onMount(async () => {
     await reload();
+    refreshQueuePaused();
     lastRecordingStatus = await api.getRecordingState().then((r) => r.status, () => "idle");
     unlisten.push(
       // Progres real-time tanpa refresh (AC F6.1).
@@ -72,7 +105,11 @@
           m.progressTotal = p.progressTotal;
         }
       }),
-      await events.meetingUpdated(() => reload()),
+      await events.meetingUpdated(() => {
+        reload();
+        refreshQueuePaused();
+        if (query.trim() !== "") runSearch();
+      }),
       await events.recordingState((s) => {
         const wasIdle = lastRecordingStatus === "idle";
         lastRecordingStatus = s.status;
@@ -80,7 +117,10 @@
       }),
     );
   });
-  onDestroy(() => unlisten.forEach((u) => u()));
+  onDestroy(() => {
+    clearTimeout(searchTimer);
+    unlisten.forEach((u) => u());
+  });
 </script>
 
 <main class="mx-auto flex min-h-full max-w-4xl flex-col gap-5 p-6">
@@ -88,6 +128,7 @@
     <h1 class="text-xl font-semibold">{id.appName}</h1>
     <div class="flex items-center gap-2">
       <RecordButton />
+      <a href="/tasks" class="rounded-lg px-3 py-2.5 text-gray-700 hover:bg-gray-200">{id.home.tasks}</a>
       <a
         href="/settings"
         class="rounded-lg p-2.5 text-gray-700 hover:bg-gray-200"
@@ -98,6 +139,18 @@
       </a>
     </div>
   </header>
+
+  <label class="relative flex items-center">
+    <span class="sr-only">{id.home.searchLabel}</span>
+    <Icon name="search" size={18} class="pointer-events-none absolute left-3 text-gray-400" />
+    <input
+      type="search"
+      class="w-full rounded-xl border border-gray-300 bg-white py-2.5 pr-3 pl-10"
+      placeholder={id.home.searchPlaceholder}
+      bind:value={query}
+      oninput={onSearchInput}
+    />
+  </label>
 
   {#if queuePaused}
     <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">
@@ -128,7 +181,25 @@
     </div>
   {/each}
 
-  {#if !loaded}
+  {#if hits !== null}
+    {#if hits.length === 0}
+      <p class="text-gray-600">{id.home.noResults}</p>
+    {:else}
+      <ul class="flex flex-col divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
+        {#each hits as h, i (i)}
+          <li>
+            <a href={hitHref(h)} class="flex flex-col gap-0.5 px-4 py-3 hover:bg-gray-50">
+              <span class="text-sm text-gray-500">
+                {h.title} · {formatDateTime(h.startedAt)} · {id.home.hitKind[h.kind]}{#if h.startMs !== null}
+                  [{formatTimestamp(h.startMs)}]{/if}
+              </span>
+              <span class="text-gray-900"><Highlight text={h.snippet} /></span>
+            </a>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  {:else if !loaded}
     <p class="text-gray-500">{id.common.loading}</p>
   {:else if items.length === 0}
     <section

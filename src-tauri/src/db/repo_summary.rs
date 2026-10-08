@@ -168,6 +168,45 @@ pub fn action_items(conn: &Connection, meeting_id: &str) -> AppResult<Vec<Action
     Ok(rows)
 }
 
+/// Action item lintas meeting (halaman "Tugas", langkah 28).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskView {
+    pub id: i64,
+    pub meeting_id: String,
+    pub meeting_title: String,
+    pub started_at: i64,
+    pub task: String,
+    pub assignee: Option<String>,
+    pub due: Option<String>,
+    pub done: bool,
+}
+
+/// Semua action item meeting `done`: belum selesai dulu, lalu meeting terbaru.
+pub fn all_action_items(conn: &Connection) -> AppResult<Vec<TaskView>> {
+    let mut stmt = conn.prepare(
+        "SELECT a.id, a.meeting_id, m.title, m.started_at, a.task, a.assignee, a.due, a.done
+         FROM action_items a JOIN meetings m ON m.id = a.meeting_id
+         WHERE m.status = 'done'
+         ORDER BY a.done, m.started_at DESC, a.idx",
+    )?;
+    let rows = stmt
+        .query_map([], |r| {
+            Ok(TaskView {
+                id: r.get(0)?,
+                meeting_id: r.get(1)?,
+                meeting_title: r.get(2)?,
+                started_at: r.get(3)?,
+                task: r.get(4)?,
+                assignee: r.get(5)?,
+                due: r.get(6)?,
+                done: r.get(7)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
 /// Label "Peserta lain" per meeting (Beta F10; tabel sudah ada sejak MVP).
 pub fn system_label(conn: &Connection, meeting_id: &str) -> AppResult<Option<String>> {
     Ok(conn

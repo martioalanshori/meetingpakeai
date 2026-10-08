@@ -15,6 +15,8 @@ pub struct OnboardingStatus {
     pub api_key_set: bool,
     /// 'allowed' | 'denied' | 'unknown'
     pub mic_permission: &'static str,
+    /// Tambahan (langkah 28, A9): antrean dijeda karena API key tidak valid (status worker, bukan daftar UI).
+    pub queue_paused: bool,
 }
 
 #[tauri::command]
@@ -24,6 +26,7 @@ pub async fn get_onboarding_status(state: State<'_, AppState>) -> AppResult<Onbo
         completed,
         api_key_set: secrets::get_api_key()?.is_some(),
         mic_permission: mic_permission::check().as_str(),
+        queue_paused: state.worker.is_paused(),
     })
 }
 

@@ -97,6 +97,12 @@ fn init_state(app: &AppHandle) -> Result<AppState, Box<dyn std::error::Error>> {
         settings::load(&conn)?.minimize_to_tray
     };
 
+    match db::repo_search::backfill_if_empty(&mut db.conn()) {
+        Ok(n) if n > 0 => tracing::info!("index pencarian dibangun untuk {n} meeting"),
+        Ok(_) => {}
+        Err(e) => tracing::warn!("index pencarian gagal dibangun: {}", e.message),
+    }
+
     // Recovery sebelum worker jalan (PRD §13).
     if let Err(e) = queue::recovery::run(&data_dir, &db) {
         tracing::error!("recovery gagal: {}", e.message);
@@ -296,6 +302,8 @@ pub fn run() {
             commands::recording::take_pending_consent,
             commands::recording::take_pending_meeting,
             commands::meetings::list_meetings,
+            commands::meetings::search_meetings,
+            commands::meetings::list_action_items,
             commands::meetings::get_meeting,
             commands::meetings::get_transcript,
             commands::meetings::rename_meeting,

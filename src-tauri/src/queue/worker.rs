@@ -273,6 +273,9 @@ impl Worker {
             };
         }
         if repo_meetings::set_status(&self.db.conn(), &id, MeetingStatus::Done).is_ok() {
+            if let Err(e) = crate::db::repo_search::reindex(&mut self.db.conn(), &id) {
+                tracing::warn!("index pencarian {id} gagal: {}", e.message);
+            }
             let row = repo_meetings::get(&self.db.conn(), &id).ok();
             // Metrik "Stop → Notulen siap" (feedback §E) dibaca dari log ini.
             let since_stop = row.as_ref().and_then(|r| r.ended_at).map_or(-1, |t| (now_ms() - t) / 1000);

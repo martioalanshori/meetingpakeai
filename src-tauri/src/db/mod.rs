@@ -3,6 +3,7 @@
 pub mod repo_chunks;
 pub mod repo_meetings;
 pub mod repo_parts;
+pub mod repo_search;
 pub mod repo_segments;
 pub mod repo_settings;
 pub mod repo_summary;
@@ -16,7 +17,11 @@ use rusqlite::Connection;
 use crate::error::{AppError, AppResult};
 
 /// Migrasi berurutan; indeks + 1 = nilai `PRAGMA user_version` setelah migrasi dijalankan.
-const MIGRATIONS: &[&str] = &[include_str!("migrations/001_init.sql"), include_str!("migrations/002_edits.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("migrations/001_init.sql"),
+    include_str!("migrations/002_edits.sql"),
+    include_str!("migrations/003_fts.sql"),
+];
 
 pub struct Db {
     conn: Mutex<Connection>,

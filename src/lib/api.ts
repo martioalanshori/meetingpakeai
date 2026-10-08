@@ -12,6 +12,8 @@ import type {
   MeetingUpdatedPayload,
   MicPermission,
   OnboardingStatus,
+  SearchHit,
+  TaskItem,
   PendingConsent,
   RecordingState,
   RecordingWarningPayload,
@@ -63,6 +65,8 @@ export const api = {
     call<void>("respond_auto_stop", { continueRecording }),
 
   // Meeting
+  searchMeetings: (query: string) => call<SearchHit[]>("search_meetings", { query }),
+  listActionItems: () => call<TaskItem[]>("list_action_items"),
   listMeetings: (limit: number, offset: number) =>
     call<MeetingListItem[]>("list_meetings", { limit, offset }),
   getMeeting: (id: string) => call<MeetingDetail>("get_meeting", { id }),

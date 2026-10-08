@@ -4,7 +4,8 @@ use tauri::State;
 use crate::config::settings::{self, DEFAULT_SYSTEM_LABEL};
 use crate::db::repo_meetings::{self, MeetingRow, MeetingStatus};
 use crate::db::repo_segments::{self, VisibleSegment};
-use crate::db::repo_summary::{self, ActionItemView, SummaryEdit, SummaryView};
+use crate::db::repo_search::{self, SearchHit};
+use crate::db::repo_summary::{self, ActionItemView, SummaryEdit, SummaryView, TaskView};
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::events::{self, MeetingUpdated};
 use crate::AppState;
@@ -66,6 +67,25 @@ pub struct MeetingDetail {
     pub action_items: Vec<ActionItemView>,
 }
 
+/// Index pencarian ikut diperbarui setelah pengguna mengubah teks meeting yang sudah selesai.
+fn reindex(state: &AppState, id: &str) {
+    if let Err(e) = repo_search::reindex(&mut state.db.conn(), id) {
+        tracing::warn!("index pencarian {id} gagal: {}", e.message);
+    }
+}
+
+/// Tambahan (langkah 28, F11): cari di judul, ringkasan, keputusan, topik, action item, dan transkrip.
+#[tauri::command]
+pub async fn search_meetings(state: State<'_, AppState>, query: String) -> AppResult<Vec<SearchHit>> {
+    repo_search::search(&state.db.conn(), &query)
+}
+
+/// Tambahan (langkah 28): action item semua meeting selesai (halaman "Tugas").
+#[tauri::command]
+pub async fn list_action_items(state: State<'_, AppState>) -> AppResult<Vec<TaskView>> {
+    repo_summary::all_action_items(&state.db.conn())
+}
+
 fn emit_updated(state: &AppState, id: &str) {
     events::emit(state.bridge.as_ref(), events::EV_MEETING_UPDATED, &MeetingUpdated { meeting_id: id });
 }
@@ -111,6 +131,7 @@ pub async fn rename_meeting(state: State<'_, AppState>, id: String, title: Strin
         return Err(AppError::new(ErrorCode::InvalidState));
     }
     repo_meetings::rename(&state.db.conn(), &id, &title)?;
+    reindex(&state, &id);
     emit_updated(&state, &id);
     Ok(())
 }
@@ -152,6 +173,7 @@ pub async fn update_summary(state: State<'_, AppState>, id: String, edit: Summar
     if !repo_summary::update(&mut state.db.conn(), &id, &edit)? {
         return Err(AppError::new(ErrorCode::InvalidState));
     }
+    reindex(&state, &id);
     emit_updated(&state, &id);
     Ok(())
 }

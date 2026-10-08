@@ -132,6 +132,29 @@ export type OnboardingStatus = {
   completed: boolean;
   apiKeySet: boolean;
   micPermission: MicPermission;
+  /** Antrean dijeda karena API key tidak valid (status worker). */
+  queuePaused: boolean;
+};
+
+export type SearchHit = {
+  meetingId: string;
+  title: string;
+  startedAt: number;
+  kind: "title" | "summary" | "decision" | "topic" | "action" | "transcript";
+  /** Kata yang cocok diapit "[" dan "]". */
+  snippet: string;
+  startMs: number | null;
+};
+
+export type TaskItem = {
+  id: number;
+  meetingId: string;
+  meetingTitle: string;
+  startedAt: number;
+  task: string;
+  assignee: string | null;
+  due: string | null;
+  done: boolean;
 };
 
 export type TestApiKeyResult = { ok: boolean; missingModels: string[] };

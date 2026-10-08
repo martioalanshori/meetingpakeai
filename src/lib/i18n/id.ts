@@ -24,6 +24,25 @@ export const id = {
     interruptedDiscard: "Hapus",
     queuePaused: "Pemrosesan dijeda karena API key Groq tidak valid. Perbarui API key di Pengaturan.",
     openSettings: "Buka Pengaturan",
+    searchPlaceholder: "Cari di semua meeting (judul, ringkasan, transkrip)…",
+    searchLabel: "Cari meeting",
+    noResults: "Tidak ada hasil.",
+    tasks: "Tugas",
+    hitKind: {
+      title: "Judul",
+      summary: "Ringkasan",
+      decision: "Keputusan",
+      topic: "Topik",
+      action: "Action item",
+      transcript: "Transkrip",
+    },
+  },
+
+  tasks: {
+    title: "Tugas dari semua meeting",
+    onlyMine: (name: string) => `Hanya untuk saya (PJ: ${name})`,
+    showDone: "Tampilkan yang sudah selesai",
+    empty: "Tidak ada tugas.",
   },
 
   status: {

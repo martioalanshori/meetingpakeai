@@ -65,7 +65,9 @@
       meeting = m;
       if (firstLoad) speakerDraft = m.labels.system;
       transcript = await api.getTranscript(meetingId);
-      if (firstLoad && m.status !== "done" && m.summary === null) tab = transcript.length > 0 ? "transcript" : "summary";
+      const wanted = page.url.searchParams.get("tab");
+      if (firstLoad && (wanted === "summary" || wanted === "actions" || wanted === "transcript")) tab = wanted;
+      else if (firstLoad && m.status !== "done" && m.summary === null) tab = transcript.length > 0 ? "transcript" : "summary";
     } catch (e) {
       if ((e as AppError).code === "NOT_FOUND") notFound = true;
       else showToast((e as AppError).message, "error");
