@@ -78,12 +78,17 @@ fn point_on_screen(app: &AppHandle, x: i32, y: i32) -> bool {
 /// Widget tawaran "Zoom terdeteksi · Rekam · Abaikan" (atau hitung mundur rekam otomatis), langkah 46.
 /// Fungsi bebas agar bisa dijalankan di main thread tanpa memegang `TauriBridge`.
 fn open_offer(app: &AppHandle, db: &Db, kind: &str, auto: bool) {
+    let url = format!("recorder/offer?kind={kind}&auto={}", u8::from(auto));
+    open_card(app, db, &url, "Meeting Pake AI - Meeting terdeteksi");
+}
+
+/// Jendela kartu kecil di posisi widget (tawaran rekam / status notulen). Satu kartu sekaligus (label `offer`).
+fn open_card(app: &AppHandle, db: &Db, url: &str, title: &str) {
     if let Some(w) = app.get_webview_window(OFFER_LABEL) {
         let _ = w.destroy();
     }
-    let url = format!("recorder/offer?kind={kind}&auto={}", u8::from(auto));
     let b = WebviewWindowBuilder::new(app, OFFER_LABEL, WebviewUrl::App(url.into()))
-        .title("Meeting Pake AI - Meeting terdeteksi")
+        .title(title)
         .inner_size(RECORDER_WIDTH, 92.0)
         .resizable(false)
         .decorations(false)
@@ -196,6 +201,10 @@ impl TauriBridge {
     }
 
     /// Meeting yang menunggu dibuka dari notifikasi "Notulen siap" (sekali ambil).
+    pub fn set_pending_meeting(&self, meeting_id: &str) {
+        *self.pending_meeting.lock().unwrap_or_else(|e| e.into_inner()) = Some((meeting_id.to_string(), Instant::now()));
+    }
+
     pub fn take_pending_meeting(&self) -> Option<String> {
         let taken = self.pending_meeting.lock().unwrap_or_else(|e| e.into_inner()).take();
         taken.filter(|(_, at)| at.elapsed() < PENDING_MEETING_TTL).map(|(id, _)| id)
@@ -318,6 +327,12 @@ impl EventSink for TauriBridge {
         } else {
             self.notify(&format!("Meeting terdeteksi ({name})"), "Mulai rekam dari widget, atau tekan shortcut rekam.");
         }
+    }
+
+    fn recording_finished(&self, meeting_id: &str) {
+        let (app, db) = (self.app.clone(), self.db.clone());
+        let url = format!("recorder/done?id={meeting_id}");
+        let _ = self.app.run_on_main_thread(move || open_card(&app, &db, &url, "Meeting Pake AI - Menyusun notulen"));
     }
 
     fn meeting_done(&self, meeting_id: &str, title: &str) {

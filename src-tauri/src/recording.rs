@@ -386,6 +386,10 @@ impl RecordingService {
         repo_meetings::finish_recording(&self.db.conn(), &meeting_id, ended_at, result.duration_ms)?;
         events::emit(self.events.as_ref(), events::EV_MEETING_UPDATED, &MeetingUpdated { meeting_id: &meeting_id });
         (self.on_queued)();
+        // Rekaman berlanjut (batas durasi) tidak perlu kartu: widget rekaman langsung dibuka lagi.
+        if reason != StopReason::MaxDuration {
+            self.events.recording_finished(&meeting_id);
+        }
 
         let note = match reason {
             StopReason::Manual => None,

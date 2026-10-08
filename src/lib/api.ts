@@ -90,6 +90,8 @@ export const api = {
   retryJob: (id: string) => call<void>("retry_job", { id }),
   regenerateSummary: (id: string) => call<void>("regenerate_summary", { id }),
   importRecording: (path?: string) => call<string | null>("import_recording", { path: path ?? null }),
+  summarizeSoFar: (id: string) => call<string[]>("summarize_so_far", { id }),
+  openMeetingInMain: (id: string) => call<void>("open_meeting_in_main", { id }),
   generateFollowUp: (id: string, lang: "id" | "en", force: boolean) =>
     call<FollowUp>("generate_follow_up", { id, lang, force }),
   retranscribe: (id: string) => call<void>("retranscribe", { id }),

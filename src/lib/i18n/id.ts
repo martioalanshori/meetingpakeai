@@ -152,6 +152,12 @@ export const id = {
     tabActionItems: "Tugas",
     tabTranscript: "Transkrip",
     tabsLabel: "Bagian notulen",
+    liveTranscript: "Transkrip sementara",
+    liveTranscriptHint: "Diperbarui setiap ±5 menit selama merekam. Versi final dan notulen dibuat setelah rekaman dihentikan.",
+    liveEmpty: "Transkrip sementara muncul setelah ±5 menit rekaman. Anda bisa terus bekerja; aplikasi mentranskrip di latar belakang.",
+    soFar: "Ringkas sejauh ini",
+    soFarTitle: "Sejauh ini",
+    soFarBusy: "Meringkas…",
     bookmarks: "Momen ditandai",
     bookmarkRemove: "Hapus tanda",
     bookmarkNoText: "Tidak ada ucapan di sekitar waktu ini.",
@@ -256,6 +262,13 @@ export const id = {
     speed: "Kecepatan putar",
   },
 
+  doneCard: {
+    working: "Menyusun notulen…",
+    workingHint: "Anda boleh menutup kartu ini; notifikasi muncul saat selesai.",
+    ready: "Notulen siap",
+    failed: "Notulen gagal dibuat",
+    open: "Buka",
+  },
   followUp: {
     button: "Pesan tindak lanjut",
     title: "Pesan tindak lanjut",

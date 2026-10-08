@@ -15,6 +15,7 @@ pub mod pipeline;
 pub mod playback;
 pub mod preprocess;
 pub mod queue;
+pub mod quick_llm;
 pub mod recording;
 pub mod secrets;
 pub mod stt;
@@ -43,6 +44,12 @@ use crate::recording::{RecordingService, StopReason};
 
 /// usage_log lebih tua dari ini dihapus saat start (PRD §11).
 const USAGE_LOG_RETENTION_MS: i64 = 2 * 24 * 60 * 60 * 1000;
+
+/// ms → "HH:MM:SS" (untuk teks ke LLM).
+pub fn format_hhmmss(ms: i64) -> String {
+    let s = ms.max(0) / 1000;
+    format!("{:02}:{:02}:{:02}", s / 3600, (s % 3600) / 60, s % 60)
+}
 
 /// State global aplikasi.
 pub struct AppState {
@@ -377,6 +384,8 @@ pub fn run() {
             commands::meetings::generate_follow_up,
             commands::meetings::delete_bookmark,
             commands::meetings::import_recording,
+            commands::meetings::summarize_so_far,
+            commands::recording::open_meeting_in_main,
             commands::meetings::retranscribe,
             commands::meetings::resolve_interrupted,
         ])

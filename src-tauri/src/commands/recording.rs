@@ -38,6 +38,15 @@ pub async fn resume_recording(state: State<'_, AppState>) -> AppResult<Recording
     state.recording.resume()
 }
 
+/// Tambahan (langkah 48): kartu "Notulen siap" → buka jendela main di meeting itu.
+#[tauri::command]
+pub async fn open_meeting_in_main(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> AppResult<()> {
+    state.bridge.set_pending_meeting(&id);
+    crate::bridge::show_main_window(&app);
+    let _ = tauri::Emitter::emit_to(&app, "main", crate::bridge::EV_APP_PENDING, ());
+    Ok(())
+}
+
 /// Tambahan (langkah 46): tawaran rekam diabaikan → tidak diingatkan ulang untuk sesi mic ini.
 #[tauri::command]
 pub async fn dismiss_meeting_offer(state: State<'_, AppState>) -> AppResult<()> {
