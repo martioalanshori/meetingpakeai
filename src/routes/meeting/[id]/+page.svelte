@@ -8,7 +8,8 @@
   import Icon from "$lib/components/Icon.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import SummaryEditor from "$lib/components/SummaryEditor.svelte";
-  import { formatActionItems, formatMinutes, type MinutesStyle } from "$lib/minutes";
+  import CopyButton from "$lib/components/CopyButton.svelte";
+  import { formatActionItems, formatMinutes, formatSummaryTab, formatTranscript } from "$lib/minutes";
   import { formatDateTime, formatDuration, formatTime, formatTimestamp } from "$lib/format";
   import { id as t } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
@@ -186,16 +187,6 @@
     }
   }
 
-  async function copyText(text: string, okText: string) {
-    copyOpen = false;
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast(okText, "success");
-    } catch {
-      showToast(t.minutes.copyFailed, "error");
-    }
-  }
-
   /** `{judul}_{YYYY-MM-DD}.{ext}`; karakter ilegal Windows diganti `_` (PRD §14.7). */
   function exportName(ext: string): string {
     const d = new Date(meeting!.startedAt);
@@ -239,8 +230,6 @@
     }
   }
 
-  const copyMinutes = (style: MinutesStyle) => meeting && copyText(formatMinutes(meeting, style), t.minutes.copied);
-  const copyActions = () => meeting && copyText(formatActionItems(meeting, "text"), t.minutes.actionsCopied);
 
   function label(ch: "mic" | "system") {
     return ch === "mic" ? meeting!.labels.mic : meeting!.labels.system;
@@ -313,29 +302,13 @@
               aria-expanded={copyOpen}
               onclick={() => (copyOpen = !copyOpen)}
             >
-              <Icon name="copy" size={16} />
-              {t.minutes.menu}
+              {t.minutes.menu} ▾
             </button>
             {#if copyOpen}
               <div
                 role="menu"
                 class="absolute right-0 z-20 mt-1 flex w-56 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
               >
-                <button type="button" role="menuitem" class="px-4 py-2 text-left hover:bg-gray-100" onclick={() => copyMinutes("text")}>
-                  {t.minutes.copyPlain}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="px-4 py-2 text-left hover:bg-gray-100"
-                  onclick={() => copyMinutes("whatsapp")}
-                >
-                  {t.minutes.copyWhatsapp}
-                </button>
-                <button type="button" role="menuitem" class="px-4 py-2 text-left hover:bg-gray-100" onclick={copyActions}>
-                  {t.minutes.copyActions}
-                </button>
-                <hr class="my-1 border-gray-200" />
                 <button
                   type="button"
                   role="menuitem"
@@ -509,15 +482,18 @@
                   </select>
                 </label>
               {/if}
-              {#if meeting.status === "done"}
-                <button
-                  type="button"
-                  class="ml-auto rounded-lg px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-50"
-                  onclick={() => (editingSummary = true)}
-                >
-                  {t.edit.button}
-                </button>
-              {/if}
+              <div class="ml-auto flex items-center gap-1.5">
+                <CopyButton text={(style) => formatSummaryTab(meeting!, style)} whatsapp />
+                {#if meeting.status === "done"}
+                  <button
+                    type="button"
+                    class="rounded-lg px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-50"
+                    onclick={() => (editingSummary = true)}
+                  >
+                    {t.edit.button}
+                  </button>
+                {/if}
+              </div>
             </div>
             <p class="leading-relaxed whitespace-pre-line text-gray-800">{meeting.summary.summary}</p>
           </div>
@@ -546,15 +522,20 @@
         {#if !meeting.summary}
           <p class="text-gray-500">{processing ? t.detail.processing : "—"}</p>
         {:else}
-          {#if meeting.status === "done"}
-            <button
-              type="button"
-              class="self-end rounded-lg px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-50"
-              onclick={() => (editingSummary = true)}
-            >
-              {t.edit.button}
-            </button>
-          {/if}
+          <div class="flex items-center justify-end gap-1.5">
+            {#if meeting.actionItems.length > 0}
+              <CopyButton text={(style) => formatActionItems(meeting!, style)} whatsapp okText={t.minutes.actionsCopied} />
+            {/if}
+            {#if meeting.status === "done"}
+              <button
+                type="button"
+                class="rounded-lg px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-50"
+                onclick={() => (editingSummary = true)}
+              >
+                {t.edit.button}
+              </button>
+            {/if}
+          </div>
           {#if meeting.actionItems.length === 0}
             <p class="text-gray-600">{t.detail.noActionItems}</p>
           {:else}
@@ -593,6 +574,9 @@
           <button type="submit" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">
             {t.edit.speakerSave}
           </button>
+          <div class="ml-auto self-center">
+            <CopyButton text={() => formatTranscript(meeting!, transcript)} okText={t.minutes.transcriptCopied} />
+          </div>
           <span class="w-full text-xs text-gray-500">{t.edit.speakerHint}</span>
         </form>
         {#if audioSrc || audioLoading}

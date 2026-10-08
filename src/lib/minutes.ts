@@ -35,13 +35,39 @@ export function formatActionItem(a: ActionItem, style: MinutesStyle): string {
   return `- ${line}`;
 }
 
-/** Hanya daftar action item (tombol "Salin action items"). */
+function titleLine(m: MeetingDetail, style: MinutesStyle): string {
+  return style === "markdown" ? `# ${m.title}` : style === "whatsapp" ? `*${m.title}*` : m.title;
+}
+
+/** Tab Ringkasan: judul, tanggal, ringkasan, keputusan, topik. */
+export function formatSummaryTab(m: MeetingDetail, style: MinutesStyle): string {
+  const out = [titleLine(m, style), dateLine(m, style), ""];
+  const s = m.summary;
+  out.push(heading(t.detail.summary, style));
+  out.push(s?.status === "ok" && s.summary ? s.summary : s?.status === "empty" ? t.summary.noSpeech : "—", "");
+  out.push(heading(t.detail.decisions, style));
+  if (!s || s.decisions.length === 0) out.push(t.detail.noDecisions);
+  else out.push(...s.decisions.map((d) => bullet(style) + d));
+  if (s && s.topics.length > 0) out.push("", heading(t.detail.topics, style), s.topics.join(", "));
+  return out.join("\n").trimEnd() + "\n";
+}
+
+/** Tab Action Items: judul meeting lalu daftar tugas. */
 export function formatActionItems(m: MeetingDetail, style: MinutesStyle): string {
-  const lines = [style === "markdown" ? `# ${t.minutes.actionItemsOf(m.title)}` : heading(t.minutes.actionItemsOf(m.title), style)];
-  lines.push("");
+  const lines = [heading(t.minutes.actionItemsOf(m.title), style), ""];
   if (m.actionItems.length === 0) lines.push(t.detail.noActionItems);
   else lines.push(...m.actionItems.map((a) => formatActionItem(a, style)));
-  return lines.join("\n");
+  return lines.join("\n") + "\n";
+}
+
+/** Tab Transkrip: satu baris per segment `[HH:MM:SS] Label: teks`. */
+export function formatTranscript(m: MeetingDetail, transcript: TranscriptSegment[]): string {
+  const lines = [m.title, dateLine(m, "text"), ""];
+  for (const seg of transcript) {
+    const who = seg.channel === "mic" ? m.labels.mic : m.labels.system;
+    lines.push(`[${formatTimestamp(seg.startMs)}] ${who}: ${seg.text}`);
+  }
+  return lines.join("\n") + "\n";
 }
 
 /** Notulen lengkap; transkrip hanya disertakan jika diberikan (ekspor). */
