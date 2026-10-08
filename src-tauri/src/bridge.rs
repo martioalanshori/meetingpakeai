@@ -223,7 +223,7 @@ impl TauriBridge {
                 let _ = tray.set_tooltip(Some(tip));
             }
             if let Some(item) = item {
-                let _ = item.set_text(if recording { "Stop rekam" } else { "Mulai rekam" });
+                let _ = item.set_text(if recording { "Hentikan rekaman" } else { "Mulai rekam" });
             }
         });
     }

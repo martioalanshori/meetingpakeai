@@ -66,24 +66,24 @@
 
 <form class="flex flex-col gap-5" onsubmit={save}>
   <label class="flex flex-col gap-1">
-    <span class="font-semibold">{t.detail.summary}</span>
+    <span class="label">{t.detail.summary}</span>
     <textarea class={input} rows="6" bind:value={summary}></textarea>
   </label>
 
   <label class="flex flex-col gap-1">
-    <span class="font-semibold">{t.detail.decisions}</span>
+    <span class="label">{t.detail.decisions}</span>
     <textarea class={input} rows="4" bind:value={decisions}></textarea>
-    <span class="text-sm text-ink-soft">{t.edit.decisionsHint}</span>
+    <span class="hint">{t.edit.decisionsHint}</span>
   </label>
 
   <label class="flex flex-col gap-1">
-    <span class="font-semibold">{t.detail.topics}</span>
+    <span class="label">{t.detail.topics}</span>
     <input class={input} bind:value={topics} />
-    <span class="text-sm text-ink-soft">{t.edit.topicsHint}</span>
+    <span class="hint">{t.edit.topicsHint}</span>
   </label>
 
   <fieldset class="flex flex-col gap-2">
-    <legend class="mb-1 font-semibold">{t.detail.tabActionItems}</legend>
+    <legend class="label mb-1">{t.detail.tabActionItems}</legend>
     {#each rows as r, i (i)}
       <div class="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-sheet p-2">
         <input type="checkbox" class="h-4 w-4" bind:checked={r.done} aria-label={t.edit.done} />

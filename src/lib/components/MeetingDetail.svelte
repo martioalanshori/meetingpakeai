@@ -459,7 +459,7 @@
         <Icon name="alert-circle" size={18} class="shrink-0" />
         <span class="flex-1 text-sm font-medium">{meeting.errorMessage ?? t.errors.INTERNAL}</span>
         {#if meeting.errorMessage?.includes("Pengaturan") || meeting.errorCode === "INVALID_API_KEY" || meeting.errorCode === "NO_API_KEY"}
-          <a href="/settings" class="btn btn-line btn-sm">{t.home.openSettings}</a>
+          <a href="/settings?tab=ai" class="btn btn-line btn-sm">{t.home.openSettings}</a>
         {/if}
         <button type="button" class="btn btn-ink btn-sm" onclick={() => act(() => api.retryJob(meetingId), t.toast.requeued)}>
           {t.detail.retry}

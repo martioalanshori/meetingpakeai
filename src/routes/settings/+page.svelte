@@ -2,7 +2,11 @@
   import { onMount } from "svelte";
   import { getVersion } from "@tauri-apps/api/app";
   import { api } from "$lib/api";
+  import { page } from "$app/state";
   import AiProviderSection from "$lib/components/AiProviderSection.svelte";
+  import ChoiceCards from "$lib/components/ChoiceCards.svelte";
+  import Icon from "$lib/components/Icon.svelte";
+  import Switch from "$lib/components/Switch.svelte";
   import ShortcutInput from "$lib/components/ShortcutInput.svelte";
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
@@ -13,7 +17,7 @@
   const t = id.settings;
 
   let form = $state<Settings | null>(null);
-  let saving = $state(false);
+  let loadError = $state<string | null>(null);
   let version = $state("");
   let storage = $state<{ recordingsBytes: number; clearableMeetings: number } | null>(null);
 
@@ -74,158 +78,206 @@
     }
   }
 
+  type Section = "recording" | "ai" | "app" | "help";
+  const sections: { key: Section; label: string }[] = [
+    { key: "recording", label: t.sectionRecording },
+    { key: "ai", label: t.sectionAi },
+    { key: "app", label: t.sectionApp },
+    { key: "help", label: t.sectionHelp },
+  ];
+  // `?tab=ai` dari banner "antrean dijeda" langsung membuka Layanan AI.
+  const initial = page.url.searchParams.get("tab");
+  let section = $state<Section>(sections.some((x) => x.key === initial) ? (initial as Section) : "recording");
+
+  let nameDraft = $state("");
+
   onMount(async () => {
     setWindowTitle(t.title);
     try {
       form = await api.getSettings();
-      version = await getVersion();
-      storage = await api.getStorageUsage().catch(() => null);
+      nameDraft = form.userDisplayName;
     } catch (e) {
-      showToast((e as AppError).message, "error");
+      loadError = (e as AppError).message;
     }
+    version = await getVersion().catch(() => "");
+    storage = await api.getStorageUsage().catch(() => null);
   });
 
-  async function save(e: SubmitEvent) {
-    e.preventDefault();
+  /** Simpan satu perubahan langsung (tanpa tombol Simpan); gagal → nilai dikembalikan. */
+  async function patch(change: Partial<Settings>) {
     if (!form) return;
-    saving = true;
+    const before = $state.snapshot(form);
+    form = { ...form, ...change };
     try {
-      form = await api.updateSettings({ ...form });
-      showToast(id.toast.settingsSaved, "success");
-    } catch (err) {
-      showToast((err as AppError).message, "error");
-    } finally {
-      saving = false;
+      form = await api.updateSettings(change);
+      showToast(id.toast.settingsSaved, "success", 2000);
+    } catch (e) {
+      form = before;
+      showToast((e as AppError).message, "error");
     }
+  }
+
+  async function saveName() {
+    if (!form) return;
+    const v = nameDraft.trim();
+    if (v === form.userDisplayName) return;
+    await patch({ userDisplayName: v });
+    nameDraft = form?.userDisplayName ?? v;
   }
 </script>
 
-<main class="mx-auto flex w-full max-w-3xl flex-col px-6 pt-7 pb-16 xl:px-10">
-  <h1 class="mb-2 text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
-
-  {#if form}
-    <form onsubmit={save}>
-      <section class="flex flex-col gap-5 border-b border-line py-7">
-        <h2 class="text-lg font-bold">{t.sectionRecording}</h2>
-
-        <fieldset class="flex flex-col gap-1.5">
-          <legend class="mb-1 font-medium">{t.language}</legend>
-          <label class="flex items-center gap-2">
-            <input type="radio" name="lang" value="id" bind:group={form.sttLanguage} />
-            {t.langId}
-          </label>
-          <label class="flex items-center gap-2">
-            <input type="radio" name="lang" value="auto" bind:group={form.sttLanguage} />
-            {t.langAuto}
-          </label>
-          <span class="text-sm text-ink-soft">{t.langAutoNote}</span>
-        </fieldset>
-
-        <fieldset class="flex flex-col gap-1.5">
-          <legend class="mb-1 font-medium">{t.retention}</legend>
-          <label class="flex items-center gap-2">
-            <input type="radio" name="retention" value="after_transcript" bind:group={form.audioRetention} />
-            {t.retentionAfter}
-          </label>
-          <label class="flex items-center gap-2">
-            <input type="radio" name="retention" value="days7" bind:group={form.audioRetention} />
-            {t.retentionDays7}
-          </label>
-          <label class="flex items-center gap-2">
-            <input type="radio" name="retention" value="forever" bind:group={form.audioRetention} />
-            {t.retentionForever}
-          </label>
-          <span class="text-sm text-ink-soft">{t.retentionNote}</span>
-        </fieldset>
-
-      <label class="flex items-start gap-3">
-        <input type="checkbox" class="mt-1 h-4 w-4" bind:checked={form.meetingDetection} />
-        <span class="flex flex-col gap-0.5">
-          <span class="font-medium">{t.meetingDetection}</span>
-          <span class="text-sm text-ink-soft">{t.meetingDetectionNote}</span>
-        </span>
-      </label>
-
-        <div class="flex flex-col gap-1.5">
-          <span class="font-medium">{t.shortcut}</span>
-          <ShortcutInput bind:value={form.globalShortcut} />
-          <span class="max-w-prose text-sm text-ink-soft">{t.shortcutHint}</span>
-        </div>
-      </section>
-
-      <section class="flex flex-col gap-5 border-b border-line py-7">
-        <h2 class="text-lg font-bold">{t.sectionApp}</h2>
-
-        <label class="flex flex-col gap-1.5">
-          <span class="font-medium">{t.displayName}</span>
-          <input class="field max-w-sm" maxlength="50" bind:value={form.userDisplayName} />
-          <span class="text-sm text-ink-soft">{t.displayNameHint}</span>
-        </label>
-
-      <label class="flex items-start gap-3">
-        <input type="checkbox" class="mt-1 h-4 w-4" bind:checked={form.autostart} />
-        <span class="flex flex-col gap-0.5">
-          <span class="font-medium">{t.autostart}</span>
-          <span class="text-sm text-ink-soft">{t.autostartNote}</span>
-        </span>
-      </label>
-      <label class="flex items-start gap-3">
-        <input type="checkbox" class="mt-1 h-4 w-4" bind:checked={form.minimizeToTray} />
-        <span class="flex flex-col gap-0.5">
-          <span class="font-medium">{t.minimizeToTray}</span>
-          <span class="text-sm text-ink-soft">{t.minimizeToTrayNote}</span>
-        </span>
-      </label>
-
-        <button type="submit" class="btn btn-ink self-start" disabled={saving}>{t.save}</button>
-      </section>
-    </form>
-  {/if}
-
-  <section class="border-b border-line py-7">
-    <AiProviderSection />
-  </section>
-
-  {#if storage}
-    <section class="flex flex-col items-start gap-2 border-b border-line py-7">
-      <h2 class="section-title">{t.storage}</h2>
-      <p>{t.storageUsed(formatBytes(storage.recordingsBytes))}</p>
-      <button type="button" class="btn btn-line btn-sm" disabled={storage.clearableMeetings === 0} onclick={clearAudio}>
-        {t.storageClear}
-      </button>
-      {#if storage.clearableMeetings === 0}<span class="hint">{t.storageNothing}</span>{/if}
-    </section>
-  {/if}
-
-  <section class="flex flex-col gap-4 py-7">
-    <h2 class="text-lg font-bold">{t.sectionHelp}</h2>
-    <div class="flex flex-col items-start gap-1.5">
-      <button type="button" class="btn btn-line" onclick={saveReport}>{t.report}</button>
-      <span class="max-w-prose text-sm text-ink-soft">{t.reportNote}</span>
+{#snippet toggleRow(label: string, hint: string, checked: boolean, onchange: (v: boolean) => void)}
+  <div class="flex items-start justify-between gap-6 py-4">
+    <div class="flex flex-col gap-0.5">
+      <span class="label">{label}</span>
+      <span class="hint max-w-prose">{hint}</span>
     </div>
-    <div class="flex flex-wrap items-center gap-2">
-      {#if version}<span class="tabular mr-2 text-ink-soft">{t.version(version)}</span>{/if}
-      {#if update}
-        <button type="button" class="btn btn-ink" disabled={updateBusy} onclick={installUpdate}>{t.installUpdate}</button>
-      {:else}
-        <button type="button" class="btn btn-line" disabled={updateBusy} onclick={checkUpdate}>
-          {updateBusy ? t.checkingUpdate : t.checkUpdate}
-        </button>
-      {/if}
+    <Switch {checked} {label} {onchange} />
+  </div>
+{/snippet}
+
+<main class="mx-auto flex w-full max-w-3xl flex-col px-6 pt-7 pb-16 xl:px-10">
+  <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
+
+  <nav class="mt-5 flex gap-1 overflow-x-auto border-b border-line" aria-label={t.title}>
+    {#each sections as sec (sec.key)}
       <button
         type="button"
-        class="btn btn-quiet"
-        onclick={() => api.openLogFolder().catch((e: AppError) => showToast(e.message, "error"))}
+        class={[
+          "-mb-px border-b-2 px-3 pt-1 pb-2.5 text-base whitespace-nowrap",
+          section === sec.key ? "border-ink font-semibold text-ink" : "border-transparent text-ink-soft hover:text-ink",
+        ]}
+        aria-current={section === sec.key ? "page" : undefined}
+        onclick={() => (section = sec.key)}
       >
-        {t.openLogs}
+        {sec.label}
       </button>
+    {/each}
+  </nav>
+
+  {#if loadError}
+    <div role="alert" class="mt-6 flex flex-wrap items-center gap-3 rounded-xl bg-bad-wash px-4 py-3 text-bad">
+      <span class="flex-1 text-sm font-medium">{loadError}</span>
+      <button type="button" class="btn btn-ink btn-sm" onclick={() => location.reload()}>{id.common.retry}</button>
     </div>
-    {#if update}
-      <p class="text-sm">{t.updateAvailable(update.version)}</p>
-      {#if update.notes}<p class="max-w-prose text-sm whitespace-pre-line text-ink-soft">{update.notes}</p>{/if}
-    {/if}
-    {#if updateMsg}
-      <p class="text-sm text-ink-soft" role="status">{updateMsg}</p>
-    {/if}
-  </section>
+  {:else if !form && (section === "recording" || section === "app")}
+    <div class="mt-6 flex flex-col gap-4 motion-safe:animate-pulse" aria-hidden="true">
+      <div class="h-5 w-1/3 rounded bg-line-soft"></div>
+      <div class="h-16 rounded-lg bg-line-soft"></div>
+      <div class="h-16 rounded-lg bg-line-soft"></div>
+    </div>
+  {:else if section === "recording" && form}
+    <section class="flex flex-col divide-y divide-line-soft">
+      <div class="flex flex-col gap-2.5 py-5">
+        <span class="label">{t.language}</span>
+        <ChoiceCards
+          name="lang"
+          value={form.sttLanguage}
+          options={[
+            { value: "id", label: t.langId, hint: t.langIdHint },
+            { value: "auto", label: t.langAuto, hint: t.langAutoNote },
+          ]}
+          onchange={(v) => patch({ sttLanguage: v })}
+        />
+      </div>
+      <div class="flex flex-col gap-2.5 py-5">
+        <span class="label">{t.retention}</span>
+        <ChoiceCards
+          name="retention"
+          value={form.audioRetention}
+          options={[
+            { value: "after_transcript", label: t.retentionAfter, hint: t.retentionAfterHint },
+            { value: "days7", label: t.retentionDays7, hint: t.retentionDays7Hint },
+            { value: "forever", label: t.retentionForever, hint: t.retentionForeverHint },
+          ]}
+          onchange={(v) => patch({ audioRetention: v })}
+        />
+      </div>
+      {@render toggleRow(t.meetingDetection, t.meetingDetectionNote, form.meetingDetection, (v) =>
+        patch({ meetingDetection: v }),
+      )}
+      <div class="flex flex-col gap-2 py-5">
+        <label class="label" for="shortcut-input">{t.shortcut}</label>
+        <ShortcutInput inputId="shortcut-input" value={form.globalShortcut} onchange={(v) => patch({ globalShortcut: v })} />
+        <span class="hint max-w-prose">{t.shortcutHint}</span>
+      </div>
+      {#if storage}
+        <div class="flex flex-wrap items-center justify-between gap-4 py-5">
+          <div class="flex flex-col gap-0.5">
+            <span class="label">{t.storage}</span>
+            <span class="hint">{t.storageUsed(formatBytes(storage.recordingsBytes))}</span>
+          </div>
+          <button type="button" class="btn btn-line btn-sm" disabled={storage.clearableMeetings === 0} onclick={clearAudio}>
+            <Icon name="trash" size={14} />{t.storageClear}
+          </button>
+        </div>
+      {/if}
+    </section>
+  {:else if section === "ai"}
+    <section class="py-6">
+      <AiProviderSection />
+    </section>
+  {:else if section === "app" && form}
+    <section class="flex flex-col divide-y divide-line-soft">
+      <div class="flex flex-col gap-2 py-5">
+        <label class="label" for="display-name">{t.displayName}</label>
+        <input
+          id="display-name"
+          class="field max-w-sm"
+          maxlength="50"
+          bind:value={nameDraft}
+          onblur={saveName}
+          onkeydown={(e) => {
+            if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
+          }}
+        />
+        <span class="hint max-w-prose">{t.displayNameHint}</span>
+      </div>
+      {@render toggleRow(t.autostart, t.autostartNote, form.autostart, (v) => patch({ autostart: v }))}
+      {@render toggleRow(t.minimizeToTray, t.minimizeToTrayNote, form.minimizeToTray, (v) => patch({ minimizeToTray: v }))}
+    </section>
+  {:else if section === "help"}
+    <section class="flex flex-col divide-y divide-line-soft">
+      <div class="flex flex-wrap items-center justify-between gap-4 py-5">
+        <div class="flex flex-col gap-0.5">
+          <span class="label">{t.reportTitle}</span>
+          <span class="hint max-w-prose">{t.reportNote}</span>
+        </div>
+        <button type="button" class="btn btn-line btn-sm" onclick={saveReport}>{t.report}</button>
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-4 py-5">
+        <div class="flex flex-col gap-0.5">
+          <span class="label">{t.logsTitle}</span>
+          <span class="hint">{t.logsHint}</span>
+        </div>
+        <button
+          type="button"
+          class="btn btn-line btn-sm"
+          onclick={() => api.openLogFolder().catch((e: AppError) => showToast(e.message, "error"))}
+        >
+          {t.openLogs}
+        </button>
+      </div>
+      <div class="flex flex-col gap-2 py-5">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div class="flex flex-col gap-0.5">
+            <span class="label">{t.updatesTitle}</span>
+            {#if version}<span class="hint tabular">{t.version(version)}</span>{/if}
+          </div>
+          {#if update}
+            <button type="button" class="btn btn-ink btn-sm" disabled={updateBusy} onclick={installUpdate}>{t.installUpdate}</button>
+          {:else}
+            <button type="button" class="btn btn-line btn-sm" disabled={updateBusy} onclick={checkUpdate}>
+              {updateBusy ? t.checkingUpdate : t.checkUpdate}
+            </button>
+          {/if}
+        </div>
+        {#if update}
+          <p class="text-sm">{t.updateAvailable(update.version)}</p>
+          {#if update.notes}<p class="hint max-w-prose whitespace-pre-line">{update.notes}</p>{/if}
+        {/if}
+        {#if updateMsg}<p class="hint" role="status">{updateMsg}</p>{/if}
+      </div>
+    </section>
+  {/if}
 </main>

@@ -2,6 +2,8 @@
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { api } from "$lib/api";
   import ClipboardKeyHint from "$lib/components/ClipboardKeyHint.svelte";
+  import Icon from "$lib/components/Icon.svelte";
+  import Menu from "$lib/components/Menu.svelte";
   import { confirmDialog } from "$lib/confirm.svelte";
   import { id } from "$lib/i18n/id";
   import type { AiConfig, AiRole, AppError, Endpoint } from "$lib/types";
@@ -94,22 +96,25 @@
 
   <div class="grid gap-3 sm:grid-cols-2">
     <label class="flex flex-col gap-1.5">
-      <span class="text-sm font-medium">{t.provider}</span>
-      <select class="field" value={draft.provider} onchange={changeProvider}>
-        {#each presets as p (p.id)}
-          <option value={p.id}>{p.name}</option>
-        {/each}
-      </select>
+      <span class="label">{t.provider}</span>
+      <span class="relative">
+        <select class="field w-full appearance-none pr-9" value={draft.provider} onchange={changeProvider}>
+          {#each presets as p (p.id)}
+            <option value={p.id}>{p.name}</option>
+          {/each}
+        </select>
+        <Icon name="chevron-down" size={16} class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-ink-soft" />
+      </span>
     </label>
     <label class="flex flex-col gap-1.5">
-      <span class="text-sm font-medium">{t.model}</span>
+      <span class="label">{t.model}</span>
       <input class="field" spellcheck="false" bind:value={draft.model} placeholder={t.modelPlaceholder} />
     </label>
   </div>
 
   {#if draft.provider === "custom"}
     <label class="flex flex-col gap-1.5">
-      <span class="text-sm font-medium">{t.baseUrl}</span>
+      <span class="label">{t.baseUrl}</span>
       <input class="field" spellcheck="false" bind:value={draft.baseUrl} placeholder="http://localhost:11434/v1" />
       <span class="text-sm text-ink-soft">{t.baseUrlHint}</span>
     </label>
@@ -117,19 +122,24 @@
 
   <div class="flex flex-col gap-1.5">
     <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <span class="text-sm font-medium">{t.apiKey}</span>
+      <span class="label">{t.apiKey}</span>
       <span class={["flex items-center gap-1.5 text-sm", keySet ? "text-ok" : "text-ink-soft"]}>
         <span class={["h-2 w-2 rounded-full", keySet ? "bg-ok" : "bg-ink-faint"]} aria-hidden="true"></span>
         {keySet ? t.keySaved : preset?.keyRequired === false ? t.keyOptional : t.keyMissing}
       </span>
       {#if keySet && !changingKey}
-        <button type="button" class="btn btn-quiet py-1" onclick={() => (changingKey = true)}>{t.changeKey}</button>
-        <button type="button" class="btn btn-danger py-1" onclick={removeKey}>{t.removeKey}</button>
-      {/if}
-      {#if preset?.keyUrl}
-        <button type="button" class="link ml-auto text-sm" onclick={() => openUrl(preset!.keyUrl!)}>
-          {t.getKey(preset.name)}
-        </button>
+        <div class="ml-auto">
+          <Menu
+            label={t.keyActions}
+            triggerClass="btn btn-quiet btn-sm"
+            items={[
+              { label: t.changeKey, icon: "pencil", onselect: () => (changingKey = true) },
+              { label: t.removeKey, icon: "trash", danger: true, onselect: removeKey },
+            ]}
+          >
+            {#snippet trigger()}{t.keyActions}<Icon name="chevron-down" size={14} />{/snippet}
+          </Menu>
+        </div>
       {/if}
     </div>
     {#if showKeyInput}
@@ -145,6 +155,11 @@
         aria-label={t.apiKey}
         bind:value={keyInput}
       />
+      {#if preset?.keyUrl}
+        <button type="button" class="link self-start text-sm" onclick={() => openUrl(preset!.keyUrl!)}>
+          {t.getKey(preset.name)}
+        </button>
+      {/if}
     {/if}
   </div>
 
@@ -152,6 +167,9 @@
     <button type="submit" class="btn btn-ink" disabled={busy || !dirty}>
       {busy ? t.testing : t.testAndSave}
     </button>
+    {#if !dirty && !busy && !message}
+      <span class="hint">{t.nothingToTest}</span>
+    {/if}
     {#if message}
       <p
         role="status"

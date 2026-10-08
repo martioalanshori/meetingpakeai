@@ -1,4 +1,12 @@
 // SEMUA teks UI ada di sini (PRD §14, §15). Komponen tidak boleh berisi teks UI langsung.
+//
+// Glosarium (satu istilah per konsep):
+// - Notulen  = dokumen hasil satu meeting (ringkasan + keputusan + tugas + topik).
+// - Ringkasan = paragraf ringkas di dalam notulen.
+// - Tugas    = action item (bukan "Action Items").
+// - Mikrofon = suara Anda; Audio komputer = suara peserta lain (channel sistem).
+// - Kata kerja: "Ubah" (bukan Edit), "Hentikan rekaman" (bukan Stop).
+// - Toast satu klausa tanpa titik di akhir.
 import type { Channel, ErrorCode, MeetingStatus } from "../types";
 
 export const id = {
@@ -26,12 +34,12 @@ export const id = {
 
   home: {
     startRecording: "Mulai rekam",
-    stopRecording: "Stop rekam",
+    stopRecording: "Hentikan rekaman",
     starting: "Memulai…",
     stopping: "Menghentikan…",
     settings: "Pengaturan",
     emptyTitle: "Belum ada meeting",
-    empty: "Tekan Mulai rekam di kiri saat meeting dimulai. Notulen muncul di sini beberapa menit setelah Anda menekan Stop.",
+    empty: "Tekan Mulai rekam saat meeting dimulai. Notulen muncul di sini tidak lama setelah rekaman dihentikan.",
     loadMore: "Muat lebih banyak",
     interrupted: (title: string) =>
       `Rekaman "${title}" terputus karena aplikasi tertutup tidak normal. Audio sampai sebelum terputus masih bisa diproses.`,
@@ -53,7 +61,7 @@ export const id = {
       summary: "Ringkasan",
       decision: "Keputusan",
       topic: "Topik",
-      action: "Action item",
+      action: "Tugas",
       transcript: "Transkrip",
     },
   },
@@ -63,7 +71,7 @@ export const id = {
     onlyMine: (name: string) => `Hanya untuk saya (PJ: ${name})`,
     showDone: "Tampilkan yang sudah selesai",
     emptyTitle: "Tidak ada tugas",
-    empty: "Action item dari notulen yang selesai akan muncul di sini. Ubah filter di atas untuk melihat tugas orang lain atau yang sudah selesai.",
+    empty: "Tugas dari notulen yang selesai akan muncul di sini. Ubah filter di atas untuk melihat tugas orang lain atau yang sudah selesai.",
   },
 
   status: {
@@ -102,27 +110,27 @@ export const id = {
     resume: "Lanjutkan",
     mute: "Matikan mikrofon",
     unmute: "Nyalakan mikrofon",
-    stop: "Stop rekam",
+    stop: "Hentikan rekaman",
     openMain: "Buka Meeting Pake AI",
     mic: "Mikrofon",
     system: "Audio komputer",
     deviceLost: (channel: Channel) =>
       channel === "mic"
         ? "Mikrofon terputus. Rekaman lanjut tanpa mikrofon."
-        : "Audio sistem terputus. Rekaman lanjut tanpa audio sistem.",
-    autoStop: "Tidak ada suara 10 menit. Stop rekam?",
-    meetingEnded: "Meeting sepertinya sudah selesai. Stop rekam?",
+        : "Audio komputer terputus. Rekaman lanjut tanpa audio komputer.",
+    autoStop: "Tidak ada suara 10 menit. Hentikan rekaman?",
+    meetingEnded: "Meeting sepertinya sudah selesai. Hentikan rekaman?",
     autoStopCountdown: (s: number) => `Berhenti otomatis dalam ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`,
     liveTranscribing: "Transkrip berjalan",
     writeFailed: "Audio tidak bisa disimpan (disk penuh?). Rekaman dihentikan; audio yang sudah terekam aman.",
-    systemSilent: "Audio sistem tidak terdengar 2 menit. Periksa volume dan perangkat output.",
-    autoStopStop: "Stop",
+    systemSilent: "Audio komputer tidak terdengar 2 menit. Periksa volume dan perangkat output.",
+    autoStopStop: "Hentikan",
     autoStopContinue: "Lanjut",
   },
 
   detail: {
     tabSummary: "Ringkasan",
-    tabActionItems: "Action Items",
+    tabActionItems: "Tugas",
     tabTranscript: "Transkrip",
     processing: "Sedang diproses…",
     retry: "Coba lagi",
@@ -140,7 +148,7 @@ export const id = {
     decisions: "Keputusan",
     topics: "Topik",
     noDecisions: "Tidak ada keputusan yang tercatat.",
-    noActionItems: "Tidak ada action item.",
+    noActionItems: "Tidak ada tugas.",
     assignee: "PJ:",
     due: "Tenggat:",
     emptyTranscript: "Tidak ada transkrip.",
@@ -160,7 +168,7 @@ export const id = {
   },
 
   edit: {
-    button: "Edit",
+    button: "Ubah",
     edited: "Diedit",
     save: "Simpan perubahan",
     saved: "Notulen disimpan",
@@ -190,7 +198,7 @@ export const id = {
     sttTitle: "Transkrip",
     sttHint: "Mengubah rekaman suara menjadi teks.",
     llmTitle: "Ringkasan",
-    llmHint: "Membuat judul, ringkasan, keputusan, dan action item dari transkrip.",
+    llmHint: "Membuat judul, ringkasan, keputusan, dan tugas dari transkrip.",
     provider: "Penyedia",
     model: "Model",
     modelPlaceholder: "Nama model",
@@ -201,8 +209,10 @@ export const id = {
     keyMissing: "Belum diatur",
     keyOptional: "Opsional untuk server ini",
     keyPlaceholder: "Kosongkan jika server tidak memakai key",
-    changeKey: "Ganti",
-    removeKey: "Hapus",
+    changeKey: "Ganti key",
+    removeKey: "Hapus key",
+    keyActions: "Kelola",
+    nothingToTest: "Ubah penyedia, model, atau API key untuk menguji ulang.",
     removeConfirm: (name: string) => `Hapus API key ${name}?`,
     removeMessage: "Key dihapus dari Windows Credential Manager. Pemrosesan yang memakai penyedia ini berhenti sampai key baru diisi.",
     removed: "API key dihapus",
@@ -223,11 +233,11 @@ export const id = {
 
   minutes: {
     date: "Tanggal",
-    actionItemsOf: (title: string) => `Action items — ${title}`,
+    actionItemsOf: (title: string) => `Tugas — ${title}`,
     copyTab: "Salin",
     copiedShort: "Tersalin",
     copied: "Ringkasan disalin",
-    actionsCopied: "Action items disalin",
+    actionsCopied: "Tugas disalin",
     transcriptCopied: "Transkrip disalin",
     copyFailed: "Gagal menyalin ke clipboard",
     exportMd: "Ekspor Markdown (.md)",
@@ -246,7 +256,8 @@ export const id = {
     general: "Umum",
     sectionRecording: "Rekaman",
     sectionApp: "Aplikasi",
-    sectionHelp: "Bantuan & versi",
+    sectionAi: "Layanan AI",
+    sectionHelp: "Bantuan",
     storage: "Penyimpanan audio",
     storageUsed: (size: string) => `Audio rekaman memakai ${size} di komputer ini.`,
     storageClear: "Hapus audio meeting yang sudah selesai",
@@ -256,19 +267,24 @@ export const id = {
     storageCleared: (n: number) => `Audio ${n} meeting dihapus.`,
     storageNothing: "Tidak ada audio meeting selesai yang bisa dihapus.",
     displayName: "Nama Anda",
-    displayNameHint: 'Label suara Anda di transkrip (menggantikan "Saya").',
+    displayNameHint: 'Dipakai sebagai penanggung jawab (PJ) di notulen dan untuk filter "Hanya tugas saya".',
     language: "Bahasa transkrip",
     langId: "Indonesia",
     langAuto: "Otomatis",
-    langAutoNote: "Otomatis untuk meeting campuran Inggris.",
+    langAutoNote: "Untuk meeting yang bercampur bahasa Inggris.",
+    langIdHint: "Paling akurat untuk meeting berbahasa Indonesia.",
     retention: "Simpan audio rekaman",
-    retentionAfter: "Hapus setelah transkrip selesai (paling hemat disk)",
-    retentionDays7: "Simpan 7 hari (bisa diputar & ditranskrip ulang)",
+    retentionAfter: "Hapus setelah transkrip selesai",
+    retentionAfterHint: "Paling hemat disk; audio tidak bisa diputar.",
+    retentionDays7: "Simpan 7 hari",
+    retentionDays7Hint: "Bisa diputar dan ditranskrip ulang selama seminggu.",
     retentionForever: "Simpan selamanya",
+    retentionForeverHint: "Audio tidak pernah dihapus otomatis.",
     retentionNote: "Tanpa audio, fitur Putar audio dan Transkrip ulang tidak tersedia.",
     minimizeToTray: "Tutup ke tray",
     minimizeToTrayNote: "Tombol tutup menyembunyikan aplikasi ke tray; antrean tetap diproses.",
-    shortcut: "Shortcut Mulai/Stop rekam",
+    shortcut: "Shortcut mulai/hentikan rekaman",
+    shortcutPlaceholder: "Tekan kombinasi tombol",
     shortcutHint: "Tekan kombinasi tombol di kolom ini (mis. Ctrl+Alt+R). Berlaku dari aplikasi mana pun. Kosongkan untuk mematikan.",
     shortcutClear: "Matikan",
     autostart: "Jalankan saat Windows menyala",
@@ -280,7 +296,11 @@ export const id = {
     about: "Tentang",
     version: (v: string) => `Versi ${v}`,
     openLogs: "Buka folder log",
-    report: "Kirim laporan masalah",
+    report: "Simpan laporan…",
+    reportTitle: "Laporan masalah",
+    logsTitle: "Log aplikasi",
+    logsHint: "Catatan teknis untuk menelusuri masalah.",
+    updatesTitle: "Pembaruan",
     reportNote: "Menyimpan file berisi versi aplikasi, pengaturan (tanpa nama & API key), dan log. Tanpa audio, transkrip, atau ringkasan. Kirim file ini ke pengembang secara manual.",
     reportSaved: "Laporan disimpan",
     checkUpdate: "Cek pembaruan",

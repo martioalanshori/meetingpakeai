@@ -216,7 +216,7 @@
   {#if queuePaused}
     <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl bg-bad-wash px-4 py-3 text-bad">
       <span class="flex-1 text-sm font-medium">{id.home.queuePaused}</span>
-      <a href="/settings" class="btn btn-ink">{id.home.openSettings}</a>
+      <a href="/settings?tab=ai" class="btn btn-ink">{id.home.openSettings}</a>
     </div>
   {/if}
 
