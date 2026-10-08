@@ -69,6 +69,8 @@ export type ActionItem = {
   sourceMs: number | null;
 };
 
+export type QaItem = { id: number; question: string; answer: string; sources: number[]; createdAt: number };
+
 export type FollowUp = { subject: string; body: string; lang: "id" | "en" };
 
 export type MeetingSummary = {

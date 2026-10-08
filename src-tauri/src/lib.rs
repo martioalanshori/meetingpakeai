@@ -1,4 +1,5 @@
 pub mod ai;
+pub mod ask;
 pub mod audio;
 pub mod bridge;
 pub mod commands;
@@ -388,6 +389,9 @@ pub fn run() {
             commands::meetings::get_notes,
             commands::meetings::save_notes,
             commands::meetings::toggle_bookmark_at,
+            commands::meetings::ask_meeting,
+            commands::meetings::list_meeting_qa,
+            commands::meetings::clear_meeting_qa,
             commands::recording::open_notes_window,
             commands::recording::open_meeting_in_main,
             commands::meetings::retranscribe,

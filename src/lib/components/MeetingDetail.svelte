@@ -10,6 +10,7 @@
   import CopyButton from "$lib/components/CopyButton.svelte";
   import FollowUpPanel from "$lib/components/FollowUpPanel.svelte";
   import NotesEditor from "$lib/components/NotesEditor.svelte";
+  import AskPanel from "$lib/components/AskPanel.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import Wordmark from "$lib/components/Wordmark.svelte";
   import Menu, { type MenuEntry } from "$lib/components/Menu.svelte";
@@ -27,7 +28,7 @@
     TranscriptSegment,
   } from "$lib/types";
 
-  type Tab = "summary" | "actions" | "transcript";
+  type Tab = "summary" | "actions" | "transcript" | "ask";
 
   // Dipakai sebagai halaman sendiri (/meeting/[id]) atau panel kanan Beranda di layar lebar.
   let {
@@ -111,7 +112,7 @@
       if (fresh) {
         const remembered = detailTab.meetingId === mid ? detailTab.tab : null;
         const wanted = remembered ?? initialTab;
-        if (wanted === "summary" || wanted === "actions" || wanted === "transcript") tab = wanted;
+        if (wanted === "summary" || wanted === "actions" || wanted === "transcript" || wanted === "ask") tab = wanted;
         else if (m.status !== "done" && m.summary === null)
           tab = tr.length > 0 || m.status === "recording" ? "transcript" : "summary";
         else tab = "summary";
@@ -462,6 +463,7 @@
     { key: "summary", text: t.detail.tabSummary },
     { key: "actions", text: t.detail.tabActionItems },
     { key: "transcript", text: t.detail.tabTranscript },
+    { key: "ask", text: t.detail.tabAsk },
   ];
 </script>
 
@@ -915,6 +917,12 @@
               </li>
             {/each}
           </ul>
+        {/if}
+      {:else if tab === "ask"}
+        {#if transcript.length === 0}
+          <p class="max-w-prose text-ink-soft">{meeting.status === "recording" ? t.detail.liveEmpty : t.detail.emptyTranscript}</p>
+        {:else}
+          {#key meeting.id}<AskPanel meetingId={meeting.id} onjump={jumpTo} />{/key}
         {/if}
       {:else if transcript.length === 0}
         <p class="max-w-prose text-ink-soft">

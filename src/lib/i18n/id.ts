@@ -152,6 +152,7 @@ export const id = {
     tabSummary: "Ringkasan",
     tabActionItems: "Tugas",
     tabTranscript: "Transkrip",
+    tabAsk: "Tanya",
     tabsLabel: "Bagian notulen",
     keyPoints: "Intisari",
     openQuestions: "Belum diputuskan",
@@ -275,6 +276,21 @@ export const id = {
     speed: "Kecepatan putar",
   },
 
+  ask: {
+    title: "Tanya meeting ini",
+    intro: "Tanyakan apa saja tentang meeting ini. Jawaban diambil dari transkrip, lengkap dengan waktu sumbernya.",
+    suggestions: [
+      "Apa keputusan utamanya?",
+      "Siapa mengerjakan apa?",
+      "Risiko atau kendala apa yang dibahas?",
+      "Angka, harga, atau tanggal apa saja yang disebut?",
+    ],
+    placeholder: "Tulis pertanyaan…",
+    send: "Kirim pertanyaan",
+    thinking: "Mencari jawaban di transkrip…",
+    sources: "Sumber:",
+    clear: "Hapus riwayat tanya",
+  },
   notes: {
     title: "Catatan saya",
     placeholder: "Tulis poin penting di sini, mis. \"klien minta diskon 10%\" atau \"follow up legal\".",

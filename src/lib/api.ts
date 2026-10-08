@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   FollowUp,
+  QaItem,
   AiConfig,
   AiRole,
   AppError,
@@ -92,6 +93,9 @@ export const api = {
     call<void>("regenerate_summary", { id, instruction: instruction ?? null, language: language ?? null }),
   importRecording: (path?: string) => call<string | null>("import_recording", { path: path ?? null }),
   summarizeSoFar: (id: string) => call<string[]>("summarize_so_far", { id }),
+  askMeeting: (id: string, question: string) => call<QaItem>("ask_meeting", { id, question }),
+  listMeetingQa: (id: string) => call<QaItem[]>("list_meeting_qa", { id }),
+  clearMeetingQa: (id: string) => call<void>("clear_meeting_qa", { id }),
   getNotes: (id: string) => call<string>("get_notes", { id }),
   saveNotes: (id: string, text: string) => call<void>("save_notes", { id, text }),
   openNotesWindow: (id: string) => call<void>("open_notes_window", { id }),
