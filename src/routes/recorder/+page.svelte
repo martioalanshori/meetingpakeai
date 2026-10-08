@@ -29,6 +29,8 @@
   let sysDb = $state(-90);
   let lostChannels = $state<Channel[]>([]);
   let systemSilent = $state(false);
+  /** Transkripsi bertahap sudah berjalan (notulen akan cepat siap setelah Stop). */
+  let liveTranscribing = $state(false);
   let autoStopDeadline = $state<number | null>(null);
   let autoStopReason = $state<"silence" | "meeting_ended">("silence");
   let busy = $state(false);
@@ -85,6 +87,7 @@
         else if (w.code === "write_failed") error = id.recorder.writeFailed;
         else if (!lostChannels.includes(w.channel)) lostChannels = [...lostChannels, w.channel];
       }),
+      await events.recordingLive(() => (liveTranscribing = true)),
       await events.autoStopWarning((w) => {
         autoStopReason = w.reason;
         autoStopDeadline = performance.now() + w.secondsLeft * 1000;
@@ -155,6 +158,8 @@
       {formatTimestamp(elapsed)}
       {#if rs.status === "paused"}
         <span class="text-2xs leading-none font-medium text-warn-bright">{id.recorder.paused}</span>
+      {:else if liveTranscribing}
+        <span class="text-2xs leading-none font-medium text-white/60">{id.recorder.liveTranscribing}</span>
       {/if}
     </button>
 

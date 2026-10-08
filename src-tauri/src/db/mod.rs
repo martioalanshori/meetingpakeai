@@ -1,6 +1,7 @@
 //! SQLite (rusqlite bundled). Satu koneksi dibagi lewat Mutex; worker & command bergantian memakainya.
 
 pub mod repo_chunks;
+pub mod repo_live;
 pub mod repo_meetings;
 pub mod repo_parts;
 pub mod repo_search;
@@ -23,6 +24,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/003_fts.sql"),
     include_str!("migrations/004_template.sql"),
     include_str!("migrations/005_drop_template.sql"),
+    include_str!("migrations/006_live.sql"),
 ];
 
 pub struct Db {

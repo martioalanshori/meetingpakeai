@@ -35,7 +35,7 @@ use std::path::Path;
 
 use crate::audio::Channel;
 use crate::db::repo_chunks::{self, NewChunk};
-use crate::db::{repo_parts, Db};
+use crate::db::{repo_live, repo_parts, Db};
 use crate::error::AppResult;
 
 /// Durasi potongan region asal untuk posisi `t_ms` di file upload (`None` jika map kosong).
@@ -43,15 +43,24 @@ pub fn region_duration_at(map: &[OffsetEntry], t_ms: i64) -> Option<i64> {
     map.iter().take_while(|e| e.file_ms <= t_ms).last().or(map.first()).map(|e| e.dur_ms)
 }
 
-/// Step `preprocessing` satu meeting. Idempoten: `upload/` dan row `upload_chunks` lama dihapus dulu.
+/// Praproses bertahap: minimal audio baru per channel sebelum dipotong saat merekam (5 menit).
+const LIVE_MIN_SAMPLES: u64 = 5 * 60 * 16_000;
+/// Region yang berakhir dalam 1,5 dtk terakhir audio final ditunda (kalimat mungkin belum selesai).
+const LIVE_HOLD_SAMPLES: u64 = 1_500 * 16;
+
+/// Step `preprocessing` satu meeting setelah Stop. Tanpa progres live: idempoten, `upload/` dan chunk lama
+/// dihapus lalu semua audio diproses. Dengan progres live: hanya sisa audio setelah titik terakhir.
 /// Mengembalikan jumlah chunk yang dibuat.
 pub fn run(data_dir: &Path, db: &Db, meeting_id: &str, chunk_target_sec: u32) -> AppResult<usize> {
     let rel_upload = format!("recordings/{meeting_id}/upload");
     let upload_dir = data_dir.join(&rel_upload);
-    if upload_dir.exists() {
-        std::fs::remove_dir_all(&upload_dir)?;
+    let resume = repo_live::has_any(&db.conn(), meeting_id)?;
+    if !resume {
+        if upload_dir.exists() {
+            std::fs::remove_dir_all(&upload_dir)?;
+        }
+        repo_chunks::delete_for_meeting(&db.conn(), meeting_id)?;
     }
-    repo_chunks::delete_for_meeting(&db.conn(), meeting_id)?;
     std::fs::create_dir_all(&upload_dir)?;
 
     let parts = repo_parts::list(&db.conn(), meeting_id)?;
@@ -62,37 +71,108 @@ pub fn run(data_dir: &Path, db: &Db, meeting_id: &str, chunk_target_sec: u32) ->
             .filter(|p| p.channel == channel.as_str())
             .map(|p| data_dir.join(&p.path))
             .collect();
-        let reader = reader::PartReader::open(&paths)?;
-        let vad = vad::detect(&reader)?;
-        let plans = chunker::plan_chunks(&vad, chunk_target_sec);
-        tracing::info!(
-            "praproses {meeting_id} {}: {} dtk audio, {} region, {} chunk",
-            channel.as_str(),
-            reader.total_samples() / 16_000,
-            vad.regions.len(),
-            plans.len()
-        );
-        // Channel tanpa region → tidak ada request STT.
-        for (i, plan) in plans.iter().enumerate() {
-            let idx = i as i64 + 1;
-            let file = format!("{}_{:03}.wav", channel.as_str(), idx);
-            let (duration_ms, map) = chunker::write_chunk(&reader, plan, &upload_dir.join(&file))?;
-            let map_json = serde_json::to_string(&map)?;
-            repo_chunks::insert(
-                &db.conn(),
-                &NewChunk {
-                    meeting_id,
-                    channel: channel.as_str(),
-                    idx,
-                    path: &format!("{rel_upload}/{file}"),
-                    duration_ms,
-                    offset_map_json: &map_json,
-                },
-            )?;
-            count += 1;
-        }
+        let from = if resume { repo_live::get(&db.conn(), meeting_id, channel.as_str())?.unwrap_or(0) } else { 0 };
+        let (n, _) = process_range(data_dir, db, meeting_id, channel, &paths, from, None, chunk_target_sec)?;
+        count += n;
+    }
+    if resume {
+        repo_live::clear(&db.conn(), meeting_id)?;
     }
     Ok(count)
+}
+
+/// Praproses bertahap selama merekam (langkah 37): hanya part yang sudah final, minimal 5 menit audio
+/// baru per channel. Mengembalikan jumlah chunk baru.
+pub fn run_live(data_dir: &Path, db: &Db, meeting_id: &str, chunk_target_sec: u32) -> AppResult<usize> {
+    std::fs::create_dir_all(data_dir.join(format!("recordings/{meeting_id}/upload")))?;
+    let parts = repo_parts::list(&db.conn(), meeting_id)?;
+    let mut count = 0;
+    for channel in [Channel::Mic, Channel::System] {
+        // Part berurutan yang sudah final saja (part yang sedang ditulis tidak dibaca).
+        let mut paths = Vec::new();
+        let mut final_samples = 0u64;
+        for p in parts.iter().filter(|p| p.channel == channel.as_str()) {
+            if !p.finalized {
+                break;
+            }
+            paths.push(data_dir.join(&p.path));
+            final_samples += p.samples.max(0) as u64;
+        }
+        let from = repo_live::get(&db.conn(), meeting_id, channel.as_str())?.unwrap_or(0);
+        if final_samples < from + LIVE_MIN_SAMPLES {
+            continue;
+        }
+        let (n, processed) =
+            process_range(data_dir, db, meeting_id, channel, &paths, from, Some(final_samples), chunk_target_sec)?;
+        repo_live::set(&db.conn(), meeting_id, channel.as_str(), processed)?;
+        count += n;
+    }
+    Ok(count)
+}
+
+/// VAD + chunk untuk audio channel mulai sampel `from`. `limit = Some(n)`: audio final hanya sampai `n`;
+/// region yang menyentuh ujung ditunda dan batas proses berhenti di awalnya. Chunk dinomori lanjut dari
+/// `idx` terbesar. Mengembalikan (jumlah chunk, batas sampel yang sudah diproses).
+#[allow(clippy::too_many_arguments)]
+fn process_range(
+    data_dir: &Path,
+    db: &Db,
+    meeting_id: &str,
+    channel: Channel,
+    paths: &[std::path::PathBuf],
+    from: u64,
+    limit: Option<u64>,
+    chunk_target_sec: u32,
+) -> AppResult<(usize, u64)> {
+    let rel_upload = format!("recordings/{meeting_id}/upload");
+    let upload_dir = data_dir.join(&rel_upload);
+    let reader = reader::PartReader::open(paths)?;
+    let total = limit.unwrap_or_else(|| reader.total_samples()).min(reader.total_samples());
+    if total <= from {
+        return Ok((0, from));
+    }
+    let mut vad = vad::detect(&reader)?;
+
+    // Region di [from, total); di mode live region yang berakhir terlalu dekat ujung ditunda.
+    let hold = if limit.is_some() { total.saturating_sub(LIVE_HOLD_SAMPLES) } else { u64::MAX };
+    let mut processed = if limit.is_some() { hold } else { total };
+    let mut selected = Vec::new();
+    for r in vad.regions.iter().filter(|r| r.end > from && r.start < total) {
+        let clipped = vad::Region { start: r.start.max(from), end: r.end.min(total) };
+        if clipped.end > hold {
+            processed = processed.min(clipped.start);
+            break;
+        }
+        selected.push(clipped);
+    }
+    let processed = processed.max(from);
+    vad.regions = selected;
+    let plans = chunker::plan_chunks(&vad, chunk_target_sec);
+    tracing::info!(
+        "praproses {meeting_id} {}: sampel {from}–{processed}, {} region, {} chunk",
+        channel.as_str(),
+        vad.regions.len(),
+        plans.len()
+    );
+    let mut idx = repo_chunks::max_idx(&db.conn(), meeting_id, channel.as_str())?;
+    for plan in &plans {
+        idx += 1;
+        let file = format!("{}_{:03}.wav", channel.as_str(), idx);
+        let (duration_ms, map) = chunker::write_chunk(&reader, plan, &upload_dir.join(&file))?;
+        let map_json = serde_json::to_string(&map)?;
+        repo_chunks::insert(
+            &db.conn(),
+            &NewChunk {
+                meeting_id,
+                channel: channel.as_str(),
+                idx,
+                path: &format!("{rel_upload}/{file}"),
+                duration_ms,
+                offset_map_json: &map_json,
+            },
+        )?;
+    }
+    Ok((plans.len(), processed))
 }
 
 #[cfg(test)]

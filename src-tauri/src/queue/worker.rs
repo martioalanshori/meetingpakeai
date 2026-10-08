@@ -46,6 +46,8 @@ const STT_CONCURRENCY_GROQ: usize = 2;
 /// Retensi "7 hari": audio meeting selesai yang lebih tua dari ini dihapus.
 const AUDIO_KEEP_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 const RETENTION_SWEEP_EVERY: Duration = Duration::from_secs(60 * 60);
+/// Jeda antar-putaran transkripsi bertahap selama merekam.
+const LIVE_EVERY: Duration = Duration::from_secs(60);
 /// Rekaman terputus yang tidak pernah diproses: audionya dibuang setelah 30 hari.
 const INTERRUPTED_KEEP_MS: i64 = 30 * 24 * 60 * 60 * 1000;
 /// Chunk yang ditolak 413 dipecah dua, maksimal sedalam ini (≤ 4 bagian).
@@ -75,6 +77,8 @@ pub struct Worker {
     current: Mutex<Option<String>>,
     /// Pembatal job yang sedang berjalan (meeting dihapus): `notify_one` menghentikan step di await berikutnya.
     cancel: Mutex<Option<(String, Arc<Notify>)>>,
+    /// Meeting yang transkripsi bertahapnya dimatikan (key tidak valid / kuota habis); diproses setelah Stop.
+    live_off: Mutex<Option<String>>,
 }
 
 /// Backoff `2s × 2^n` + jitter 0–1 dtk.
@@ -138,6 +142,7 @@ impl Worker {
             paused: AtomicBool::new(paused),
             current: Mutex::new(None),
             cancel: Mutex::new(None),
+            live_off: Mutex::new(None),
         }
     }
 
@@ -222,10 +227,15 @@ impl Worker {
     pub async fn run(self: Arc<Self>) {
         tracing::info!("worker antrean mulai");
         let mut last_sweep: Option<std::time::Instant> = None;
+        let mut last_live = std::time::Instant::now();
         loop {
             if last_sweep.is_none_or(|t| t.elapsed() >= RETENTION_SWEEP_EVERY) {
                 last_sweep = Some(std::time::Instant::now());
                 self.sweep_retention().await;
+            }
+            if last_live.elapsed() >= LIVE_EVERY {
+                last_live = std::time::Instant::now();
+                self.live_tick().await;
             }
             let next = if self.is_paused() { Ok(None) } else { repo_meetings::next_job(&self.db.conn(), now_ms()) };
             match next {
@@ -514,6 +524,75 @@ impl Worker {
             self.set_progress(id, MeetingStatus::Transcribing, done, total);
         }
         Ok(())
+    }
+
+    /// Transkripsi bertahap (langkah 37): selama merekam, audio final yang terkumpul (≥ 5 menit per channel)
+    /// dipraproses dan ditranskrip, sehingga setelah Stop hanya sisa terakhir + ringkasan yang dikerjakan.
+    /// Gagal apa pun dilewati diam-diam; semuanya tetap diproses lewat jalur biasa setelah Stop.
+    async fn live_tick(&self) {
+        let recording = repo_meetings::list_by_status(&self.db.conn(), MeetingStatus::Recording).unwrap_or_default();
+        let Some(m) = recording.into_iter().next() else { return };
+        let id = m.id.clone();
+        if self.live_off.lock().unwrap_or_else(|e| e.into_inner()).as_deref() == Some(id.as_str()) {
+            return;
+        }
+        let Ok((e, api_key)) = self.endpoint(Role::Stt) else { return };
+
+        let (dir, db, mid) = (self.data_dir.clone(), self.db.clone(), id.clone());
+        let target = self.providers.pipeline.stt_chunk_target_sec;
+        match tokio::task::spawn_blocking(move || preprocess::run_live(&dir, &db, &mid, target)).await {
+            Ok(Ok(_)) => {}
+            Ok(Err(err)) => {
+                tracing::warn!("praproses bertahap {id} gagal: {}", err.message);
+                return;
+            }
+            Err(_) => return,
+        }
+
+        let chunks = repo_chunks::list(&self.db.conn(), &id).unwrap_or_default();
+        if chunks.iter().all(|c| c.stt_status == "done") {
+            return;
+        }
+        let concurrency = if e.is_groq() { STT_CONCURRENCY_GROQ } else { STT_CONCURRENCY };
+        let stt = OpenAiStt { http: self.http.clone(), base_url: e.base_url, api_key, model: e.model };
+        let language = (m.language == "id").then(|| "id".to_string());
+        let mut jobs: Vec<ChunkJob<'_>> = Vec::new();
+        for c in chunks.iter().filter(|c| c.stt_status != "done") {
+            jobs.push(Box::pin(self.transcribe_chunk(&stt, &language, c)));
+        }
+        let mut results = futures_util::stream::iter(jobs).buffer_unordered(concurrency);
+        let mut done = 0;
+        while let Some((c, result)) = results.next().await {
+            match result {
+                Ok(segments) => {
+                    let conn = self.db.conn();
+                    let cost = Cost::Stt { audio_sec: c.duration_ms as f64 / 1000.0 };
+                    let _ = rate_limiter::record(&conn, cost, None, now_ms());
+                    if let Ok(json) = serde_json::to_string(&segments) {
+                        let _ = repo_chunks::mark_done(&conn, c.id, &json);
+                        done += 1;
+                    }
+                }
+                Err(StepError::Unauthorized(_) | StepError::WaitingQuota(_)) => {
+                    tracing::info!("transkripsi bertahap {id} dihentikan (key/kuota); dilanjutkan setelah Stop");
+                    *self.live_off.lock().unwrap_or_else(|e| e.into_inner()) = Some(id.clone());
+                    break;
+                }
+                Err(_) => break,
+            }
+        }
+        drop(results);
+        if done > 0 {
+            let conn = self.db.conn();
+            let processed = ["mic", "system"]
+                .iter()
+                .filter_map(|ch| crate::db::repo_live::get(&conn, &id, ch).ok().flatten())
+                .max()
+                .unwrap_or(0);
+            drop(conn);
+            tracing::info!("transkripsi bertahap {id}: {done} chunk, audio s.d. {} dtk", processed / 16_000);
+            self.events.emit_json(events::EV_RECORDING_LIVE, serde_json::json!({ "transcribedSec": processed / 16_000 }));
+        }
     }
 
     async fn transcribe_chunk<'a>(

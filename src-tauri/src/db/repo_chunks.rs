@@ -36,6 +36,15 @@ pub fn insert(conn: &Connection, c: &NewChunk<'_>) -> AppResult<()> {
     Ok(())
 }
 
+/// `idx` terbesar per channel (0 jika belum ada), untuk melanjutkan penomoran chunk.
+pub fn max_idx(conn: &Connection, meeting_id: &str, channel: &str) -> AppResult<i64> {
+    Ok(conn.query_row(
+        "SELECT COALESCE(MAX(idx), 0) FROM upload_chunks WHERE meeting_id = ?1 AND channel = ?2",
+        params![meeting_id, channel],
+        |r| r.get(0),
+    )?)
+}
+
 pub fn delete_for_meeting(conn: &Connection, meeting_id: &str) -> AppResult<()> {
     conn.execute("DELETE FROM upload_chunks WHERE meeting_id = ?1", [meeting_id])?;
     Ok(())

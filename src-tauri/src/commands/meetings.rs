@@ -253,6 +253,8 @@ pub async fn retranscribe(state: State<'_, AppState>, id: String) -> AppResult<(
     if busy {
         return Err(AppError::new(ErrorCode::InvalidState));
     }
+    // Transkrip ulang selalu dari awal (bukan melanjutkan hasil transkripsi bertahap).
+    crate::db::repo_live::clear(&state.db.conn(), &id)?;
     requeue(&state, &id, MeetingStatus::Preprocessing)
 }
 

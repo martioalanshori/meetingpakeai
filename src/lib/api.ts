@@ -109,6 +109,8 @@ export const events = {
   autoStopWarning: (cb: (p: AutoStopWarningPayload) => void) =>
     on("recording://auto-stop-warning", cb),
   recordingWarning: (cb: (p: RecordingWarningPayload) => void) => on("recording://warning", cb),
+  /** Transkripsi bertahap selama merekam sudah mencakup sekian detik audio. */
+  recordingLive: (cb: (p: { transcribedSec: number }) => void) => on("recording://live", cb),
   jobProgress: (cb: (p: JobProgressPayload) => void) => on("job://progress", cb),
   meetingUpdated: (cb: (p: MeetingUpdatedPayload) => void) => on("meeting://updated", cb),
   /** Ada tawaran rekam / meeting selesai untuk jendela main yang sedang fokus. */
