@@ -8,6 +8,7 @@
   import SummaryEditor from "$lib/components/SummaryEditor.svelte";
   import AudioPlayer from "$lib/components/AudioPlayer.svelte";
   import CopyButton from "$lib/components/CopyButton.svelte";
+  import FollowUpPanel from "$lib/components/FollowUpPanel.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import Wordmark from "$lib/components/Wordmark.svelte";
   import Menu, { type MenuEntry } from "$lib/components/Menu.svelte";
@@ -43,6 +44,7 @@
   let titleDraft = $state("");
   let titleInput = $state<HTMLInputElement | null>(null);
   let editingSummary = $state(false);
+  let followOpen = $state(false);
   let audioSrc = $state<string | null>(null);
   let player = $state<AudioPlayer | null>(null);
   let audioLoading = $state(false);
@@ -343,6 +345,12 @@
     document.getElementById(`seg-${segId}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   });
 
+  // Panel tindak lanjut ditutup saat pindah meeting.
+  $effect(() => {
+    void meetingId;
+    untrack(() => (followOpen = false));
+  });
+
   // Tab aktif diingat per meeting (tata letak berganti saat jendela diubah ukurannya).
   $effect(() => {
     if (meeting && meeting.id === meetingId) {
@@ -609,6 +617,16 @@
           {#if tab === "summary" && meeting.summary?.status === "ok"}
             {#if meeting.summary.edited}<span class="mr-1 text-sm text-ink-faint">{t.edit.edited}</span>{/if}
             <CopyButton text={(style) => formatSummaryTab(meeting!, style)} />
+            {#if meeting.status === "done"}
+              <button
+                type="button"
+                class="btn btn-line btn-sm"
+                aria-expanded={followOpen}
+                onclick={() => (followOpen = !followOpen)}
+              >
+                <Icon name="send" size={14} />{t.followUp.button}
+              </button>
+            {/if}
           {:else if tab === "actions" && meeting.actionItems.length > 0}
             <CopyButton text={(style) => formatActionItems(meeting!, style)} okText={t.minutes.actionsCopied} />
           {:else if tab === "transcript" && transcript.length > 0}
@@ -632,6 +650,15 @@
         {:else if tab === "summary" && meeting.summary.status === "empty"}
           <p class="text-ink-soft">{t.summary.noSpeech}</p>
         {:else if tab === "summary"}
+          {#if followOpen && meeting.status === "done"}
+            {#key meeting.id}
+              <FollowUpPanel
+                meetingId={meeting.id}
+                initial={meeting.summary.followUp}
+                onclose={() => (followOpen = false)}
+              />
+            {/key}
+          {/if}
           <!-- Panel detail ≥ 60rem (bukan lebar layar): tugas tampil di samping ringkasan. -->
           <div
             class="flex flex-col gap-8 @min-[60rem]:grid @min-[60rem]:grid-cols-[minmax(0,68ch)_minmax(15rem,22rem)] @min-[60rem]:items-start @min-[60rem]:gap-10"

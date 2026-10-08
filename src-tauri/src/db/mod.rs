@@ -26,6 +26,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/005_drop_template.sql"),
     include_str!("migrations/006_live.sql"),
     include_str!("migrations/007_sources.sql"),
+    include_str!("migrations/008_follow_up.sql"),
 ];
 
 pub struct Db {

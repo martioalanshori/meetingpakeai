@@ -236,6 +236,18 @@ export const id = {
     speed: "Kecepatan putar",
   },
 
+  followUp: {
+    button: "Pesan tindak lanjut",
+    title: "Pesan tindak lanjut",
+    language: "Bahasa pesan",
+    generating: "AI sedang menyusun draf dari notulen…",
+    subject: "Subjek:",
+    copy: "Salin pesan",
+    copied: "Pesan disalin",
+    openMail: "Buka di email",
+    mailFailed: "Aplikasi email tidak bisa dibuka. Salin pesan lalu tempel di email Anda.",
+    regenerate: "Buat ulang",
+  },
   minutes: {
     date: "Tanggal",
     actionItemsOf: (title: string) => `Tugas — ${title}`,

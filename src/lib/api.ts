@@ -2,6 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  FollowUp,
   AiConfig,
   AiRole,
   AppError,
@@ -85,6 +86,8 @@ export const api = {
   updateSummary: (id: string, edit: SummaryEdit) => call<void>("update_summary", { id, edit }),
   retryJob: (id: string) => call<void>("retry_job", { id }),
   regenerateSummary: (id: string) => call<void>("regenerate_summary", { id }),
+  generateFollowUp: (id: string, lang: "id" | "en", force: boolean) =>
+    call<FollowUp>("generate_follow_up", { id, lang, force }),
   retranscribe: (id: string) => call<void>("retranscribe", { id }),
   resolveInterrupted: (id: string, action: "process" | "discard") =>
     call<void>("resolve_interrupted", { id, action }),

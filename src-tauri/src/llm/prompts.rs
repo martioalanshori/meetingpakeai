@@ -60,6 +60,32 @@ Gabungkan menjadi satu ekstraksi dengan format:
 - Gabungkan keputusan dan action item yang sama atau mirip menjadi satu; pertahankan sumber paling awal.
 Gunakan array kosong [] jika tidak ada.";
 
+/// Draf pesan tindak lanjut dari notulen (langkah 43). Input = notulen, bukan transkrip.
+pub const FOLLOW_UP: &str = "Buat draf email tindak lanjut untuk peserta meeting berdasarkan notulen berikut.
+Bahasa pesan: {bahasa}.
+Kembalikan HANYA JSON: {\"subjek\": \"...\", \"pesan\": \"...\"}
+Ketentuan pesan:
+- Nada {nada}, lugas, siap dikirim tanpa diedit.
+- Urutan: sapaan pembuka singkat; ringkasan hasil meeting 2-3 kalimat; daftar keputusan (jika ada); daftar tugas berisi penanggung jawab dan tenggat (jika ada); penutup singkat yang meminta koreksi bila ada yang terlewat.
+- Daftar ditulis per baris diawali \"- \". Tanpa markdown lain (tanpa **, tanpa #).
+- Jangan menambah informasi yang tidak ada di notulen.
+- Akhiri dengan nama pengirim: {pengirim}.
+- subjek: maksimal 10 kata, menyebut inti meeting.
+
+NOTULEN:
+<<<
+{notulen}
+>>>";
+
+pub fn follow_up(english: bool, pengirim: &str, notulen: &str) -> String {
+    let (bahasa, nada) = if english { ("Inggris", "profesional") } else { ("Indonesia baku", "formal namun hangat") };
+    FOLLOW_UP
+        .replace("{bahasa}", bahasa)
+        .replace("{nada}", nada)
+        .replace("{pengirim}", pengirim)
+        .replace("{notulen}", notulen)
+}
+
 pub const RETRY: &str =
     "Output sebelumnya tidak valid: {error}. Kembalikan ulang HANYA JSON valid sesuai format yang diminta.";
 

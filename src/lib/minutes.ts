@@ -102,3 +102,42 @@ export function formatMinutes(m: MeetingDetail, style: MinutesStyle, transcript?
   }
   return out.join("\n").trimEnd() + "\n";
 }
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function inline(s: string): string {
+  return escapeHtml(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+}
+
+/** Teks berformat markdown sederhana (hasil `style = "markdown"`) → HTML untuk ditempel ke email/Docs/Word. */
+export function markdownToHtml(md: string): string {
+  const out: string[] = [];
+  let list: string[] = [];
+  const flush = () => {
+    if (list.length > 0) out.push(`<ul>${list.join("")}</ul>`);
+    list = [];
+  };
+  for (const raw of md.split("\n")) {
+    const line = raw.trimEnd();
+    const item = /^\s*[-•]\s+(?:\[( |x)\]\s+)?(.*)$/.exec(line);
+    if (item) {
+      const mark = item[1] === "x" ? "☑ " : item[1] === " " ? "☐ " : "";
+      list.push(`<li>${mark}${inline(item[2])}</li>`);
+      continue;
+    }
+    flush();
+    if (line === "") continue;
+    if (line.startsWith("# ")) out.push(`<h2>${inline(line.slice(2))}</h2>`);
+    else if (line.startsWith("## ")) out.push(`<h3>${inline(line.slice(3))}</h3>`);
+    else out.push(`<p>${inline(line)}</p>`);
+  }
+  flush();
+  return out.join("");
+}
+
+/** Teks polos dengan daftar "- " → HTML (paragraf + daftar berpoin). */
+export function textToHtml(text: string): string {
+  return markdownToHtml(text.replace(/^#+ /gm, ""));
+}

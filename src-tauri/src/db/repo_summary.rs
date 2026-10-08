@@ -18,6 +18,25 @@ pub struct SummaryView {
     pub topics: Vec<String>,
     /// Sudah diubah pengguna (langkah 23).
     pub edited: bool,
+    /// Draf pesan tindak lanjut (langkah 43).
+    pub follow_up: Option<FollowUp>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FollowUp {
+    pub subject: String,
+    pub body: String,
+    /// `id` / `en`.
+    pub lang: String,
+}
+
+pub fn set_follow_up(conn: &Connection, meeting_id: &str, f: &FollowUp) -> AppResult<()> {
+    conn.execute(
+        "UPDATE summaries SET follow_up = ?2 WHERE meeting_id = ?1",
+        params![meeting_id, serde_json::to_string(f)?],
+    )?;
+    Ok(())
 }
 
 /// Isi edit pengguna (`update_summary`).
@@ -108,7 +127,7 @@ pub fn save(
 pub fn get(conn: &Connection, meeting_id: &str) -> AppResult<Option<SummaryView>> {
     let row = conn
         .query_row(
-            "SELECT status, summary, decisions, topics, edited, decision_sources FROM summaries WHERE meeting_id = ?1",
+            "SELECT status, summary, decisions, topics, edited, decision_sources, follow_up FROM summaries WHERE meeting_id = ?1",
             [meeting_id],
             |r| {
                 Ok((
@@ -118,11 +137,12 @@ pub fn get(conn: &Connection, meeting_id: &str) -> AppResult<Option<SummaryView>
                     r.get::<_, String>(3)?,
                     r.get::<_, bool>(4)?,
                     r.get::<_, String>(5)?,
+                    r.get::<_, Option<String>>(6)?,
                 ))
             },
         )
         .optional()?;
-    Ok(row.map(|(status, summary, decisions, topics, edited, sources)| {
+    Ok(row.map(|(status, summary, decisions, topics, edited, sources, follow_up)| {
         let decisions: Vec<String> = serde_json::from_str(&decisions).unwrap_or_default();
         let mut decision_sources: Vec<Option<i64>> = serde_json::from_str(&sources).unwrap_or_default();
         decision_sources.resize(decisions.len(), None);
@@ -133,6 +153,7 @@ pub fn get(conn: &Connection, meeting_id: &str) -> AppResult<Option<SummaryView>
             decision_sources,
             topics: serde_json::from_str(&topics).unwrap_or_default(),
             edited,
+            follow_up: follow_up.and_then(|f| serde_json::from_str(&f).ok()),
         }
     }))
 }

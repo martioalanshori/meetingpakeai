@@ -1,10 +1,10 @@
 <script lang="ts">
   import Icon from "$lib/components/Icon.svelte";
   import { id } from "$lib/i18n/id";
-  import type { MinutesStyle } from "$lib/minutes";
+  import { markdownToHtml, type MinutesStyle } from "$lib/minutes";
   import { showToast } from "$lib/toast.svelte";
 
-  // Tombol salin isi satu tab (teks biasa).
+  // Tombol salin isi satu tab: teks biasa + HTML (judul tebal, daftar berpoin saat ditempel ke email/Docs/Word).
   let { text, okText = id.minutes.copied }: { text: (style: MinutesStyle) => string; okText?: string } = $props();
 
   let copied = $state<MinutesStyle | null>(null);
@@ -12,7 +12,18 @@
 
   async function copy(style: MinutesStyle) {
     try {
-      await navigator.clipboard.writeText(text(style));
+      const plain = text(style);
+      try {
+        const html = markdownToHtml(text("markdown"));
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/plain": new Blob([plain], { type: "text/plain" }),
+            "text/html": new Blob([html], { type: "text/html" }),
+          }),
+        ]);
+      } catch {
+        await navigator.clipboard.writeText(plain);
+      }
       copied = style;
       clearTimeout(timer);
       timer = setTimeout(() => (copied = null), 2000);

@@ -69,12 +69,16 @@ export type ActionItem = {
   sourceMs: number | null;
 };
 
+export type FollowUp = { subject: string; body: string; lang: "id" | "en" };
+
 export type MeetingSummary = {
   status: "ok" | "empty";
   summary: string | null;
   decisions: string[];
   /** Sejajar `decisions`. */
   decisionSources: (number | null)[];
+  /** Draf pesan tindak lanjut; null = belum dibuat. */
+  followUp: FollowUp | null;
   topics: string[];
   /** Sudah diubah pengguna. */
   edited: boolean;
