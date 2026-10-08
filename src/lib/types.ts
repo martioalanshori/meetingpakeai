@@ -182,6 +182,8 @@ export type TaskItem = {
   assignee: string | null;
   due: string | null;
   done: boolean;
+  /** Tenggat terstruktur YYYY-MM-DD. */
+  dueDate: string | null;
 };
 
 export type AiRole = "stt" | "llm";

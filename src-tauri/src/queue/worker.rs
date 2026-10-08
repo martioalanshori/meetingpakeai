@@ -202,6 +202,35 @@ impl Worker {
 
     /// Retensi: "7 hari" untuk meeting selesai/gagal; rekaman terputus yang tidak diproses dibuang setelah
     /// 30 hari (apa pun pilihan retensi) dan ditandai gagal agar bannernya hilang.
+    /// Pengingat tenggat harian (langkah 54, feedback3 D2): sekali per hari setelah jam 08.00 lokal.
+    fn sweep_task_reminders(&self) {
+        use chrono::Timelike;
+        let now = chrono::Local::now();
+        if now.hour() < 8 {
+            return;
+        }
+        let today = now.format("%Y-%m-%d").to_string();
+        let conn = self.db.conn();
+        let last: Option<String> = crate::db::repo_settings::get(&conn, "task_reminder_last").unwrap_or(None);
+        if last.as_deref() == Some(today.as_str()) {
+            return;
+        }
+        let _ = crate::db::repo_settings::set(&conn, "task_reminder_last", &today);
+        let Ok((due_today, overdue)) = repo_summary::due_counts(&conn, &today) else { return };
+        drop(conn);
+        if due_today == 0 && overdue == 0 {
+            return;
+        }
+        let mut parts = Vec::new();
+        if due_today > 0 {
+            parts.push(format!("{due_today} tugas bertenggat hari ini"));
+        }
+        if overdue > 0 {
+            parts.push(format!("{overdue} tugas lewat tenggat"));
+        }
+        self.events.notify("Tugas perlu dikerjakan", &format!("{}. Buka halaman Tugas untuk melihatnya.", parts.join(", ")));
+    }
+
     async fn sweep_retention(&self) {
         let retention = settings::load(&self.db.conn()).map(|s| s.audio_retention);
         if retention.ok() == Some(AudioRetention::Days7) {
@@ -238,6 +267,7 @@ impl Worker {
             if last_sweep.is_none_or(|t| t.elapsed() >= RETENTION_SWEEP_EVERY) {
                 last_sweep = Some(std::time::Instant::now());
                 self.sweep_retention().await;
+                self.sweep_task_reminders();
             }
             if last_live.elapsed() >= LIVE_EVERY {
                 last_live = std::time::Instant::now();

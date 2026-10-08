@@ -78,6 +78,11 @@ export const api = {
   // Meeting
   searchMeetings: (query: string) => call<SearchHit[]>("search_meetings", { query }),
   listActionItems: () => call<TaskItem[]>("list_action_items"),
+  updateActionItem: (itemId: number, patch: { task?: string; assignee?: string; dueDate?: string }) =>
+    call<void>("update_action_item", { itemId, task: patch.task ?? null, assignee: patch.assignee ?? null, dueDate: patch.dueDate ?? null }),
+  addActionItem: (id: string, task: string, assignee?: string, dueDate?: string) =>
+    call<number>("add_action_item", { id, task, assignee: assignee ?? null, dueDate: dueDate ?? null }),
+  exportTasksIcs: () => call<boolean>("export_tasks_ics"),
   listMeetings: (limit: number, offset: number) =>
     call<MeetingListItem[]>("list_meetings", { limit, offset }),
   getMeeting: (id: string) => call<MeetingDetail>("get_meeting", { id }),

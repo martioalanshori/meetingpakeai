@@ -1,6 +1,7 @@
 <script lang="ts">
   // Tugas = "apa yang perlu dikerjakan berikutnya" dari semua meeting, siapa pun penanggung jawabnya.
-  import { onDestroy, onMount } from "svelte";
+  // Langkah 54 (feedback3 D2): ubah PJ/tenggat, tambah tugas manual, ekspor .ics, pengingat harian.
+  import { onDestroy, onMount, tick } from "svelte";
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { api, events } from "$lib/api";
   import Icon from "$lib/components/Icon.svelte";
@@ -14,6 +15,13 @@
   let items = $state<TaskItem[]>([]);
   let loaded = $state(false);
   let showDone = $state(false);
+
+  // Ubah satu tugas.
+  let editingId = $state<number | null>(null);
+  let draft = $state({ task: "", assignee: "", dueDate: "" });
+  // Tambah tugas ke meeting.
+  let addingFor = $state<string | null>(null);
+  let newTask = $state({ task: "", assignee: "", dueDate: "" });
 
   type Group = { meetingId: string; title: string; startedAt: number; items: TaskItem[] };
 
@@ -35,14 +43,27 @@
   const openCount = $derived(items.filter((a) => !a.done).length);
   const done = $derived(items.filter((a) => a.done));
 
-  /** Tanggal `YYYY-MM-DD` di teks tenggat (mis. "Jumat depan (2026-10-16)") sudah lewat. */
-  function overdue(due: string | null): boolean {
-    const m = due && /(\d{4})-(\d{2})-(\d{2})/.exec(due);
-    if (!m) return false;
-    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return d < today;
+  function todayIso(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  /** Status tenggat dari tanggal terstruktur (fallback: tanggal di teks tenggat). */
+  function dueState(a: TaskItem): "late" | "today" | null {
+    if (a.done) return null;
+    const iso = a.dueDate ?? /(\d{4}-\d{2}-\d{2})/.exec(a.due ?? "")?.[1];
+    if (!iso) return null;
+    const today = todayIso();
+    return iso < today ? "late" : iso === today ? "today" : null;
+  }
+
+  /** Teks tenggat: tanggal terstruktur ditampilkan rapi, selain itu teks asli dari notulen. */
+  function dueLabel(a: TaskItem): string | null {
+    if (a.dueDate && (!a.due || a.due === a.dueDate)) {
+      const [y, m, d] = a.dueDate.split("-").map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+    }
+    return a.due;
   }
 
   async function load() {
@@ -64,6 +85,56 @@
     }
   }
 
+  async function startEdit(a: TaskItem) {
+    editingId = a.id;
+    draft = { task: a.task, assignee: a.assignee ?? "", dueDate: a.dueDate ?? "" };
+    await tick();
+    document.getElementById(`task-edit-${a.id}`)?.focus();
+  }
+
+  async function saveEdit(a: TaskItem) {
+    editingId = null;
+    try {
+      await api.updateActionItem(a.id, {
+        task: draft.task.trim() !== a.task ? draft.task.trim() : undefined,
+        assignee: draft.assignee.trim() !== (a.assignee ?? "") ? draft.assignee.trim() : undefined,
+        dueDate: draft.dueDate !== (a.dueDate ?? "") ? draft.dueDate : undefined,
+      });
+      await load();
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+
+  async function startAdd(meetingId: string) {
+    addingFor = meetingId;
+    newTask = { task: "", assignee: "", dueDate: "" };
+    await tick();
+    document.getElementById(`task-add-${meetingId}`)?.focus();
+  }
+
+  async function saveAdd(meetingId: string) {
+    if (!newTask.task.trim()) {
+      addingFor = null;
+      return;
+    }
+    try {
+      await api.addActionItem(meetingId, newTask.task.trim(), newTask.assignee.trim() || undefined, newTask.dueDate || undefined);
+      addingFor = null;
+      await load();
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+
+  async function exportIcs() {
+    try {
+      if (await api.exportTasksIcs()) showToast(t.exported, "success");
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+
   const unlisten: UnlistenFn[] = [];
   onMount(async () => {
     await load();
@@ -73,7 +144,7 @@
 </script>
 
 {#snippet task(a: TaskItem)}
-  <li class="flex items-start gap-3 py-2.5">
+  <li class="group flex items-start gap-3 py-2.5">
     <input
       type="checkbox"
       class="mt-1 h-4 w-4 shrink-0"
@@ -81,27 +152,67 @@
       bind:checked={a.done}
       onchange={() => toggle(a)}
     />
-    <div class="flex min-w-0 flex-col gap-0.5">
-      <span class={a.done ? "text-ink-faint line-through" : "font-medium"}>{a.task}</span>
-      {#if a.assignee || a.due}
-        <span class="flex flex-wrap gap-x-4 text-sm text-ink-soft">
-          {#if a.assignee}<span>{id.detail.assignee} <span class="text-ink">{a.assignee}</span></span>{/if}
-          {#if a.due}
-            {@const late = !a.done && overdue(a.due)}
-            <span class={late ? "font-semibold text-bad" : ""}>
-              {id.detail.due} <span class={late ? "" : "text-ink"}>{a.due}</span>{#if late}&ensp;{t.overdue}{/if}
-            </span>
-          {/if}
-        </span>
+    {#if editingId === a.id}
+      <form
+        class="flex min-w-0 flex-1 flex-col gap-2"
+        onsubmit={(e) => {
+          e.preventDefault();
+          saveEdit(a);
+        }}
+      >
+        <input id={`task-edit-${a.id}`} class="field" bind:value={draft.task} aria-label={id.edit.task} />
+        <div class="flex flex-wrap gap-2">
+          <input class="field w-48 py-1.5" bind:value={draft.assignee} placeholder={t.assigneePlaceholder} aria-label={id.edit.assignee} />
+          <input type="date" class="field w-44 py-1.5" bind:value={draft.dueDate} aria-label={t.duePick} />
+        </div>
+        <div class="flex gap-2">
+          <button type="submit" class="btn btn-ink btn-sm">{t.save}</button>
+          <button type="button" class="btn btn-quiet btn-sm" onclick={() => (editingId = null)}>{t.cancel}</button>
+        </div>
+      </form>
+    {:else}
+      <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span class={a.done ? "text-ink-faint line-through" : "font-medium"}>{a.task}</span>
+        {#if a.assignee || a.due || a.dueDate}
+          {@const state = dueState(a)}
+          <span class="flex flex-wrap gap-x-4 text-sm text-ink-soft">
+            {#if a.assignee}<span>{id.detail.assignee} <span class="text-ink">{a.assignee}</span></span>{/if}
+            {#if dueLabel(a)}
+              <span class={state === "late" ? "font-semibold text-bad" : state === "today" ? "font-semibold text-warn" : ""}>
+                {id.detail.due}
+                <span class={state ? "" : "text-ink"}>{dueLabel(a)}</span>{#if state === "late"}&ensp;{t.overdue}{:else if state === "today"}&ensp;{t.dueToday}{/if}
+              </span>
+            {/if}
+          </span>
+        {/if}
+      </div>
+      {#if !a.done}
+        <button
+          type="button"
+          class="btn btn-quiet btn-icon btn-sm opacity-0 group-hover:opacity-100 focus:opacity-100"
+          aria-label={`${t.edit}: ${a.task}`}
+          title={t.edit}
+          onclick={() => startEdit(a)}
+        >
+          <Icon name="pencil" size={14} />
+        </button>
       {/if}
-    </div>
+    {/if}
   </li>
 {/snippet}
 
 <main class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 pt-7 pb-12 xl:px-10">
-  <div class="flex flex-col gap-1">
-    <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
-    <p class="text-ink-soft">{loaded && openCount > 0 ? t.subtitleCount(openCount) : t.subtitle}</p>
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div class="flex flex-col gap-1">
+      <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
+      <p class="text-ink-soft">{loaded && openCount > 0 ? t.subtitleCount(openCount) : t.subtitle}</p>
+      <p class="hint">{t.reminderHint}</p>
+    </div>
+    {#if openCount > 0}
+      <button type="button" class="btn btn-line btn-sm" onclick={exportIcs}>
+        <Icon name="download" size={14} />{t.exportIcs}
+      </button>
+    {/if}
   </div>
 
   {#if !loaded}
@@ -138,6 +249,33 @@
         <ul class="flex flex-col">
           {#each g.items as a (a.id)}{@render task(a)}{/each}
         </ul>
+        {#if addingFor === g.meetingId}
+          <form
+            class="ml-7 flex flex-col gap-2 py-2"
+            onsubmit={(e) => {
+              e.preventDefault();
+              saveAdd(g.meetingId);
+            }}
+          >
+            <input id={`task-add-${g.meetingId}`} class="field" bind:value={newTask.task} placeholder={t.addPlaceholder} aria-label={t.add} />
+            <div class="flex flex-wrap gap-2">
+              <input class="field w-48 py-1.5" bind:value={newTask.assignee} placeholder={t.assigneePlaceholder} aria-label={id.edit.assignee} />
+              <input type="date" class="field w-44 py-1.5" bind:value={newTask.dueDate} aria-label={t.duePick} />
+            </div>
+            <div class="flex gap-2">
+              <button type="submit" class="btn btn-ink btn-sm">{t.save}</button>
+              <button type="button" class="btn btn-quiet btn-sm" onclick={() => (addingFor = null)}>{t.cancel}</button>
+            </div>
+          </form>
+        {:else}
+          <button
+            type="button"
+            class="-mx-2 ml-5 flex items-center gap-1.5 self-start rounded-md px-2 py-1 text-sm text-ink-soft hover:bg-wash hover:text-ink"
+            onclick={() => startAdd(g.meetingId)}
+          >
+            <Icon name="plus" size={14} />{t.add}
+          </button>
+        {/if}
       </section>
     {/each}
 

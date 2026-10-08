@@ -812,6 +812,83 @@ pub async fn ask_all_meetings(state: State<'_, AppState>, question: String) -> A
     Ok(AskAllResult { answer, refs })
 }
 
+/// Tambahan (langkah 54, feedback3 D2): ubah tugas dari halaman Tugas (field yang dikirim saja).
+#[tauri::command]
+pub async fn update_action_item(
+    state: State<'_, AppState>,
+    item_id: i64,
+    task: Option<String>,
+    assignee: Option<String>,
+    due_date: Option<String>,
+) -> AppResult<()> {
+    let conn = state.db.conn();
+    repo_summary::update_action_item(&conn, item_id, task.as_deref(), assignee.as_deref(), due_date.as_deref())?;
+    let meeting_id: String = conn.query_row("SELECT meeting_id FROM action_items WHERE id = ?1", [item_id], |r| r.get(0))?;
+    drop(conn);
+    reindex(&state, &meeting_id);
+    emit_updated(&state, &meeting_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn add_action_item(
+    state: State<'_, AppState>,
+    id: String,
+    task: String,
+    assignee: Option<String>,
+    due_date: Option<String>,
+) -> AppResult<i64> {
+    if task.trim().is_empty() {
+        return Err(AppError::with_message(ErrorCode::InvalidState, "Tulis tugasnya dulu."));
+    }
+    let conn = state.db.conn();
+    repo_meetings::get(&conn, &id)?;
+    let item = repo_summary::add_action_item(&conn, &id, &task, assignee.as_deref(), due_date.as_deref())?;
+    drop(conn);
+    reindex(&state, &id);
+    emit_updated(&state, &id);
+    Ok(item)
+}
+
+/// Tambahan (langkah 54): ekspor tugas terbuka bertenggat ke kalender (.ics, acara sehari penuh).
+#[tauri::command]
+pub async fn export_tasks_ics(app: tauri::AppHandle, state: State<'_, AppState>) -> AppResult<bool> {
+    use tauri_plugin_dialog::DialogExt;
+    let tasks: Vec<repo_summary::TaskView> = repo_summary::all_action_items(&state.db.conn())?
+        .into_iter()
+        .filter(|t| !t.done && t.due_date.is_some())
+        .collect();
+    if tasks.is_empty() {
+        return Err(AppError::with_message(ErrorCode::InvalidState, "Belum ada tugas terbuka yang punya tanggal tenggat."));
+    }
+    let esc = |s: &str| s.replace('\\', "\\\\").replace(';', "\\;").replace(',', "\\,").replace('\n', "\\n");
+    let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let mut ics = String::from("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Meeting Pake AI//ID\r\nCALSCALE:GREGORIAN\r\n");
+    for t in &tasks {
+        let Some(date) = t.due_date.as_deref().and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok()) else {
+            continue;
+        };
+        let next = date.succ_opt().unwrap_or(date);
+        let who = t.assignee.as_deref().map(|a| format!(" ({a})")).unwrap_or_default();
+        ics.push_str("BEGIN:VEVENT\r\n");
+        ics.push_str(&format!("UID:task-{}@meetingpakeai\r\nDTSTAMP:{stamp}\r\n", t.id));
+        ics.push_str(&format!("DTSTART;VALUE=DATE:{}\r\nDTEND;VALUE=DATE:{}\r\n", date.format("%Y%m%d"), next.format("%Y%m%d")));
+        ics.push_str(&format!("SUMMARY:{}\r\n", esc(&format!("Tenggat: {}{who}", t.task))));
+        ics.push_str(&format!("DESCRIPTION:{}\r\n", esc(&format!("Dari meeting: {}", t.meeting_title))));
+        ics.push_str("END:VEVENT\r\n");
+    }
+    ics.push_str("END:VCALENDAR\r\n");
+    let picked = app
+        .dialog()
+        .file()
+        .set_file_name("tugas-meeting.ics")
+        .add_filter("Kalender", &["ics"])
+        .blocking_save_file();
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else { return Ok(false) };
+    std::fs::write(&path, ics)?;
+    Ok(true)
+}
+
 /// Tambahan (langkah 44): hapus satu momen ditandai.
 #[tauri::command]
 pub async fn delete_bookmark(state: State<'_, AppState>, id: String, at_ms: i64) -> AppResult<()> {

@@ -74,6 +74,17 @@ pub struct ActionItemView {
     pub source_ms: Option<i64>,
 }
 
+/// Tanggal `YYYY-MM-DD` pertama di teks tenggat (mis. "Jumat depan (2026-10-16)"), langkah 54.
+pub fn due_date_of(due: Option<&str>) -> Option<String> {
+    let s = due?;
+    let b = s.as_bytes();
+    (0..b.len().saturating_sub(9)).find_map(|i| {
+        let w = &b[i..i + 10];
+        let ok = w.iter().enumerate().all(|(k, c)| if k == 4 || k == 7 { *c == b'-' } else { c.is_ascii_digit() });
+        ok.then(|| s[i..i + 10].to_string())
+    })
+}
+
 /// `HH:MM:SS` dari LLM → ms; di luar durasi meeting (halusinasi) → `None`.
 fn source_ms(sumber: Option<&str>, duration_ms: i64) -> Option<i64> {
     let ms = parse::timestamp_ms(sumber?)?;
@@ -124,11 +135,13 @@ pub fn save(
                 ],
             )?;
             let mut stmt = tx.prepare(
-                "INSERT INTO action_items (meeting_id, idx, task, assignee, due, source_ms) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                "INSERT INTO action_items (meeting_id, idx, task, assignee, due, source_ms, due_date)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             )?;
             for (i, a) in n.action_items.iter().enumerate() {
                 let src = source_ms(a.sumber.as_deref(), duration_ms);
-                stmt.execute(params![meeting_id, i as i64, a.tugas, a.penanggung_jawab, a.tenggat, src])?;
+                let due_date = due_date_of(a.tenggat.as_deref());
+                stmt.execute(params![meeting_id, i as i64, a.tugas, a.penanggung_jawab, a.tenggat, src, due_date])?;
             }
         }
     }
@@ -215,15 +228,16 @@ pub fn update(conn: &mut Connection, meeting_id: &str, e: &SummaryEdit) -> AppRe
     tx.execute("DELETE FROM action_items WHERE meeting_id = ?1", [meeting_id])?;
     {
         let mut stmt = tx.prepare(
-            "INSERT INTO action_items (meeting_id, idx, task, assignee, due, done, source_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO action_items (meeting_id, idx, task, assignee, due, done, source_ms, due_date)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         )?;
         let items = e.action_items.iter().filter_map(|a| clean(&a.task).map(|task| (task, a)));
         for (i, (task, a)) in items.enumerate() {
             let assignee = a.assignee.as_deref().and_then(clean);
             let due = a.due.as_deref().and_then(clean);
             let src = old_items.iter().find(|o| o.task == task).and_then(|o| o.source_ms);
-            stmt.execute(params![meeting_id, i as i64, task, assignee, due, a.done, src])?;
+            let due_date = due_date_of(due.as_deref());
+            stmt.execute(params![meeting_id, i as i64, task, assignee, due, a.done, src, due_date])?;
         }
     }
     tx.commit()?;
@@ -260,12 +274,14 @@ pub struct TaskView {
     pub assignee: Option<String>,
     pub due: Option<String>,
     pub done: bool,
+    /// Tenggat terstruktur `YYYY-MM-DD` (langkah 54).
+    pub due_date: Option<String>,
 }
 
 /// Semua action item meeting `done`: belum selesai dulu, lalu meeting terbaru.
 pub fn all_action_items(conn: &Connection) -> AppResult<Vec<TaskView>> {
     let mut stmt = conn.prepare(
-        "SELECT a.id, a.meeting_id, m.title, m.started_at, a.task, a.assignee, a.due, a.done
+        "SELECT a.id, a.meeting_id, m.title, m.started_at, a.task, a.assignee, a.due, a.done, a.due_date
          FROM action_items a JOIN meetings m ON m.id = a.meeting_id
          WHERE m.status = 'done'
          ORDER BY a.done, m.started_at DESC, a.idx",
@@ -281,9 +297,60 @@ pub fn all_action_items(conn: &Connection) -> AppResult<Vec<TaskView>> {
                 assignee: r.get(5)?,
                 due: r.get(6)?,
                 done: r.get(7)?,
+                due_date: r.get(8)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(rows)
 }
 
+
+/// Ubah satu tugas dari halaman Tugas (langkah 54). Field `None` tidak diubah; string kosong → NULL.
+pub fn update_action_item(
+    conn: &Connection,
+    item_id: i64,
+    task: Option<&str>,
+    assignee: Option<&str>,
+    due_date: Option<&str>,
+) -> AppResult<()> {
+    if let Some(t) = task.map(str::trim).filter(|t| !t.is_empty()) {
+        conn.execute("UPDATE action_items SET task = ?2 WHERE id = ?1", params![item_id, t])?;
+    }
+    if let Some(a) = assignee {
+        conn.execute("UPDATE action_items SET assignee = ?2 WHERE id = ?1", params![item_id, clean(a)])?;
+    }
+    if let Some(d) = due_date {
+        let d = due_date_of(Some(d));
+        // Teks tenggat ikut tanggal yang dipilih agar tampilan, salin, dan ekspor konsisten.
+        conn.execute("UPDATE action_items SET due_date = ?2, due = ?2 WHERE id = ?1", params![item_id, d])?;
+    }
+    Ok(())
+}
+
+/// Tambah tugas manual ke sebuah meeting (urutan terakhir).
+pub fn add_action_item(
+    conn: &Connection,
+    meeting_id: &str,
+    task: &str,
+    assignee: Option<&str>,
+    due_date: Option<&str>,
+) -> AppResult<i64> {
+    let idx: i64 =
+        conn.query_row("SELECT COALESCE(MAX(idx), -1) + 1 FROM action_items WHERE meeting_id = ?1", [meeting_id], |r| r.get(0))?;
+    let due_date = due_date_of(due_date);
+    conn.execute(
+        "INSERT INTO action_items (meeting_id, idx, task, assignee, due, due_date) VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+        params![meeting_id, idx, task.trim(), assignee.and_then(clean), due_date],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// Jumlah tugas terbuka yang tenggatnya hari ini / sudah lewat (untuk pengingat harian).
+pub fn due_counts(conn: &Connection, today: &str) -> AppResult<(i64, i64)> {
+    let q = |sql: &str| -> AppResult<i64> {
+        Ok(conn.query_row(sql, [today], |r| r.get(0))?)
+    };
+    let base = "SELECT COUNT(*) FROM action_items a JOIN meetings m ON m.id = a.meeting_id
+                WHERE m.status = 'done' AND a.done = 0 AND a.due_date IS NOT NULL AND a.due_date ";
+    Ok((q(&format!("{base} = ?1"))?, q(&format!("{base} < ?1"))?))
+}
