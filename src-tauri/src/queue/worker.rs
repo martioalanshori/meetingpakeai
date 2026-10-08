@@ -752,6 +752,7 @@ impl Worker {
                     label_peserta,
                     tanggal,
                     ejaan: settings::glossary_terms(&settings::load(&conn)?.stt_glossary),
+                    momen: crate::db::repo_bookmarks::list(&conn, id)?.into_iter().map(hhmmss).collect(),
                 },
                 llm_endpoint.model.clone(),
             )

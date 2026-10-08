@@ -226,6 +226,15 @@
         <ShortcutInput inputId="shortcut-input" value={form.globalShortcut} onchange={(v) => patch({ globalShortcut: v })} />
         <span class="hint max-w-prose">{t.shortcutHint}</span>
       </div>
+      <div class="flex flex-col gap-2 py-5">
+        <label class="label" for="bookmark-shortcut-input">{t.bookmarkShortcut}</label>
+        <ShortcutInput
+          inputId="bookmark-shortcut-input"
+          value={form.bookmarkShortcut}
+          onchange={(v) => patch({ bookmarkShortcut: v })}
+        />
+        <span class="hint max-w-prose">{t.bookmarkShortcutHint}</span>
+      </div>
       {#if storage}
         <div class="flex flex-wrap items-center justify-between gap-4 py-5">
           <div class="flex flex-col gap-0.5">

@@ -10,13 +10,24 @@ use crate::AppState;
 /// Argumen yang dipakai entri autostart: app jalan tersembunyi di tray.
 pub const ARG_MINIMIZED: &str = "--minimized";
 
-/// Handler semua shortcut global (hanya satu yang didaftarkan).
+/// Handler semua shortcut global: shortcut tandai momen (langkah 44) atau Mulai/Stop rekam.
 /// Idle → langsung mulai rekam (tanpa membuka jendela); merekam → Stop.
-pub fn on_shortcut(app: &AppHandle, _shortcut: &Shortcut, event: ShortcutEvent) {
+pub fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEvent) {
     if event.state != ShortcutState::Pressed {
         return;
     }
-    let recording = app.try_state::<AppState>().is_some_and(|s| s.recording.is_recording());
+    let Some(state) = app.try_state::<AppState>() else { return };
+    let bookmark_sc = crate::config::settings::load(&state.db.conn()).map(|s| s.bookmark_shortcut).unwrap_or_default();
+    if bookmark_sc.parse::<Shortcut>().is_ok_and(|b| b.id() == shortcut.id()) {
+        // Di luar rekaman shortcut ini tidak melakukan apa-apa.
+        if state.recording.is_recording() {
+            if let Err(e) = state.recording.bookmark() {
+                tracing::warn!("tandai momen gagal: {}", e.message);
+            }
+        }
+        return;
+    }
+    let recording = state.recording.is_recording();
     if recording {
         crate::stop_recording_in_background(app, false);
     } else {

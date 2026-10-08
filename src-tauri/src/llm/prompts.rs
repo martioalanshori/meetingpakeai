@@ -89,13 +89,20 @@ pub fn follow_up(english: bool, pengirim: &str, notulen: &str) -> String {
 pub const RETRY: &str =
     "Output sebelumnya tidak valid: {error}. Kembalikan ulang HANYA JSON valid sesuai format yang diminta.";
 
-pub fn system(label_saya: &str, label_peserta: &str, ejaan: &[String]) -> String {
+pub fn system(label_saya: &str, label_peserta: &str, ejaan: &[String], momen: &[String]) -> String {
     let mut s = SYSTEM.replace("{label_saya}", label_saya).replace("{label_peserta}", label_peserta);
     if !ejaan.is_empty() {
         // Transkrip bisa salah dengar; notulen memakai ejaan dari glosarium pengguna.
         s.push_str(&format!(
             "\nEjaan nama & istilah yang benar: {}. Jika transkrip menulisnya mirip tapi berbeda, pakai ejaan ini.",
             ejaan.join(", ")
+        ));
+    }
+    if !momen.is_empty() {
+        let list: Vec<String> = momen.iter().map(|m| format!("[{m}]")).collect();
+        s.push_str(&format!(
+            "\nPengguna menandai momen berikut sebagai penting: {}. Pembahasan di sekitar waktu itu WAJIB tercermin di ringkasan, keputusan, atau tugas (jika bagian transkrip ini memuatnya).",
+            list.join(", ")
         ));
     }
     s

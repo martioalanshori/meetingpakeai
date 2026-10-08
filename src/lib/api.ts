@@ -63,6 +63,8 @@ export const api = {
   pauseRecording: () => call<RecordingState>("pause_recording"),
   resumeRecording: () => call<RecordingState>("resume_recording"),
   setMicMuted: (muted: boolean) => call<RecordingState>("set_mic_muted", { muted }),
+  addBookmark: () => call<number>("add_bookmark"),
+  deleteBookmark: (id: string, atMs: number) => call<void>("delete_bookmark", { id, atMs }),
   stopRecording: () => call<{ meetingId: string | null }>("stop_recording"),
   getRecordingState: () => call<RecordingState>("get_recording_state"),
   takePendingOffer: () => call<string | null>("take_pending_offer"),
@@ -114,6 +116,7 @@ export const events = {
   recordingWarning: (cb: (p: RecordingWarningPayload) => void) => on("recording://warning", cb),
   /** Transkripsi bertahap selama merekam sudah mencakup sekian detik audio. */
   recordingLive: (cb: (p: { transcribedSec: number }) => void) => on("recording://live", cb),
+  recordingBookmark: (cb: (p: { atMs: number; count: number }) => void) => on("recording://bookmark", cb),
   jobProgress: (cb: (p: JobProgressPayload) => void) => on("job://progress", cb),
   meetingUpdated: (cb: (p: MeetingUpdatedPayload) => void) => on("meeting://updated", cb),
   /** Ada tawaran rekam / meeting selesai untuk jendela main yang sedang fokus. */

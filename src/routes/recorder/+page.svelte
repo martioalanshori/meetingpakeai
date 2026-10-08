@@ -34,6 +34,9 @@
   let silenceMin = $state(10);
   let systemSilentMin = $state(2);
   let limitSoonMin = $state<number | null>(null);
+  let bookmarkCount = $state(0);
+  let bookmarkFlash = $state(false);
+  let flashTimer: ReturnType<typeof setTimeout> | undefined;
   let root = $state<HTMLDivElement | null>(null);
   let errorTimer: ReturnType<typeof setTimeout> | undefined;
   let busy = $state(false);
@@ -106,6 +109,13 @@
         else if (!lostChannels.includes(w.channel)) lostChannels = [...lostChannels, w.channel];
       }),
       await events.recordingLive(() => (liveTranscribing = true)),
+      // Tanda dari tombol bintang maupun shortcut global.
+      await events.recordingBookmark((b) => {
+        bookmarkCount = b.count;
+        bookmarkFlash = true;
+        clearTimeout(flashTimer);
+        flashTimer = setTimeout(() => (bookmarkFlash = false), 900);
+      }),
       await events.autoStopWarning((w) => {
         autoStopReason = w.reason;
         if (w.silenceMin) silenceMin = w.silenceMin;
@@ -200,6 +210,19 @@
       </div>
     </div>
 
+    <button
+      type="button"
+      class={["relative rounded p-1.5 hover:bg-white/15 disabled:opacity-50", bookmarkFlash && "bg-white/20"]}
+      title={bookmarkCount > 0 ? `${id.recorder.bookmark} · ${id.recorder.bookmarked(bookmarkCount)}` : id.recorder.bookmark}
+      aria-label={id.recorder.bookmark}
+      disabled={busy || rs.status !== "recording"}
+      onclick={() => api.addBookmark().catch((e: AppError) => (error = e.message))}
+    >
+      <Icon name="star" class={bookmarkCount > 0 ? "text-amber-300" : ""} />
+      {#if bookmarkCount > 0}
+        <span class="tabular absolute -top-0.5 -right-0.5 min-w-3.5 rounded-full bg-white px-0.5 text-center text-[0.625rem] leading-3.5 font-bold text-ink">{bookmarkCount}</span>
+      {/if}
+    </button>
     <button
       type="button"
       class="rounded p-1.5 hover:bg-white/15 disabled:opacity-50"

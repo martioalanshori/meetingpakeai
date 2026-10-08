@@ -301,6 +301,9 @@ pub fn run() {
             if let Err(e) = desktop::set_shortcut(app.handle(), "", &s.global_shortcut) {
                 tracing::warn!("shortcut global tidak aktif: {}", e.message);
             }
+            if let Err(e) = desktop::set_shortcut(app.handle(), "", &s.bookmark_shortcut) {
+                tracing::warn!("shortcut tandai momen tidak aktif: {}", e.message);
+            }
             // Jendela main dibuat manual ("create": false): dilewati saat start dari autostart.
             let minimized = std::env::args().any(|a| a == desktop::ARG_MINIMIZED);
             if !minimized || !onboarded {
@@ -350,6 +353,7 @@ pub fn run() {
             commands::recording::pause_recording,
             commands::recording::resume_recording,
             commands::recording::set_mic_muted,
+            commands::recording::add_bookmark,
             commands::recording::stop_recording,
             commands::recording::get_recording_state,
             commands::recording::respond_auto_stop,
@@ -369,6 +373,7 @@ pub fn run() {
             commands::meetings::retry_job,
             commands::meetings::regenerate_summary,
             commands::meetings::generate_follow_up,
+            commands::meetings::delete_bookmark,
             commands::meetings::retranscribe,
             commands::meetings::resolve_interrupted,
         ])

@@ -4,7 +4,7 @@ use tauri::{AppHandle, State};
 
 use crate::config::settings::{self, Settings, SettingsPatch};
 use crate::desktop;
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult, ErrorCode};
 use crate::AppState;
 
 #[tauri::command]
@@ -16,10 +16,23 @@ pub async fn get_settings(state: State<'_, AppState>) -> AppResult<Settings> {
 pub async fn update_settings(app: AppHandle, state: State<'_, AppState>, patch: SettingsPatch) -> AppResult<Settings> {
     let current = settings::load(&state.db.conn())?;
     // Efek ke sistem dulu; gagal → setting tidak disimpan.
+    let same = |a: &str, b: &str| !a.is_empty() && a.eq_ignore_ascii_case(b);
     if let Some(sc) = &patch.global_shortcut {
         let sc = sc.trim();
+        if same(sc, &current.bookmark_shortcut) {
+            return Err(AppError::with_message(ErrorCode::InvalidState, "Shortcut ini sudah dipakai untuk tandai momen."));
+        }
         if sc != current.global_shortcut {
             desktop::set_shortcut(&app, &current.global_shortcut, sc)?;
+        }
+    }
+    if let Some(sc) = &patch.bookmark_shortcut {
+        let sc = sc.trim();
+        if same(sc, &current.global_shortcut) {
+            return Err(AppError::with_message(ErrorCode::InvalidState, "Shortcut ini sudah dipakai untuk mulai/hentikan rekaman."));
+        }
+        if sc != current.bookmark_shortcut {
+            desktop::set_shortcut(&app, &current.bookmark_shortcut, sc)?;
         }
     }
     if let Some(v) = patch.autostart {

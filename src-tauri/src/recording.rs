@@ -17,7 +17,7 @@ use crate::audio::Channel;
 use crate::config::providers::RecordingConfig;
 use crate::config::settings;
 use crate::db::repo_meetings::{self, NewMeeting};
-use crate::db::{now_ms, repo_parts, Db};
+use crate::db::{now_ms, repo_bookmarks, repo_parts, Db};
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::events::{self, EventSink, MeetingUpdated};
 use crate::windows_integration;
@@ -297,6 +297,19 @@ impl RecordingService {
         } else {
             self.stop(StopReason::Manual).map(|_| ())
         }
+    }
+
+    /// Tandai momen penting di posisi rekaman saat ini (langkah 44). Tekan beruntun < 3 dtk dihitung sekali.
+    pub fn bookmark(&self) -> AppResult<i64> {
+        let (meeting_id, at_ms) = self.with_active(|a| (a.meeting_id.clone(), a.recorder.elapsed().as_millis() as i64))?;
+        let conn = self.db.conn();
+        if repo_bookmarks::last(&conn, &meeting_id)?.is_none_or(|last| at_ms - last >= 3_000) {
+            repo_bookmarks::insert(&conn, &meeting_id, at_ms)?;
+        }
+        let count = repo_bookmarks::count(&conn, &meeting_id)?;
+        drop(conn);
+        self.events.emit_json(events::EV_RECORDING_BOOKMARK, serde_json::json!({ "atMs": at_ms, "count": count }));
+        Ok(at_ms)
     }
 
     /// Aplikasi meeting selesai memakai mic: peringatan + hitung mundur Stop (bisa dibatalkan "Lanjut").

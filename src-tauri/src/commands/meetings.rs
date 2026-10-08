@@ -64,6 +64,8 @@ pub struct MeetingDetail {
     pub labels: Labels,
     pub summary: Option<SummaryView>,
     pub action_items: Vec<ActionItemView>,
+    /// Momen ditandai (ms), langkah 44.
+    pub bookmarks: Vec<i64>,
 }
 
 /// Index pencarian ikut diperbarui setelah pengguna mengubah teks meeting yang sudah selesai.
@@ -113,6 +115,7 @@ pub async fn get_meeting(state: State<'_, AppState>, id: String) -> AppResult<Me
         labels,
         summary: repo_summary::get(&conn, &id)?,
         action_items: repo_summary::action_items(&conn, &id)?,
+        bookmarks: crate::db::repo_bookmarks::list(&conn, &id)?,
     })
 }
 
@@ -306,6 +309,14 @@ pub async fn generate_follow_up(
     let f = repo_summary::FollowUp { subject: text("subjek"), body, lang };
     repo_summary::set_follow_up(&state.db.conn(), &id, &f)?;
     Ok(f)
+}
+
+/// Tambahan (langkah 44): hapus satu momen ditandai.
+#[tauri::command]
+pub async fn delete_bookmark(state: State<'_, AppState>, id: String, at_ms: i64) -> AppResult<()> {
+    crate::db::repo_bookmarks::delete(&state.db.conn(), &id, at_ms)?;
+    emit_updated(&state, &id);
+    Ok(())
 }
 
 #[tauri::command]

@@ -99,6 +99,8 @@ export type MeetingDetail = MeetingListItem & {
   labels: { mic: string; system: string };
   summary: MeetingSummary | null;
   actionItems: ActionItem[];
+  /** Momen ditandai saat merekam (ms). */
+  bookmarks: number[];
 };
 
 export type TranscriptSegment = {
@@ -124,6 +126,8 @@ export type Settings = {
   meetingDetection: boolean;
   /** Nama & istilah, satu per baris (maks 800 karakter). */
   sttGlossary: string;
+  /** Shortcut global tandai momen saat merekam; "" = mati. */
+  bookmarkShortcut: string;
 };
 
 export type UpdateInfo = { version: string; notes: string | null };

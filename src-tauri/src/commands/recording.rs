@@ -38,6 +38,12 @@ pub async fn resume_recording(state: State<'_, AppState>) -> AppResult<Recording
     state.recording.resume()
 }
 
+/// Tambahan (langkah 44): tandai momen penting saat merekam. Mengembalikan posisi (ms).
+#[tauri::command]
+pub async fn add_bookmark(state: State<'_, AppState>) -> AppResult<i64> {
+    state.recording.bookmark()
+}
+
 #[tauri::command]
 pub async fn set_mic_muted(state: State<'_, AppState>, muted: bool) -> AppResult<RecordingState> {
     state.recording.set_mic_muted(muted)

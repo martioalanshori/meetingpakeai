@@ -9,6 +9,8 @@ pub const EV_AUTO_STOP_WARNING: &str = "recording://auto-stop-warning";
 pub const EV_RECORDING_WARNING: &str = "recording://warning";
 /// Transkripsi bertahap selama merekam berjalan (langkah 37): `{ transcribedSec }`.
 pub const EV_RECORDING_LIVE: &str = "recording://live";
+/// Tambahan (langkah 44): momen ditandai `{ atMs, count }`.
+pub const EV_RECORDING_BOOKMARK: &str = "recording://bookmark";
 pub const EV_JOB_PROGRESS: &str = "job://progress";
 pub const EV_MEETING_UPDATED: &str = "meeting://updated";
 

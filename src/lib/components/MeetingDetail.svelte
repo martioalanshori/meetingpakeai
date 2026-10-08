@@ -309,6 +309,30 @@
     return transcript[lo];
   }
 
+  /** Kutipan transkrip ±20 dtk di sekitar momen ditandai (dipotong ±280 karakter). */
+  function quoteAround(ms: number): string {
+    const text = transcript
+      .filter((x) => x.endMs >= ms - 20000 && x.startMs <= ms + 20000)
+      .map((x) => x.text.trim())
+      .join(" ");
+    return text.length > 280 ? text.slice(0, 280).replace(/\s+\S*$/, "") + "…" : text;
+  }
+
+  /** Baris transkrip terdekat untuk tiap momen ditandai (penanda bintang). */
+  const markedSegIds = $derived(
+    new Set((meeting?.bookmarks ?? []).map((b) => segmentAt(b)?.id).filter((x): x is number => x !== undefined)),
+  );
+
+  async function removeBookmark(ms: number) {
+    if (!meeting) return;
+    try {
+      await api.deleteBookmark(meeting.id, ms);
+      meeting.bookmarks = meeting.bookmarks.filter((b) => b !== ms);
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+
   /** Chip waktu keputusan/tugas: buka Transkrip di baris terdekat (sedikit sebelum, agar konteks terbaca) dan putar. */
   async function jumpTo(ms: number) {
     const target = Math.max(0, ms - 3000);
@@ -683,6 +707,34 @@
                   </ul>
                 {/if}
               </div>
+              {#if meeting.bookmarks.length > 0}
+                <div class="flex flex-col gap-2">
+                  <h2 class="section-title flex items-center gap-1.5">
+                    <Icon name="star" size={16} class="text-warn" />{t.detail.bookmarks}
+                  </h2>
+                  <ul class="flex flex-col gap-2.5">
+                    {#each meeting.bookmarks as b (b)}
+                      {@const quote = quoteAround(b)}
+                      <li class="group flex items-start gap-2 rounded-lg border border-line-soft bg-paper/50 px-3 py-2">
+                        <span class="min-w-0 flex-1 leading-relaxed">
+                          {#if quote}<span class="text-ink">“{quote}”</span>{:else}<span class="text-ink-soft"
+                              >{t.detail.bookmarkNoText}</span
+                            >{/if}{@render sourceChip(b)}
+                        </span>
+                        <button
+                          type="button"
+                          class="btn btn-quiet btn-icon btn-sm opacity-60 group-hover:opacity-100 print:hidden"
+                          aria-label={t.detail.bookmarkRemove}
+                          title={t.detail.bookmarkRemove}
+                          onclick={() => removeBookmark(b)}
+                        >
+                          <Icon name="x" size={14} />
+                        </button>
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
               {#if meeting.summary.topics.length > 0}
                 <div class="flex flex-col gap-2">
                   <h2 class="section-title">{t.detail.topics}</h2>
@@ -797,7 +849,11 @@
                   onclick={() => playAt(s.startMs)}>{formatTimestamp(s.startMs)}</button
                 >
               {/if}
-              <p class="max-w-[70ch] leading-[1.7]">{s.text.trim()}</p>
+              <p class="max-w-[70ch] leading-[1.7]">
+                {#if markedSegIds.has(s.id)}<Icon name="star" size={14} class="mr-1 inline -translate-y-px text-warn" /><span
+                    class="sr-only">{t.detail.bookmarkMarker}:</span
+                  >{/if}{s.text.trim()}
+              </p>
             </li>
           {/each}
           </ol>

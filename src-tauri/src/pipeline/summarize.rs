@@ -29,6 +29,8 @@ pub struct SummarizeInput {
     pub tanggal: String,
     /// Ejaan nama & istilah yang benar (glosarium pengguna).
     pub ejaan: Vec<String>,
+    /// Momen yang ditandai pengguna, `HH:MM:SS` (langkah 44).
+    pub momen: Vec<String>,
 }
 
 pub enum SummaryOutcome {
@@ -117,7 +119,7 @@ pub async fn summarize(caller: &dyn LlmCaller, input: &SummarizeInput, max_chunk
     if input.word_count < MIN_WORDS {
         return Ok(SummaryOutcome::Empty);
     }
-    let system = ChatMessage::system(prompts::system(&input.label_saya, &input.label_peserta, &input.ejaan));
+    let system = ChatMessage::system(prompts::system(&input.label_saya, &input.label_peserta, &input.ejaan, &input.momen));
     let transcript = input.lines.join("\n");
 
     // Single pass.
