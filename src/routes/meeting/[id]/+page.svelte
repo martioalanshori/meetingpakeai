@@ -7,6 +7,7 @@
 
   const meetingId = $derived(page.params.id ?? "");
   const tab = $derived(page.url.searchParams.get("tab"));
+  const at = $derived(Number(page.url.searchParams.get("at") ?? "NaN"));
 
   // Jendela cukup lebar (juga saat diperbesar) → detail tampil di panel kanan Beranda; tab aktif dipertahankan.
   $effect(() => {
@@ -16,4 +17,4 @@
   });
 </script>
 
-<MeetingDetail {meetingId} initialTab={tab} />
+<MeetingDetail {meetingId} initialTab={tab} initialMs={Number.isFinite(at) ? at : null} />

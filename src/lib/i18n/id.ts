@@ -33,6 +33,10 @@ export const id = {
   },
 
   home: {
+    askAll: (q: string) => `Tanya AI: "${q}"`,
+    askAllTitle: "Jawaban dari meeting Anda",
+    askAllBusy: "Mencari di semua meeting…",
+    askAllRefs: "Rujukan",
     importButton: "Impor rekaman",
     importHint: "mp3, m4a, mp4, wav, ogg, flac, webm",
     importing: "Mengimpor rekaman…",

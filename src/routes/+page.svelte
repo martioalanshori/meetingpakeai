@@ -15,7 +15,7 @@
   import { detailTab, viewport } from "$lib/viewport.svelte";
   import { confirmDialog } from "$lib/confirm.svelte";
   import { formatTimestamp } from "$lib/format";
-  import type { AppError, MeetingListItem, SearchHit } from "$lib/types";
+  import type { AppError, AskAllResult, MeetingListItem, SearchHit } from "$lib/types";
 
   const PAGE = 50;
 
@@ -72,15 +72,43 @@
   }
 
   function hitHref(h: SearchHit): string {
-    return `/meeting/${h.meetingId}?tab=${hitTab(h)}`;
+    return `/meeting/${h.meetingId}?tab=${hitTab(h)}${h.startMs !== null ? `&at=${h.startMs}` : ""}`;
+  }
+
+  // Tanya semua meeting (feedback3 D1): jawaban AI dari index pencarian.
+  let askResult = $state<AskAllResult | null>(null);
+  let askBusy = $state(false);
+  let askedFor = $state("");
+
+  async function askAll() {
+    const q = query.trim();
+    if (!q || askBusy) return;
+    askBusy = true;
+    askedFor = q;
+    askResult = null;
+    try {
+      askResult = await api.askAllMeetings(q);
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    } finally {
+      askBusy = false;
+    }
+  }
+
+  function openRef(e: MouseEvent, meetingId: string, atMs: number | null) {
+    if (!viewport.wide) return;
+    e.preventDefault();
+    select(meetingId, atMs !== null ? "transcript" : undefined, atMs);
   }
 
   // Layar lebar: meeting dibuka di panel kanan (URL `/?m=<id>`), bukan pindah halaman.
   const selected = $derived(page.url.searchParams.get("m"));
   const selectedTab = $derived(page.url.searchParams.get("tab"));
+  const selectedAt = $derived(Number(page.url.searchParams.get("at") ?? "NaN"));
 
-  function select(meetingId: string, tab?: string) {
-    goto(`/?m=${meetingId}${tab ? `&tab=${tab}` : ""}`, { replaceState: true, keepFocus: true, noScroll: true });
+  function select(meetingId: string, tab?: string, at?: number | null) {
+    const atPart = at !== null && at !== undefined ? `&at=${at}` : "";
+    goto(`/?m=${meetingId}${tab ? `&tab=${tab}` : ""}${atPart}`, { replaceState: true, keepFocus: true, noScroll: true });
   }
 
   function openRow(e: MouseEvent, meetingId: string) {
@@ -92,7 +120,7 @@
   function openHit(e: MouseEvent, h: SearchHit) {
     if (!viewport.wide) return;
     e.preventDefault();
-    select(h.meetingId, hitTab(h));
+    select(h.meetingId, hitTab(h), h.startMs);
   }
 
   // Panel kanan tidak dibiarkan kosong: pilih meeting terbaru.
@@ -285,6 +313,45 @@
     </div>
   {/each}
 
+  {#if query.trim().length >= 3}
+    <!-- Tanya AI lintas meeting (feedback3 D1). -->
+    <div class="flex flex-col gap-3">
+      {#if askedFor !== query.trim() || (!askResult && !askBusy)}
+        <button
+          type="button"
+          class="-mx-1 flex items-center gap-2 self-start rounded-lg px-2 py-1.5 text-left text-sm font-semibold hover:bg-wash"
+          onclick={askAll}
+        >
+          <Icon name="send" size={14} class="shrink-0" />{id.home.askAll(query.trim())}
+        </button>
+      {/if}
+      {#if askBusy}
+        <p class="hint motion-safe:animate-pulse" role="status">{id.home.askAllBusy}</p>
+      {:else if askResult && askedFor === query.trim()}
+        <section class="flex flex-col gap-2 rounded-xl border border-line bg-sheet p-4" aria-label={id.home.askAllTitle}>
+          <span class="text-sm font-semibold text-ink-soft">{id.home.askAllTitle}</span>
+          <p class="leading-relaxed whitespace-pre-line">{askResult.answer}</p>
+          {#if askResult.refs.length > 0}
+            <ul class="flex flex-col gap-1 border-t border-line-soft pt-2">
+              {#each askResult.refs as r, i (i)}
+                <li>
+                  <a
+                    class="link text-sm"
+                    href={`/meeting/${r.meetingId}${r.atMs !== null ? `?tab=transcript&at=${r.atMs}` : ""}`}
+                    onclick={(e) => openRef(e, r.meetingId, r.atMs)}
+                    >{r.title}<span class="tabular text-ink-faint"
+                      >&ensp;{formatDateTime(r.startedAt)}{#if r.atMs !== null}&ensp;{formatTimestamp(r.atMs)}{/if}</span
+                    ></a
+                  >
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
+      {/if}
+    </div>
+  {/if}
+
   {#if hits !== null}
     {#if hits.length === 0}
       <p class="text-ink-soft">{id.home.noResults}</p>
@@ -424,7 +491,11 @@
     </div>
     <div class="min-h-0 overflow-y-auto [scrollbar-gutter:stable] print:overflow-visible">
       {#if selected}
-        <MeetingDetail meetingId={selected} initialTab={selectedTab} embedded ondeleted={() => goto("/", { replaceState: true })} />
+        <MeetingDetail
+          meetingId={selected}
+          initialTab={selectedTab}
+          initialMs={Number.isFinite(selectedAt) ? selectedAt : null}
+          embedded ondeleted={() => goto("/", { replaceState: true })} />
       {:else if loaded}
         <div class="flex h-full items-center justify-center px-10 text-center text-ink-soft">
           <p class="max-w-sm">{items.length === 0 ? id.home.emptyRight : id.home.pickMeeting}</p>

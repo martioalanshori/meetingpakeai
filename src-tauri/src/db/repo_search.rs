@@ -116,6 +116,39 @@ pub fn search(conn: &Connection, input: &str) -> AppResult<Vec<SearchHit>> {
     Ok(hits)
 }
 
+/// Baris index untuk "Tanya semua meeting" (langkah 53).
+#[derive(Debug, Clone)]
+pub struct Retrieved {
+    pub meeting_id: String,
+    pub kind: String,
+    pub text: String,
+    pub start_ms: Option<i64>,
+}
+
+/// Kandidat potongan untuk pertanyaan lintas meeting: kata kunci digabung OR (prefiks), urut relevansi.
+pub fn retrieve(conn: &Connection, keywords: &[String], limit: i64) -> AppResult<Vec<Retrieved>> {
+    let terms: Vec<String> = keywords
+        .iter()
+        .map(|w| w.chars().filter(|c| c.is_alphanumeric()).collect::<String>())
+        .filter(|w| !w.is_empty())
+        .map(|w| format!("\"{w}\"*"))
+        .collect();
+    if terms.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut stmt = conn.prepare(
+        "SELECT si.meeting_id, si.kind, si.text, si.ref FROM search_index si
+         WHERE search_index MATCH ?1 AND si.kind <> 'title'
+         ORDER BY rank LIMIT ?2",
+    )?;
+    let rows = stmt
+        .query_map(params![terms.join(" OR "), limit], |r| {
+            Ok(Retrieved { meeting_id: r.get(0)?, kind: r.get(1)?, text: r.get(2)?, start_ms: r.get(3)? })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

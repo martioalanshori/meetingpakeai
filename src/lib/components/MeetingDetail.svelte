@@ -34,9 +34,17 @@
   let {
     meetingId,
     initialTab = null,
+    initialMs = null,
     embedded = false,
     ondeleted,
-  }: { meetingId: string; initialTab?: string | null; embedded?: boolean; ondeleted?: () => void } = $props();
+  }: {
+    meetingId: string;
+    initialTab?: string | null;
+    /** Buka di waktu transkrip ini (dari pencarian / Tanya semua meeting). */
+    initialMs?: number | null;
+    embedded?: boolean;
+    ondeleted?: () => void;
+  } = $props();
 
   let meeting = $state<MeetingDetail | null>(null);
   let transcript = $state<TranscriptSegment[]>([]);
@@ -116,6 +124,12 @@
         else if (m.status !== "done" && m.summary === null)
           tab = tr.length > 0 || m.status === "recording" ? "transcript" : "summary";
         else tab = "summary";
+        // Datang dari hasil pencarian / rujukan dengan waktu: gulir ke baris itu (tanpa memutar).
+        if (initialMs !== null && tr.length > 0) {
+          tab = "transcript";
+          const ms = initialMs;
+          tick().then(() => jumpTo(ms, false));
+        }
       }
     } catch (e) {
       if (mid !== meetingId) return;
@@ -423,7 +437,7 @@
   }
 
   /** Chip waktu keputusan/tugas: buka Transkrip di baris terdekat (sedikit sebelum, agar konteks terbaca) dan putar. */
-  async function jumpTo(ms: number) {
+  async function jumpTo(ms: number, play = true) {
     const target = Math.max(0, ms - 3000);
     tab = "transcript";
     await tick();
@@ -435,7 +449,7 @@
       el?.classList.add("flash");
       setTimeout(() => el?.classList.remove("flash"), 1600);
     }
-    if (!meeting?.audioDeleted) await playAt(seg?.startMs ?? target);
+    if (play && !meeting?.audioDeleted) await playAt(seg?.startMs ?? target);
   }
 
   /** Segment yang sedang diputar: `startMs` terbesar yang ≤ posisi (pencarian biner). */

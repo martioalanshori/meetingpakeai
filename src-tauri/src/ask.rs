@@ -129,3 +129,39 @@ pub fn transcript_context(segs: &[VisibleSegment], question: &str, budget: usize
     }
     out
 }
+
+/// Kata kunci pertanyaan (kata umum dibuang), untuk pencarian FTS.
+pub fn keywords(question: &str) -> Vec<String> {
+    normalize(question)
+        .split_whitespace()
+        .filter(|w| w.chars().count() >= 3 && !STOP.contains(w))
+        .map(str::to_string)
+        .collect()
+}
+
+/// Rentang waktu yang disebut di pertanyaan ("hari ini", "minggu ini", "bulan lalu", …) → (mulai, akhir) ms.
+pub fn time_window(question: &str, now: chrono::DateTime<chrono::Local>) -> Option<(i64, i64)> {
+    use chrono::{Datelike, Duration, TimeZone};
+    let q = question.to_lowercase();
+    let day = |d: chrono::NaiveDate| chrono::Local.from_local_datetime(&d.and_hms_opt(0, 0, 0)?).single().map(|t| t.timestamp_millis());
+    let today = now.date_naive();
+    let monday = today - Duration::days(i64::from(today.weekday().num_days_from_monday()));
+    let first = today.with_day(1)?;
+    let (start, end) = if q.contains("hari ini") || q.contains("today") {
+        (today, today + Duration::days(1))
+    } else if q.contains("kemarin") || q.contains("yesterday") {
+        (today - Duration::days(1), today)
+    } else if q.contains("minggu lalu") || q.contains("pekan lalu") || q.contains("last week") {
+        (monday - Duration::days(7), monday)
+    } else if q.contains("minggu ini") || q.contains("pekan ini") || q.contains("this week") {
+        (monday, today + Duration::days(1))
+    } else if q.contains("bulan lalu") || q.contains("last month") {
+        let prev = (first - Duration::days(1)).with_day(1)?;
+        (prev, first)
+    } else if q.contains("bulan ini") || q.contains("this month") {
+        (first, today + Duration::days(1))
+    } else {
+        return None;
+    };
+    Some((day(start)?, day(end)?))
+}

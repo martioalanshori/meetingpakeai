@@ -2,6 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  AskAllResult,
   FollowUp,
   QaItem,
   AiConfig,
@@ -94,6 +95,7 @@ export const api = {
   importRecording: (path?: string) => call<string | null>("import_recording", { path: path ?? null }),
   summarizeSoFar: (id: string) => call<string[]>("summarize_so_far", { id }),
   askMeeting: (id: string, question: string) => call<QaItem>("ask_meeting", { id, question }),
+  askAllMeetings: (question: string) => call<AskAllResult>("ask_all_meetings", { question }),
   updateSegment: (segmentId: number, text: string) => call<void>("update_segment", { segmentId, text }),
   replaceInMeeting: (id: string, from: string, to: string, addToGlossary: boolean) =>
     call<{ replaced: number; addedToGlossary: boolean }>("replace_in_meeting", { id, from, to, addToGlossary }),

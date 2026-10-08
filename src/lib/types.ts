@@ -69,6 +69,11 @@ export type ActionItem = {
   sourceMs: number | null;
 };
 
+export type AskAllResult = {
+  answer: string;
+  refs: { meetingId: string; title: string; startedAt: number; atMs: number | null }[];
+};
+
 export type QaItem = { id: number; question: string; answer: string; sources: number[]; createdAt: number };
 
 export type FollowUp = { subject: string; body: string; lang: "id" | "en" };
