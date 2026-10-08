@@ -51,6 +51,14 @@ pub fn delete_for_meeting(conn: &Connection, meeting_id: &str) -> AppResult<()> 
 }
 
 /// Hanya segment yang ditampilkan: `is_filtered = 0 AND is_duplicate = 0`.
+/// Ubah teks satu segment (langkah 52); mengembalikan id meeting-nya.
+pub fn update_text(conn: &Connection, segment_id: i64, text: &str) -> AppResult<String> {
+    let meeting_id: String =
+        conn.query_row("SELECT meeting_id FROM transcript_segments WHERE id = ?1", [segment_id], |r| r.get(0))?;
+    conn.execute("UPDATE transcript_segments SET text = ?2 WHERE id = ?1", params![segment_id, text])?;
+    Ok(meeting_id)
+}
+
 pub fn list_visible(conn: &Connection, meeting_id: &str) -> AppResult<Vec<VisibleSegment>> {
     let mut stmt = conn.prepare(
         "SELECT id, channel, start_ms, end_ms, text FROM transcript_segments

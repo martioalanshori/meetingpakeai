@@ -601,6 +601,92 @@ pub async fn clear_meeting_qa(state: State<'_, AppState>, id: String) -> AppResu
     crate::ask::clear(&state.db.conn(), &id)
 }
 
+/// Tambahan (langkah 52, feedback3 C3): ubah teks satu baris transkrip.
+#[tauri::command]
+pub async fn update_segment(state: State<'_, AppState>, segment_id: i64, text: String) -> AppResult<()> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Err(AppError::with_message(ErrorCode::InvalidState, "Teks tidak boleh kosong."));
+    }
+    let meeting_id = crate::db::repo_segments::update_text(&state.db.conn(), segment_id, text)?;
+    reindex(&state, &meeting_id);
+    Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplaceResult {
+    pub replaced: usize,
+    pub added_to_glossary: bool,
+}
+
+/// Tambahan (langkah 52): ganti semua `from` → `to` (kata utuh) di transkrip, ringkasan, keputusan, intisari,
+/// pertanyaan terbuka, dan tugas meeting ini; opsional simpan `to` ke glosarium agar meeting berikutnya benar.
+#[tauri::command]
+pub async fn replace_in_meeting(
+    state: State<'_, AppState>,
+    id: String,
+    from: String,
+    to: String,
+    add_to_glossary: bool,
+) -> AppResult<ReplaceResult> {
+    use crate::pipeline::replace::replace_words;
+    let (from, to) = (from.trim().to_string(), to.trim().to_string());
+    if from.is_empty() || to.is_empty() || from == to {
+        return Err(AppError::with_message(ErrorCode::InvalidState, "Isi kata lama dan kata baru."));
+    }
+    let mut conn = state.db.conn();
+    let tx = conn.transaction()?;
+    let mut replaced = 0;
+    {
+        let mut stmt = tx.prepare("SELECT id, text FROM transcript_segments WHERE meeting_id = ?1")?;
+        let rows: Vec<(i64, String)> =
+            stmt.query_map([&id], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<Vec<_>, _>>()?;
+        for (seg_id, text) in rows {
+            let (next, n) = replace_words(&text, &from, &to);
+            if n > 0 {
+                replaced += n;
+                tx.execute("UPDATE transcript_segments SET text = ?2 WHERE id = ?1", rusqlite::params![seg_id, next])?;
+            }
+        }
+        // Notulen: kolom teks & kolom JSON array string.
+        let row: Option<(Option<String>, String, String, String)> = rusqlite::OptionalExtension::optional(tx.query_row(
+            "SELECT summary, decisions, key_points, open_questions FROM summaries WHERE meeting_id = ?1",
+            [&id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        ))?;
+        if let Some((summary, decisions, key_points, open)) = row {
+            let fix_list = |json: &str| -> String {
+                let items: Vec<String> = serde_json::from_str(json).unwrap_or_default();
+                let fixed: Vec<String> = items.iter().map(|s| replace_words(s, &from, &to).0).collect();
+                serde_json::to_string(&fixed).unwrap_or_else(|_| json.to_string())
+            };
+            let summary = summary.map(|s| replace_words(&s, &from, &to).0);
+            tx.execute(
+                "UPDATE summaries SET summary = ?2, decisions = ?3, key_points = ?4, open_questions = ?5 WHERE meeting_id = ?1",
+                rusqlite::params![id, summary, fix_list(&decisions), fix_list(&key_points), fix_list(&open)],
+            )?;
+        }
+        let mut stmt = tx.prepare("SELECT id, task, assignee FROM action_items WHERE meeting_id = ?1")?;
+        let items: Vec<(i64, String, Option<String>)> =
+            stmt.query_map([&id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<Result<Vec<_>, _>>()?;
+        for (item_id, task, assignee) in items {
+            let task = replace_words(&task, &from, &to).0;
+            let assignee = assignee.map(|a| replace_words(&a, &from, &to).0);
+            tx.execute(
+                "UPDATE action_items SET task = ?2, assignee = ?3 WHERE id = ?1",
+                rusqlite::params![item_id, task, assignee],
+            )?;
+        }
+    }
+    tx.commit()?;
+    let added_to_glossary = add_to_glossary && settings::add_glossary_term(&conn, &to)?;
+    drop(conn);
+    reindex(&state, &id);
+    emit_updated(&state, &id);
+    Ok(ReplaceResult { replaced, added_to_glossary })
+}
+
 /// Tambahan (langkah 44): hapus satu momen ditandai.
 #[tauri::command]
 pub async fn delete_bookmark(state: State<'_, AppState>, id: String, at_ms: i64) -> AppResult<()> {

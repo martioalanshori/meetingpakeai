@@ -94,6 +94,9 @@ export const api = {
   importRecording: (path?: string) => call<string | null>("import_recording", { path: path ?? null }),
   summarizeSoFar: (id: string) => call<string[]>("summarize_so_far", { id }),
   askMeeting: (id: string, question: string) => call<QaItem>("ask_meeting", { id, question }),
+  updateSegment: (segmentId: number, text: string) => call<void>("update_segment", { segmentId, text }),
+  replaceInMeeting: (id: string, from: string, to: string, addToGlossary: boolean) =>
+    call<{ replaced: number; addedToGlossary: boolean }>("replace_in_meeting", { id, from, to, addToGlossary }),
   listMeetingQa: (id: string) => call<QaItem[]>("list_meeting_qa", { id }),
   clearMeetingQa: (id: string) => call<void>("clear_meeting_qa", { id }),
   getNotes: (id: string) => call<string>("get_notes", { id }),

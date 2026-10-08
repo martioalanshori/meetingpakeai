@@ -353,6 +353,55 @@
     new Set((meeting?.bookmarks ?? []).map((b) => segmentAt(b)?.id).filter((x): x is number => x !== undefined)),
   );
 
+  // Perbaiki transkrip (feedback3 C3): ubah satu baris, lalu tawarkan ganti semua + glosarium.
+  let editingSeg = $state<number | null>(null);
+  let segDraft = $state("");
+  let replaceOffer = $state<{ from: string; to: string } | null>(null);
+  let replaceDone = $state<{ n: number; glossary: boolean } | null>(null);
+
+  /** Bagian yang berubah (maks 3 kata) antara teks lama dan baru, untuk tawaran "ganti semua". */
+  function changedPhrase(before: string, after: string): { from: string; to: string } | null {
+    const a = before.trim().split(/\s+/);
+    const b = after.trim().split(/\s+/);
+    let i = 0;
+    while (i < a.length && i < b.length && a[i] === b[i]) i++;
+    let j = 0;
+    while (j < a.length - i && j < b.length - i && a[a.length - 1 - j] === b[b.length - 1 - j]) j++;
+    const strip = (w: string[]) => w.join(" ").replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+    const from = strip(a.slice(i, a.length - j));
+    const to = strip(b.slice(i, b.length - j));
+    const words = (s: string) => s.split(" ").length;
+    if (!from || !to || from === to || words(from) > 3 || words(to) > 3) return null;
+    return { from, to };
+  }
+
+  async function saveSegment(s: TranscriptSegment) {
+    const text = segDraft.trim();
+    editingSeg = null;
+    if (!text || text === s.text.trim()) return;
+    try {
+      await api.updateSegment(s.id, text);
+      replaceOffer = changedPhrase(s.text, text);
+      replaceDone = null;
+      s.text = text;
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+
+  async function applyReplace() {
+    if (!replaceOffer || !meeting) return;
+    const { from, to } = replaceOffer;
+    replaceOffer = null;
+    try {
+      const r = await api.replaceInMeeting(meeting.id, from, to, true);
+      replaceDone = { n: r.replaced, glossary: r.addedToGlossary };
+      await load();
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+
   /** Tandai / batalkan tanda momen dari baris transkrip (feedback3 F4). */
   async function toggleMoment(ms: number) {
     if (!meeting) return;
@@ -962,6 +1011,22 @@
           </div>
         {:else if !meeting.audioDeleted}<p class="-mt-2 text-sm text-ink-faint">{t.detail.clickToPlay}</p>{/if}
 
+        {#if replaceOffer}
+          <div class="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-paper/60 px-4 py-3" role="status">
+            <span class="flex-1 text-sm">{t.detail.replaceOffer(replaceOffer.from, replaceOffer.to)}</span>
+            <button type="button" class="btn btn-ink btn-sm" onclick={applyReplace}>{t.detail.replaceAll}</button>
+            <button type="button" class="btn btn-quiet btn-sm" onclick={() => (replaceOffer = null)}>{t.detail.dismiss}</button>
+          </div>
+        {:else if replaceDone}
+          <div class="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-paper/60 px-4 py-3" role="status">
+            <span class="flex-1 text-sm">{t.detail.replaceDone(replaceDone.n, replaceDone.glossary)}</span>
+            {#if canRegenerate}
+              <button type="button" class="btn btn-ink btn-sm" onclick={() => ((replaceDone = null), requestRegenerate())}>{t.detail.regenStart}</button>
+            {/if}
+            <button type="button" class="btn btn-quiet btn-sm" onclick={() => (replaceDone = null)}>{t.detail.dismiss}</button>
+          </div>
+        {/if}
+
         {#if audioSrc || audioLoading}
           <div class="sticky top-2 z-10 rounded-xl border border-line bg-sheet px-3 py-2 shadow-[0_8px_24px_-12px_rgb(30_36_51/0.3)]">
             {#if audioLoading && !audioSrc}
@@ -1002,7 +1067,16 @@
                 >
               {/if}
               <p class="group/row relative max-w-[70ch] leading-[1.7]">
-                {#if !isLive}
+                {#if !isLive && editingSeg !== s.id}
+                  <button
+                    type="button"
+                    class="absolute top-0.5 -right-16 rounded p-1 text-ink-faint opacity-0 group-hover/row:opacity-100 hover:bg-wash hover:text-ink focus:opacity-100 print:hidden"
+                    title={t.detail.editLine}
+                    aria-label={t.detail.editLine}
+                    onclick={() => ((editingSeg = s.id), (segDraft = s.text.trim()))}
+                  >
+                    <Icon name="pencil" size={14} />
+                  </button>
                   <button
                     type="button"
                     class={[
@@ -1016,9 +1090,31 @@
                     <Icon name="star" size={14} />
                   </button>
                 {/if}
-                {#if markedSegIds.has(s.id)}<Icon name="star" size={14} class="mr-1 inline -translate-y-px text-warn" /><span
-                    class="sr-only">{t.detail.bookmarkMarker}:</span
-                  >{/if}{s.text.trim()}
+                {#if editingSeg === s.id}
+                  <span class="flex flex-col gap-2">
+                    <!-- svelte-ignore a11y_autofocus -->
+                    <textarea
+                      class="field resize-y leading-relaxed"
+                      rows="2"
+                      bind:value={segDraft}
+                      autofocus
+                      onkeydown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          saveSegment(s);
+                        } else if (e.key === "Escape") editingSeg = null;
+                      }}
+                    ></textarea>
+                    <span class="flex gap-2">
+                      <button type="button" class="btn btn-ink btn-sm" onclick={() => saveSegment(s)}>{t.detail.saveLine}</button>
+                      <button type="button" class="btn btn-quiet btn-sm" onclick={() => (editingSeg = null)}>{t.detail.cancelLine}</button>
+                    </span>
+                  </span>
+                {:else}
+                  {#if markedSegIds.has(s.id)}<Icon name="star" size={14} class="mr-1 inline -translate-y-px text-warn" /><span
+                      class="sr-only">{t.detail.bookmarkMarker}:</span
+                    >{/if}{s.text.trim()}
+                {/if}
               </p>
             </li>
           {/each}

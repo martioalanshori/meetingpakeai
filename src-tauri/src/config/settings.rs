@@ -177,6 +177,24 @@ pub fn apply_patch(conn: &Connection, patch: SettingsPatch) -> AppResult<Setting
     load(conn)
 }
 
+/// Tambah istilah ke glosarium bila belum ada dan masih muat batas (langkah 52). `true` jika ditambahkan.
+pub fn add_glossary_term(conn: &Connection, term: &str) -> AppResult<bool> {
+    let term = term.trim();
+    if term.is_empty() {
+        return Ok(false);
+    }
+    let current = load(conn)?.stt_glossary;
+    if glossary_terms(&current).iter().any(|t| t.eq_ignore_ascii_case(term)) {
+        return Ok(false);
+    }
+    let next = if current.trim().is_empty() { term.to_string() } else { format!("{}\n{term}", current.trim_end()) };
+    if next.chars().count() > GLOSSARY_MAX_CHARS {
+        return Ok(false);
+    }
+    repo_settings::set(conn, KEY_STT_GLOSSARY, &next)?;
+    Ok(true)
+}
+
 /// Istilah glosarium (satu per baris, tanpa duplikat).
 pub fn glossary_terms(glossary: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();

@@ -390,6 +390,8 @@ pub fn run() {
             commands::meetings::save_notes,
             commands::meetings::toggle_bookmark_at,
             commands::meetings::ask_meeting,
+            commands::meetings::update_segment,
+            commands::meetings::replace_in_meeting,
             commands::meetings::list_meeting_qa,
             commands::meetings::clear_meeting_qa,
             commands::recording::open_notes_window,

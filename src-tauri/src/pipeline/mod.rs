@@ -3,4 +3,5 @@
 pub mod dedup;
 pub mod filter;
 pub mod merge;
+pub mod replace;
 pub mod summarize;
