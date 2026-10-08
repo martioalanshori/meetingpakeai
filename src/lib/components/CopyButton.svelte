@@ -22,7 +22,7 @@
     }
   }
 
-  const btn = "btn btn-line py-1.5";
+  const btn = "btn btn-line btn-sm";
 </script>
 
 <div class="flex items-center gap-1.5">

@@ -74,14 +74,38 @@ fn backoff(attempt: u32) -> Duration {
     Duration::from_secs(2u64.saturating_mul(1 << attempt.min(6))) + Duration::from_millis(jitter_ms)
 }
 
+/// Pesan untuk pengguna (bahasa sehari-hari + langkah perbaikan); detail teknis hanya di log.
+/// Pesan yang menyebut "Pengaturan" membuat UI menampilkan tombol "Buka Pengaturan".
 fn provider_failure(e: &ProviderError) -> AppError {
+    tracing::warn!("provider gagal: {e:?}");
     let msg = match e {
-        ProviderError::PayloadTooLarge => "File audio terlalu besar untuk layanan transkrip.".to_string(),
-        ProviderError::BadRequest(m) => format!("Layanan AI menolak permintaan: {m}"),
-        ProviderError::InvalidResponse(m) => format!("Respons layanan AI tidak bisa dibaca: {m}"),
-        other => format!("{other:?}"),
+        ProviderError::PayloadTooLarge => {
+            "File audio terlalu besar untuk layanan transkrip. Coba lagi; aplikasi akan memecahnya menjadi bagian lebih kecil."
+                .to_string()
+        }
+        ProviderError::BadRequest(m) => {
+            let lower = m.to_lowercase();
+            let model_problem = lower.contains("model")
+                && ["not found", "does not exist", "decommissioned", "not supported", "invalid", "unknown"]
+                    .iter()
+                    .any(|k| lower.contains(k));
+            if model_problem {
+                "Model tidak dikenali oleh penyedia AI. Periksa nama model di Pengaturan → Layanan AI.".to_string()
+            } else if m.starts_with("HTTP 404") {
+                "Alamat atau model tidak ditemukan di penyedia AI. Periksa Pengaturan → Layanan AI.".to_string()
+            } else if m.starts_with("HTTP 403") {
+                "Akun penyedia AI tidak punya akses ke layanan ini. Periksa API key dan model di Pengaturan → Layanan AI."
+                    .to_string()
+            } else {
+                "Penyedia AI menolak permintaan. Coba lagi; jika terus terjadi, periksa model di Pengaturan → Layanan AI."
+                    .to_string()
+            }
+        }
+        ProviderError::InvalidResponse(_) => {
+            "Penyedia AI mengirim jawaban yang tidak bisa dibaca. Coba lagi beberapa saat lagi.".to_string()
+        }
+        _ => "Layanan AI sedang bermasalah. Coba lagi beberapa saat lagi.".to_string(),
     };
-    tracing::warn!("provider gagal: {msg}");
     AppError::with_message(ErrorCode::Internal, msg)
 }
 

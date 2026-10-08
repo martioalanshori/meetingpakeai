@@ -67,18 +67,31 @@
       ["done", "failed", "waiting_quota", "waiting_network"].includes(meeting.status),
   );
 
-  async function load() {
+  /** Isi lama diredupkan selama meeting baru dimuat (tanpa kedipan "Memuat…"). */
+  let switching = $state(false);
+
+  /** `fresh` = meeting baru dibuka: pilih tab awal. Respons untuk meeting lain (klik cepat) diabaikan. */
+  async function load(fresh = false) {
+    const mid = meetingId;
     try {
-      const m = await api.getMeeting(meetingId);
-      const firstLoad = meeting === null;
+      const m = await api.getMeeting(mid);
+      const tr = await api.getTranscript(mid);
+      if (mid !== meetingId) return;
       meeting = m;
-      transcript = await api.getTranscript(meetingId);
-      const wanted = initialTab;
-      if (firstLoad && (wanted === "summary" || wanted === "actions" || wanted === "transcript")) tab = wanted;
-      else if (firstLoad && m.status !== "done" && m.summary === null) tab = transcript.length > 0 ? "transcript" : "summary";
+      transcript = tr;
+      notFound = false;
+      if (fresh) {
+        const wanted = initialTab;
+        if (wanted === "summary" || wanted === "actions" || wanted === "transcript") tab = wanted;
+        else if (m.status !== "done" && m.summary === null) tab = tr.length > 0 ? "transcript" : "summary";
+        else tab = "summary";
+      }
     } catch (e) {
+      if (mid !== meetingId) return;
       if ((e as AppError).code === "NOT_FOUND") notFound = true;
       else showToast((e as AppError).message, "error");
+    } finally {
+      if (mid === meetingId) switching = false;
     }
   }
 
@@ -91,14 +104,11 @@
       if (mid === loadedId) return;
       loadedId = mid;
       audioEl?.pause();
-      meeting = null;
-      transcript = [];
-      notFound = false;
-      tab = "summary";
+      switching = meeting !== null;
       editing = false;
       editingSummary = false;
       audioSrc = null;
-      load();
+      load(true);
     });
   });
 
@@ -276,6 +286,19 @@
   }
 
 
+  /** Teks saat notulen belum ada, sesuai status (bukan "—"). */
+  const emptyNote = $derived(
+    !meeting
+      ? ""
+      : processing
+        ? t.detail.processing
+        : meeting.status === "failed"
+          ? t.detail.noSummaryFailed
+          : meeting.status === "interrupted"
+            ? t.detail.noSummaryInterrupted
+            : t.detail.noSummary,
+  );
+
   const tabs: { key: Tab; text: string }[] = [
     { key: "summary", text: t.detail.tabSummary },
     { key: "actions", text: t.detail.tabActionItems },
@@ -294,14 +317,32 @@
 
 <main
   class={[
-    "flex w-full flex-col gap-6 pt-7 pb-16 print:hidden",
-    embedded ? "max-w-6xl px-8 2xl:px-12" : "max-w-3xl px-6 lg:px-10",
+    "flex w-full flex-col gap-6 pt-7 pb-16 transition-opacity print:hidden",
+    embedded ? "max-w-6xl px-8 2xl:px-12" : "mx-auto max-w-3xl px-6 lg:px-10",
+    switching && "pointer-events-none opacity-50",
   ]}
+  aria-busy={switching}
 >
+  {#if !embedded}
+    <a href="/" class="btn btn-quiet btn-sm -mb-3 -ml-2.5 self-start">
+      <Icon name="arrow-left" size={16} />{t.common.back}
+    </a>
+  {/if}
+
   {#if notFound}
     <p class="text-ink-soft">{t.errors.NOT_FOUND}</p>
   {:else if !meeting}
-    <p class="text-ink-soft">{t.common.loading}</p>
+    <!-- Kerangka berstruktur sama dengan isi agar layout tidak melompat. -->
+    <div class="flex flex-col gap-6 motion-safe:animate-pulse" aria-hidden="true">
+      <div class="h-8 w-2/3 rounded-md bg-line-soft"></div>
+      <div class="h-4 w-1/3 rounded-md bg-line-soft"></div>
+      <div class="h-px bg-line"></div>
+      <div class="flex flex-col gap-3">
+        <div class="h-4 w-full rounded-md bg-line-soft"></div>
+        <div class="h-4 w-11/12 rounded-md bg-line-soft"></div>
+        <div class="h-4 w-4/5 rounded-md bg-line-soft"></div>
+      </div>
+    </div>
   {:else}
     <header class="flex flex-col gap-3">
       <div class="flex items-start gap-2">
@@ -310,7 +351,7 @@
             bind:this={titleInput}
             bind:value={titleDraft}
             maxlength="100"
-            aria-label={t.detail.editTitle}
+            aria-label={t.detail.titleLabel}
             class="field min-w-0 flex-1 px-2 py-1 text-2xl font-bold tracking-[-0.02em]"
             onkeydown={(e) => {
               if (e.key === "Enter") saveTitle();
@@ -319,14 +360,21 @@
             onblur={saveTitle}
           />
         {:else}
-          <button
-            type="button"
-            class="-ml-2 min-w-0 flex-1 rounded-lg px-2 py-1 text-left text-2xl leading-tight font-bold tracking-[-0.02em] hover:bg-wash"
-            title={t.detail.editTitle}
-            onclick={startEdit}
-          >
-            {meeting.title}
-          </button>
+          <h1 class="min-w-0 flex-1">
+            <button
+              type="button"
+              class="group -ml-2 w-full rounded-lg px-2 py-1 text-left text-2xl leading-tight font-bold tracking-[-0.02em] break-words hover:bg-wash"
+              title={t.detail.editTitle}
+              onclick={startEdit}
+            >
+              {meeting.title}
+              <Icon
+                name="pencil"
+                size={16}
+                class="ml-1 inline-block align-baseline text-ink-faint opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+              />
+            </button>
+          </h1>
         {/if}
 
         <Menu label={t.detail.menu} items={menuItems}>
@@ -339,31 +387,42 @@
           {formatDateTime(meeting.startedAt)}{#if meeting.endedAt}–{formatTime(meeting.endedAt)}{/if}
         </span>
         {#if meeting.durationMs > 0}<span class="tabular">{formatDuration(meeting.durationMs)}</span>{/if}
-        <StatusBadge status={meeting.status} progressDone={meeting.progressDone} progressTotal={meeting.progressTotal} />
+        {#if !processing}
+          <StatusBadge status={meeting.status} progressDone={meeting.progressDone} progressTotal={meeting.progressTotal} />
+        {/if}
       </div>
     </header>
 
     {#if processing}
+      <!-- Satu blok status: label + persen + bar (tanpa badge ganda). -->
       <div class="flex flex-col gap-2" role="status">
-        <span class="text-sm text-ink">
-          {t.status[meeting.status]}{#if meeting.status === "waiting_quota" || meeting.status === "waiting_network"}. {meeting.status ===
-            "waiting_quota"
-              ? t.errors.RATE_LIMITED
-              : t.errors.NETWORK}{/if}
-        </span>
-        <div class="h-1.5 overflow-hidden rounded-full bg-line-soft">
-          <div
-            class={["h-full rounded-full bg-ink transition-[width] duration-500", meeting.progressTotal === 0 && "motion-safe:animate-pulse"]}
-            style:width={meeting.progressTotal > 0 ? `${progressPct}%` : "100%"}
-          ></div>
+        <div class="flex items-baseline justify-between gap-3 text-sm">
+          <span class="font-medium">
+            {t.status[meeting.status]}{#if meeting.status === "waiting_quota"}<span class="font-normal text-ink-soft">
+                · {t.errors.RATE_LIMITED}</span
+              >{:else if meeting.status === "waiting_network"}<span class="font-normal text-ink-soft"> · {t.errors.NETWORK}</span
+              >{/if}
+          </span>
+          {#if meeting.progressTotal > 0}<span class="tabular text-ink-soft">{progressPct}%</span>{/if}
+        </div>
+        <div class="relative h-1.5 overflow-hidden rounded-full bg-line-soft">
+          {#if meeting.progressTotal > 0}
+            <div class="h-full rounded-full bg-ink-strong transition-[width] duration-500" style:width={`${progressPct}%`}></div>
+          {:else}
+            <div class="indeterminate absolute inset-y-0 w-1/3 rounded-full bg-ink-strong"></div>
+          {/if}
         </div>
       </div>
     {/if}
 
     {#if meeting.status === "failed"}
       <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl bg-bad-wash px-4 py-3 text-bad">
+        <Icon name="alert-circle" size={18} class="shrink-0" />
         <span class="flex-1 text-sm font-medium">{meeting.errorMessage ?? t.errors.INTERNAL}</span>
-        <button type="button" class="btn btn-ink" onclick={() => act(() => api.retryJob(meetingId), t.toast.requeued)}>
+        {#if meeting.errorMessage?.includes("Pengaturan") || meeting.errorCode === "INVALID_API_KEY" || meeting.errorCode === "NO_API_KEY"}
+          <a href="/settings" class="btn btn-line btn-sm">{t.home.openSettings}</a>
+        {/if}
+        <button type="button" class="btn btn-ink btn-sm" onclick={() => act(() => api.retryJob(meetingId), t.toast.requeued)}>
           {t.detail.retry}
         </button>
       </div>
@@ -371,10 +430,11 @@
 
     {#if meeting.status === "interrupted"}
       <div role="alert" class="flex flex-wrap items-center gap-3 rounded-xl bg-warn-wash px-4 py-3 text-warn">
+        <Icon name="alert-circle" size={18} class="shrink-0" />
         <span class="flex-1 text-sm font-medium">{t.detail.interruptedNote}</span>
         <button
           type="button"
-          class="btn btn-ink"
+          class="btn btn-ink btn-sm"
           onclick={() => act(() => api.resolveInterrupted(meetingId, "process"), t.toast.requeued)}
         >
           {t.home.interruptedProcess}
@@ -382,157 +442,148 @@
       </div>
     {/if}
 
-    <div role="tablist" class="flex gap-6 border-b border-line">
-      {#each tabs as tb (tb.key)}
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === tb.key}
-          class={[
-            "-mb-px border-b-2 pt-1 pb-2.5 text-base",
-            tab === tb.key ? "border-ink font-semibold text-ink" : "border-transparent text-ink-soft hover:text-ink",
-          ]}
-          onclick={() => (tab = tb.key)}
-        >
-          {tb.text}{#if tb.key === "actions" && meeting.actionItems.length > 0}<span class="tabular ml-1.5 text-ink-faint"
-              >{meeting.actionItems.length}</span
-            >{/if}
-        </button>
-      {/each}
+    <!-- Baris tab + aksi tab aktif (Salin / Ubah) di ujung kanan: tanpa baris toolbar terpisah. -->
+    <div class="flex flex-wrap items-end gap-x-6 gap-y-2 border-b border-line">
+      <div role="tablist" class="flex gap-6">
+        {#each tabs as tb (tb.key)}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === tb.key}
+            disabled={editingSummary && tab !== tb.key}
+            title={editingSummary && tab !== tb.key ? t.edit.finishFirst : undefined}
+            class={[
+              "-mb-px border-b-2 pt-1 pb-2.5 text-base disabled:cursor-not-allowed disabled:opacity-40",
+              tab === tb.key ? "border-ink font-semibold text-ink" : "border-transparent text-ink-soft hover:text-ink",
+            ]}
+            onclick={() => (tab = tb.key)}
+          >
+            {tb.text}{#if tb.key === "actions" && meeting.actionItems.length > 0}<span class="tabular ml-1.5 text-ink-faint"
+                >{meeting.actionItems.length}</span
+              >{/if}
+          </button>
+        {/each}
+      </div>
+      {#if !editingSummary}
+        <div class="ml-auto flex items-center gap-1.5 pb-2">
+          {#if tab === "summary" && meeting.summary?.status === "ok"}
+            {#if meeting.summary.edited}<span class="mr-1 text-sm text-ink-faint">{t.edit.edited}</span>{/if}
+            <CopyButton text={(style) => formatSummaryTab(meeting!, style)} />
+          {:else if tab === "actions" && meeting.actionItems.length > 0}
+            <CopyButton text={(style) => formatActionItems(meeting!, style)} okText={t.minutes.actionsCopied} />
+          {:else if tab === "transcript" && transcript.length > 0}
+            <CopyButton text={() => formatTranscript(meeting!, transcript)} okText={t.minutes.transcriptCopied} />
+          {/if}
+          {#if (tab === "summary" || tab === "actions") && meeting.status === "done" && meeting.summary}
+            <button type="button" class="btn btn-quiet btn-sm" onclick={() => (editingSummary = true)}>
+              <Icon name="pencil" size={14} />{t.edit.button}
+            </button>
+          {/if}
+        </div>
+      {/if}
     </div>
 
     <section role="tabpanel" class="flex flex-col gap-6">
       {#if (tab === "summary" || tab === "actions") && editingSummary && meeting.summary}
         <SummaryEditor {meeting} onsave={saveSummary} oncancel={() => (editingSummary = false)} />
-      {:else if tab === "summary"}
+      {:else if tab === "summary" || tab === "actions"}
         {#if !meeting.summary}
-          <p class="text-ink-soft">{processing ? t.detail.processing : "—"}</p>
-        {:else if meeting.summary.status === "empty"}
+          <p class="max-w-prose text-ink-soft">{emptyNote}</p>
+        {:else if tab === "summary" && meeting.summary.status === "empty"}
           <p class="text-ink-soft">{t.summary.noSpeech}</p>
-        {:else}
-          <div class="flex flex-wrap items-center gap-2">
-            {#if meeting.summary.edited}
-              <span class="text-sm text-ink-faint">{t.edit.edited}</span>
-            {/if}
-            <div class="ml-auto flex items-center gap-1.5">
-              <CopyButton text={(style) => formatSummaryTab(meeting!, style)} />
-              {#if meeting.status === "done"}
-                <button type="button" class="btn btn-quiet" onclick={() => (editingSummary = true)}>{t.edit.button}</button>
-              {/if}
-            </div>
-          </div>
-
-          <!-- ≥ 1536 px: action item tampil di samping ringkasan (ruang lebar terpakai, tugas terlihat sambil membaca). -->
+        {:else if tab === "summary"}
+          <!-- ≥ 1536 px: tugas tampil di samping ringkasan. -->
           <div class="flex flex-col gap-8 2xl:grid 2xl:grid-cols-[minmax(0,68ch)_minmax(15rem,22rem)] 2xl:items-start 2xl:gap-12">
-          <article class="flex max-w-[68ch] flex-col gap-7">
-            <div class="flex flex-col gap-2">
-              <h2 class="text-lg font-bold">{t.detail.summary}</h2>
-              <p class="text-lg leading-[1.75] whitespace-pre-line">{meeting.summary.summary}</p>
-            </div>
-            <div class="flex flex-col gap-2">
-              <h2 class="text-lg font-bold">{t.detail.decisions}</h2>
-              {#if meeting.summary.decisions.length === 0}
-                <p class="text-ink-soft">{t.detail.noDecisions}</p>
-              {:else}
-                <ul class="flex flex-col gap-2">
-                  {#each meeting.summary.decisions as d, i (i)}
-                    <li class="grid grid-cols-[1rem_1fr] text-lg leading-relaxed">
-                      <span class="mt-[0.7em] h-1.5 w-1.5 rounded-full bg-ink" aria-hidden="true"></span>{d}
+            <article class="flex max-w-[68ch] flex-col gap-7">
+              <div class="flex flex-col gap-2">
+                <h2 class="section-title">{t.detail.summary}</h2>
+                <p class="text-lg leading-[1.75] whitespace-pre-line">{meeting.summary.summary}</p>
+              </div>
+              <div class="flex flex-col gap-2">
+                <h2 class="section-title">{t.detail.decisions}</h2>
+                {#if meeting.summary.decisions.length === 0}
+                  <p class="text-ink-soft">{t.detail.noDecisions}</p>
+                {:else}
+                  <ul class="flex flex-col gap-2">
+                    {#each meeting.summary.decisions as d, i (i)}
+                      <li class="grid grid-cols-[1rem_1fr] text-lg leading-relaxed">
+                        <span class="mt-[0.7em] h-1.5 w-1.5 rounded-full bg-ink" aria-hidden="true"></span>{d}
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </div>
+              {#if meeting.summary.topics.length > 0}
+                <div class="flex flex-col gap-2">
+                  <h2 class="section-title">{t.detail.topics}</h2>
+                  <ul class="flex flex-wrap gap-1.5">
+                    {#each meeting.summary.topics as tp, i (i)}
+                      <li class="rounded-md bg-wash px-2.5 py-1 text-sm">{tp}</li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
+            </article>
+            {#if meeting.actionItems.length > 0}
+              <aside class="sticky top-4 hidden flex-col gap-1 rounded-xl border border-line bg-sheet p-4 2xl:flex">
+                <button
+                  type="button"
+                  class="-mx-1 mb-1 flex items-baseline justify-between rounded-md px-1 text-left hover:bg-wash"
+                  onclick={() => (tab = "actions")}
+                >
+                  <h2 class="font-bold">{t.detail.tabActionItems}</h2>
+                  <span class="tabular text-sm text-ink-faint">{meeting.actionItems.length}</span>
+                </button>
+                <ul class="flex flex-col">
+                  {#each meeting.actionItems as a (a.id)}
+                    <li class="flex items-start gap-2.5 border-b border-line-soft py-2 last:border-b-0">
+                      <input
+                        type="checkbox"
+                        class="mt-1 h-4 w-4 shrink-0"
+                        aria-label={a.task}
+                        bind:checked={a.done}
+                        onchange={() => toggleItem(a.id, a.done)}
+                      />
+                      <span class="flex min-w-0 flex-col text-sm">
+                        <span class={a.done ? "text-ink-faint line-through" : ""}>{a.task}</span>
+                        {#if a.assignee}<span class="text-ink-soft">{a.assignee}</span>{/if}
+                      </span>
                     </li>
                   {/each}
                 </ul>
-              {/if}
-            </div>
-            {#if meeting.summary.topics.length > 0}
-              <div class="flex flex-col gap-2">
-                <h2 class="text-lg font-bold">{t.detail.topics}</h2>
-                <ul class="flex flex-wrap gap-1.5">
-                  {#each meeting.summary.topics as tp, i (i)}
-                    <li class="rounded-md bg-wash px-2.5 py-1 text-sm">{tp}</li>
-                  {/each}
-                </ul>
-              </div>
+              </aside>
             {/if}
-          </article>
-          {#if meeting.actionItems.length > 0}
-            <aside class="sticky top-4 hidden flex-col gap-1 rounded-xl border border-line bg-sheet p-4 2xl:flex">
-              <button
-                type="button"
-                class="-mx-1 mb-1 flex items-baseline justify-between rounded-md px-1 text-left hover:bg-wash"
-                onclick={() => (tab = "actions")}
-              >
-                <h2 class="font-bold">{t.detail.tabActionItems}</h2>
-                <span class="tabular text-sm text-ink-faint">{meeting.actionItems.length}</span>
-              </button>
-              <ul class="flex flex-col">
-                {#each meeting.actionItems as a (a.id)}
-                  <li class="flex items-start gap-2.5 border-b border-line-soft py-2 last:border-b-0">
-                    <input
-                      type="checkbox"
-                      class="mt-1 h-4 w-4 shrink-0"
-                      aria-label={a.task}
-                      bind:checked={a.done}
-                      onchange={() => toggleItem(a.id, a.done)}
-                    />
-                    <span class="flex min-w-0 flex-col text-sm">
-                      <span class={a.done ? "text-ink-faint line-through" : ""}>{a.task}</span>
-                      {#if a.assignee}<span class="text-ink-soft">{a.assignee}</span>{/if}
-                    </span>
-                  </li>
-                {/each}
-              </ul>
-            </aside>
-          {/if}
           </div>
-        {/if}
-      {:else if tab === "actions"}
-        {#if !meeting.summary}
-          <p class="text-ink-soft">{processing ? t.detail.processing : "—"}</p>
+        {:else if meeting.actionItems.length === 0}
+          <p class="text-ink-soft">{t.detail.noActionItems}</p>
         {:else}
-          <div class="flex items-center justify-end gap-1.5">
-            {#if meeting.actionItems.length > 0}
-              <CopyButton text={(style) => formatActionItems(meeting!, style)} okText={t.minutes.actionsCopied} />
-            {/if}
-            {#if meeting.status === "done"}
-              <button type="button" class="btn btn-quiet" onclick={() => (editingSummary = true)}>{t.edit.button}</button>
-            {/if}
-          </div>
-          {#if meeting.actionItems.length === 0}
-            <p class="text-ink-soft">{t.detail.noActionItems}</p>
-          {:else}
-            <ul class="flex flex-col">
-              {#each meeting.actionItems as a (a.id)}
-                <li class="flex items-start gap-3 border-b border-line-soft py-3 last:border-b-0">
-                  <input
-                    type="checkbox"
-                    class="mt-1 h-4 w-4 shrink-0 accent-ink"
-                    aria-label={a.task}
-                    bind:checked={a.done}
-                    onchange={() => toggleItem(a.id, a.done)}
-                  />
-                  <div class="flex min-w-0 flex-col gap-0.5">
-                    <span class={a.done ? "text-ink-faint line-through" : "font-medium"}>{a.task}</span>
-                    {#if a.assignee || a.due}
-                      <span class="flex flex-wrap gap-x-4 text-sm text-ink-soft">
-                        {#if a.assignee}<span>{t.detail.assignee} <span class="text-ink">{a.assignee}</span></span>{/if}
-                        {#if a.due}<span>{t.detail.due} <span class="text-ink">{a.due}</span></span>{/if}
-                      </span>
-                    {/if}
-                  </div>
-                </li>
-              {/each}
-            </ul>
-          {/if}
+          <ul class="flex flex-col">
+            {#each meeting.actionItems as a (a.id)}
+              <li class="flex items-start gap-3 border-b border-line-soft py-3 last:border-b-0">
+                <input
+                  type="checkbox"
+                  class="mt-1 h-4 w-4 shrink-0"
+                  aria-label={a.task}
+                  bind:checked={a.done}
+                  onchange={() => toggleItem(a.id, a.done)}
+                />
+                <div class="flex min-w-0 flex-col gap-0.5">
+                  <span class={a.done ? "text-ink-faint line-through" : "font-medium"}>{a.task}</span>
+                  {#if a.assignee || a.due}
+                    <span class="flex flex-wrap gap-x-4 text-sm text-ink-soft">
+                      {#if a.assignee}<span>{t.detail.assignee} <span class="text-ink">{a.assignee}</span></span>{/if}
+                      {#if a.due}<span>{t.detail.due} <span class="text-ink">{a.due}</span></span>{/if}
+                    </span>
+                  {/if}
+                </div>
+              </li>
+            {/each}
+          </ul>
         {/if}
       {:else if transcript.length === 0}
-        <p class="text-ink-soft">{processing ? t.detail.processing : t.detail.emptyTranscript}</p>
+        <p class="max-w-prose text-ink-soft">{processing ? t.detail.processing : t.detail.emptyTranscript}</p>
       {:else}
-        <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-          {#if !meeting.audioDeleted}<span class="text-sm text-ink-faint">{t.detail.clickToPlay}</span>{/if}
-          <div class="ml-auto">
-            <CopyButton text={() => formatTranscript(meeting!, transcript)} okText={t.minutes.transcriptCopied} />
-          </div>
-        </div>
+        {#if !meeting.audioDeleted}<p class="-mt-2 text-sm text-ink-faint">{t.detail.clickToPlay}</p>{/if}
 
         {#if audioSrc || audioLoading}
           <div class="sticky top-2 z-10 rounded-xl border border-line bg-sheet p-2 shadow-[0_8px_24px_-12px_rgb(30_36_51/0.3)]">
@@ -543,23 +594,22 @@
           </div>
         {/if}
 
-        <!-- Transkrip polos: tanpa label pembicara (keputusan pemilik), satu baris per segment. -->
-        <ol class={["flex flex-col gap-2", transcript.length > 500 && "virtualized"]}>
+        <!-- Transkrip polos (tanpa label pembicara, keputusan pemilik). Satu tombol putar per baris di kolom waktu. -->
+        <ol class={["flex flex-col gap-3", transcript.length > 500 && "virtualized"]}>
           {#each transcript as s (s.id)}
-            <li class="row grid grid-cols-[4.25rem_1fr] gap-x-3">
-              <span class="tabular pt-1 text-sm text-ink-faint">{formatTimestamp(s.startMs)}</span>
-              <p class="max-w-[70ch] border-l-[3px] border-line py-0.5 pl-3.5 leading-[1.7]">
-                {#if meeting.audioDeleted}
-                  {s.text.trim()}
-                {:else}
-                  <button
-                    type="button"
-                    class="inline rounded-sm text-left hover:bg-wash focus-visible:bg-wash"
-                    title={`${t.detail.playFrom} ${formatTimestamp(s.startMs)}`}
-                    onclick={() => playAt(s.startMs)}>{s.text.trim()}</button
-                  >
-                {/if}
-              </p>
+            <li class="row grid grid-cols-[4.5rem_1fr] items-baseline gap-x-3">
+              {#if meeting.audioDeleted}
+                <span class="tabular text-sm text-ink-faint">{formatTimestamp(s.startMs)}</span>
+              {:else}
+                <button
+                  type="button"
+                  class="tabular -ml-1.5 rounded-md px-1.5 text-left text-sm text-ink-faint hover:bg-wash hover:text-ink"
+                  title={`${t.detail.playFrom} ${formatTimestamp(s.startMs)}`}
+                  aria-label={`${t.detail.playFrom} ${formatTimestamp(s.startMs)}`}
+                  onclick={() => playAt(s.startMs)}>{formatTimestamp(s.startMs)}</button
+                >
+              {/if}
+              <p class="max-w-[70ch] leading-[1.7]">{s.text.trim()}</p>
             </li>
           {/each}
         </ol>
@@ -569,6 +619,27 @@
 </main>
 
 <style>
+  /* Bar progres tak tentu: garis bergerak (bukan bar penuh yang terlihat sudah selesai). */
+  .indeterminate {
+    animation: slide 1.4s ease-in-out infinite;
+  }
+  @keyframes slide {
+    from {
+      left: -33%;
+    }
+    to {
+      left: 100%;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .indeterminate {
+      animation: none;
+      left: 0;
+      width: 100%;
+      opacity: 0.4;
+    }
+  }
+
   /* Transkrip panjang: browser hanya me-render baris yang terlihat (PRD §14.5). */
   .virtualized .row {
     content-visibility: auto;

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/Icon.svelte";
+  import { confirmDialog } from "$lib/confirm.svelte";
   import { id as t } from "$lib/i18n/id";
   import type { MeetingDetail, SummaryEdit } from "$lib/types";
 
@@ -23,6 +24,23 @@
     meeting.actionItems.map((a) => ({ task: a.task, assignee: a.assignee ?? "", due: a.due ?? "", done: a.done })),
   );
   let saving = $state(false);
+
+  const snapshot = () => JSON.stringify({ summary, decisions, topics, rows });
+  // svelte-ignore state_referenced_locally
+  const initial = snapshot();
+
+  async function cancel() {
+    if (snapshot() !== initial) {
+      const ok = await confirmDialog({
+        title: t.edit.discardTitle,
+        message: t.edit.discardMessage,
+        confirmText: t.edit.discardButton,
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    oncancel();
+  }
 
   function addRow() {
     rows.push({ task: "", assignee: "", due: "", done: false });
@@ -93,8 +111,8 @@
       class="btn btn-ink"
       disabled={saving}
     >
-      {t.edit.save}
+      {saving ? t.edit.saving : t.edit.save}
     </button>
-    <button type="button" class="btn btn-quiet" onclick={oncancel}>{t.common.cancel}</button>
+    <button type="button" class="btn btn-quiet" onclick={cancel}>{t.common.cancel}</button>
   </div>
 </form>

@@ -16,13 +16,15 @@ export function formatTime(ms: number): string {
   return `${pad(d.getHours())}.${pad(d.getMinutes())}`;
 }
 
-/** durasi ms → "1 j 02 m" (≥ 1 jam) atau "12 m 05 d". */
+/** durasi ms → "1 jam 2 mnt", "32 mnt", atau "45 dtk" (detik hanya untuk < 1 menit). */
 export function formatDuration(ms: number): string {
-  const total = Math.floor(ms / 1000);
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  return h > 0 ? `${h} j ${pad(m)} m` : `${m} m ${pad(s)} d`;
+  const total = Math.round(ms / 1000);
+  if (total < 60) return `${total} dtk`;
+  const minutes = Math.round(total / 60);
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} mnt`;
+  return m === 0 ? `${h} jam` : `${h} jam ${m} mnt`;
 }
 
 /** posisi timeline ms → "HH:MM:SS". */
