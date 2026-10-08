@@ -1,5 +1,17 @@
 <script lang="ts" module>
-  export type IconName = "pause" | "play" | "mic" | "mic-off" | "stop" | "settings" | "star" | "copy" | "search" | "check";
+  export type IconName =
+    | "pause"
+    | "play"
+    | "mic"
+    | "mic-off"
+    | "stop"
+    | "settings"
+    | "star"
+    | "copy"
+    | "search"
+    | "check"
+    | "list"
+    | "tasks";
 </script>
 
 <script lang="ts">
@@ -53,5 +65,15 @@
     <path d="m21 21-4.3-4.3" />
   {:else if name === "check"}
     <path d="M20 6 9 17l-5-5" />
+  {:else if name === "list"}
+    <path d="M8 6h13" />
+    <path d="M8 12h13" />
+    <path d="M8 18h13" />
+    <path d="M3 6h.01" />
+    <path d="M3 12h.01" />
+    <path d="M3 18h.01" />
+  {:else if name === "tasks"}
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="m9 12 2 2 4-4" />
   {/if}
 </svg>

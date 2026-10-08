@@ -52,7 +52,7 @@
   onDestroy(() => unlisten.forEach((u) => u()));
 </script>
 
-<main class="mx-auto flex w-full max-w-3xl flex-col gap-5 px-8 pt-7 pb-12">
+<main class="flex w-full max-w-4xl flex-col gap-5 px-6 pt-7 pb-12 lg:px-10">
   <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
 
   <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm">

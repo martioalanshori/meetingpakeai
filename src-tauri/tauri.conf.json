@@ -17,8 +17,8 @@
         "create": false,
         "title": "Meeting Pake AI",
         "url": "/",
-        "width": 1000,
-        "height": 700,
+        "width": 1120,
+        "height": 760,
         "minWidth": 800,
         "minHeight": 600,
         "center": true

@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
+  import { goto } from "$app/navigation";
+  import { page } from "$app/state";
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { api, events } from "$lib/api";
   import Icon from "$lib/components/Icon.svelte";
@@ -8,6 +10,8 @@
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
   import Highlight from "$lib/components/Highlight.svelte";
+  import MeetingDetail from "$lib/components/MeetingDetail.svelte";
+  import { viewport } from "$lib/viewport.svelte";
   import { formatTimestamp } from "$lib/format";
   import type { AppError, MeetingListItem, SearchHit } from "$lib/types";
 
@@ -59,10 +63,38 @@
     }
   }
 
-  function hitHref(h: SearchHit): string {
-    const tab = h.kind === "transcript" ? "transcript" : h.kind === "action" ? "actions" : "summary";
-    return `/meeting/${h.meetingId}?tab=${tab}`;
+  function hitTab(h: SearchHit): string {
+    return h.kind === "transcript" ? "transcript" : h.kind === "action" ? "actions" : "summary";
   }
+
+  function hitHref(h: SearchHit): string {
+    return `/meeting/${h.meetingId}?tab=${hitTab(h)}`;
+  }
+
+  // Layar lebar: meeting dibuka di panel kanan (URL `/?m=<id>`), bukan pindah halaman.
+  const selected = $derived(page.url.searchParams.get("m"));
+  const selectedTab = $derived(page.url.searchParams.get("tab"));
+
+  function select(meetingId: string, tab?: string) {
+    goto(`/?m=${meetingId}${tab ? `&tab=${tab}` : ""}`, { replaceState: true, keepFocus: true, noScroll: true });
+  }
+
+  function openRow(e: MouseEvent, meetingId: string) {
+    if (!viewport.wide) return;
+    e.preventDefault();
+    select(meetingId);
+  }
+
+  function openHit(e: MouseEvent, h: SearchHit) {
+    if (!viewport.wide) return;
+    e.preventDefault();
+    select(h.meetingId, hitTab(h));
+  }
+
+  // Panel kanan tidak dibiarkan kosong: pilih meeting terbaru.
+  $effect(() => {
+    if (viewport.wide && !selected && items.length > 0) untrack(() => select(items[0].id));
+  });
 
   /** Muat ulang semua item yang sedang tampil (minimal satu halaman). */
   async function reload() {
@@ -134,7 +166,7 @@
   });
 </script>
 
-<main class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-8 pt-7 pb-12">
+{#snippet listBody(compact: boolean)}
   <div class="flex flex-col gap-4">
     <h1 class="text-2xl font-bold tracking-[-0.02em]">{id.nav.meetings}</h1>
     <label class="relative flex items-center">
@@ -143,7 +175,7 @@
       <input
         type="search"
         class="field w-full py-2.5 pl-10"
-        placeholder={id.home.searchPlaceholder}
+        placeholder={compact ? id.home.searchPlaceholderShort : id.home.searchPlaceholder}
         bind:value={query}
         oninput={onSearchInput}
       />
@@ -176,11 +208,21 @@
       <ul class="flex flex-col">
         {#each hits as h, i (i)}
           <li class="border-b border-line-soft last:border-b-0">
-            <a href={hitHref(h)} class="-mx-3 flex flex-col gap-1 rounded-lg px-3 py-3 hover:bg-sheet">
+            <a
+              href={hitHref(h)}
+              onclick={(e) => openHit(e, h)}
+              class={[
+                "-mx-3 flex flex-col gap-1 rounded-lg px-3 py-3",
+                h.meetingId === selected && viewport.wide ? "bg-sheet shadow-[inset_0_0_0_1px_var(--color-line)]" : "hover:bg-sheet",
+              ]}
+            >
               <span class="flex flex-wrap items-baseline gap-x-3 text-sm text-ink-soft">
                 <span class="font-semibold text-ink">{h.title}</span>
                 <span class="tabular">{formatDateTime(h.startedAt)}</span>
-                <span>{id.home.hitKind[h.kind]}{#if h.startMs !== null}&nbsp;<span class="tabular">{formatTimestamp(h.startMs)}</span>{/if}</span>
+                <span
+                  >{id.home.hitKind[h.kind]}{#if h.startMs !== null}&nbsp;<span class="tabular">{formatTimestamp(h.startMs)}</span
+                    >{/if}</span
+                >
               </span>
               <span class="leading-relaxed"><Highlight text={h.snippet} /></span>
             </a>
@@ -196,7 +238,7 @@
       <p class="max-w-prose text-ink-soft">{id.home.empty}</p>
     </section>
   {:else}
-    <div class="flex flex-col gap-6">
+    <div class="flex flex-col gap-5">
       {#each groups as g (g.label)}
         <section aria-label={g.label}>
           <h2 class="sticky top-0 z-10 -mx-3 bg-paper/95 px-3 py-1.5 text-sm font-semibold text-ink-soft backdrop-blur-sm">
@@ -204,19 +246,37 @@
           </h2>
           <ul class="flex flex-col">
             {#each g.items as m (m.id)}
+              {@const active = viewport.wide && m.id === selected}
               <li>
                 <a
                   href={`/meeting/${m.id}`}
-                  class="-mx-3 grid grid-cols-[3.5rem_1fr_auto] items-baseline gap-x-4 rounded-lg px-3 py-3 hover:bg-sheet"
+                  onclick={(e) => openRow(e, m.id)}
+                  aria-current={active ? "true" : undefined}
+                  class={[
+                    "-mx-3 grid items-baseline gap-x-4 rounded-lg px-3 py-3",
+                    compact ? "grid-cols-[3rem_minmax(0,1fr)]" : "grid-cols-[3.5rem_minmax(0,1fr)_auto]",
+                    active ? "bg-sheet shadow-[inset_0_0_0_1px_var(--color-line)]" : "hover:bg-sheet",
+                  ]}
                 >
                   <span class="tabular text-sm text-ink-soft">{formatTime(m.startedAt)}</span>
-                  <span class="flex min-w-0 flex-col gap-0.5">
+                  <span class="flex min-w-0 flex-col gap-1">
                     <span class="truncate font-semibold">{m.title}</span>
-                    {#if m.durationMs > 0}
+                    {#if compact}
+                      <span class="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                        {#if m.durationMs > 0}
+                          <span class="tabular text-sm text-ink-faint">{formatDuration(m.durationMs)}</span>
+                        {/if}
+                        {#if m.status !== "done"}
+                          <StatusBadge status={m.status} progressDone={m.progressDone} progressTotal={m.progressTotal} />
+                        {/if}
+                      </span>
+                    {:else if m.durationMs > 0}
                       <span class="tabular text-sm text-ink-faint">{formatDuration(m.durationMs)}</span>
                     {/if}
                   </span>
-                  <StatusBadge status={m.status} progressDone={m.progressDone} progressTotal={m.progressTotal} />
+                  {#if !compact}
+                    <StatusBadge status={m.status} progressDone={m.progressDone} progressTotal={m.progressTotal} />
+                  {/if}
                 </a>
               </li>
             {/each}
@@ -228,4 +288,26 @@
       <button type="button" class="btn btn-line self-start" onclick={loadMore}>{id.home.loadMore}</button>
     {/if}
   {/if}
-</main>
+{/snippet}
+
+{#if viewport.wide}
+  <!-- Layar lebar: daftar di kiri, notulen meeting terpilih di kanan; tiap panel bergulir sendiri. -->
+  <div class="grid h-full grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)] print:block">
+    <div class="flex min-h-0 flex-col gap-5 overflow-y-auto border-r border-line px-6 pt-7 pb-10 print:hidden">
+      {@render listBody(true)}
+    </div>
+    <div class="min-h-0 overflow-y-auto print:overflow-visible">
+      {#if selected}
+        <MeetingDetail meetingId={selected} initialTab={selectedTab} embedded ondeleted={() => goto("/", { replaceState: true })} />
+      {:else if loaded}
+        <div class="flex h-full items-center justify-center px-10 text-center text-ink-soft">
+          <p class="max-w-sm">{items.length === 0 ? id.home.empty : id.home.pickMeeting}</p>
+        </div>
+      {/if}
+    </div>
+  </div>
+{:else}
+  <main class="flex w-full max-w-3xl flex-col gap-6 px-6 pt-7 pb-12 lg:px-10">
+    {@render listBody(false)}
+  </main>
+{/if}

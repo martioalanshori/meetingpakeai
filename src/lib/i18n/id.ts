@@ -40,6 +40,8 @@ export const id = {
     openSettings: "Buka Pengaturan",
     searchPlaceholder: "Cari di semua meeting (judul, ringkasan, transkrip)…",
     searchLabel: "Cari meeting",
+    searchPlaceholderShort: "Cari di semua meeting…",
+    pickMeeting: "Pilih meeting di kiri untuk membaca notulennya.",
     noResults: "Tidak ada hasil.",
     tasks: "Tugas",
     hitKind: {

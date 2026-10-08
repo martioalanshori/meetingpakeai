@@ -27,12 +27,32 @@
 </script>
 
 {#if !recording}
-  <button type="button" class="btn btn-rec w-full py-2.5 text-base" disabled={rec.busy} onclick={() => startRecording()}>
-    <span class="h-2.5 w-2.5 rounded-full bg-white" aria-hidden="true"></span>
-    {rec.busy ? id.home.starting : id.home.startRecording}
+  <button
+    type="button"
+    class="btn btn-rec aspect-square w-full p-0 text-base lg:aspect-auto lg:py-2.5"
+    title={id.home.startRecording}
+    disabled={rec.busy}
+    onclick={() => startRecording()}
+  >
+    <span class="h-3 w-3 rounded-full bg-white lg:h-2.5 lg:w-2.5" aria-hidden="true"></span>
+    <span class="sr-only lg:not-sr-only">{rec.busy ? id.home.starting : id.home.startRecording}</span>
   </button>
 {:else}
-  <div class="flex flex-col gap-2.5 rounded-xl border border-line bg-sheet p-3" role="status">
+  <!-- Rel ringkas: lampu + timer + tombol Stop persegi. -->
+  <div class="flex flex-col items-center gap-2 lg:hidden" role="status">
+    <span class="tabular text-[0.6875rem] font-semibold text-rec">{formatTimestamp(elapsed)}</span>
+    <button
+      type="button"
+      class="btn btn-ink aspect-square w-full p-0"
+      title={id.home.stopRecording}
+      aria-label={id.home.stopRecording}
+      disabled={rec.busy}
+      onclick={stopRecording}
+    >
+      <span class="h-3 w-3 rounded-[3px] bg-rec motion-safe:animate-pulse" aria-hidden="true"></span>
+    </button>
+  </div>
+  <div class="hidden flex-col gap-2.5 rounded-xl border border-line bg-sheet p-3 lg:flex" role="status">
     <div class="flex items-center gap-2">
       <span
         class={["h-2.5 w-2.5 rounded-full", paused ? "bg-warn" : "bg-rec motion-safe:animate-pulse"]}
