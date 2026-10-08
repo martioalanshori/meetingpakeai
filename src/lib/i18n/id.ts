@@ -68,13 +68,17 @@ export const id = {
 
   tasks: {
     title: "Tugas",
-    onlyMine: "Hanya tugas saya",
-    showDone: "Tampilkan yang sudah selesai",
-    emptyTitle: "Tidak ada tugas",
+    subtitle: "Hal yang perlu dikerjakan setelah meeting, dari semua notulen. Centang saat sudah beres.",
+    subtitleCount: (n: number) => `${n} tugas belum selesai dari semua meeting. Centang saat sudah beres.`,
+    overdue: "lewat tenggat",
+    allDone: "Semua tugas sudah selesai.",
+    doneSection: (n: number) => `Sudah selesai (${n})`,
+    markDone: (task: string) => `Tandai selesai: ${task}`,
+    markOpen: (task: string) => `Tandai belum selesai: ${task}`,
+    emptyTitle: "Belum ada tugas",
     empty: "Tugas dari notulen meeting akan muncul di sini setelah notulen selesai dibuat.",
-    filteredTitle: "Tidak ada tugas yang cocok",
-    filtered: "Matikan filter di atas untuk melihat tugas orang lain atau yang sudah selesai.",
   },
+
 
   status: {
     recording: "Merekam…",
