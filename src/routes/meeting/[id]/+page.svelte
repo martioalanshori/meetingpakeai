@@ -475,7 +475,7 @@
                 </label>
               {/if}
               <div class="ml-auto flex items-center gap-1.5">
-                <CopyButton text={(style) => formatSummaryTab(meeting!, style)} whatsapp />
+                <CopyButton text={(style) => formatSummaryTab(meeting!, style)} />
                 {#if meeting.status === "done"}
                   <button
                     type="button"
@@ -516,7 +516,7 @@
         {:else}
           <div class="flex items-center justify-end gap-1.5">
             {#if meeting.actionItems.length > 0}
-              <CopyButton text={(style) => formatActionItems(meeting!, style)} whatsapp okText={t.minutes.actionsCopied} />
+              <CopyButton text={(style) => formatActionItems(meeting!, style)} okText={t.minutes.actionsCopied} />
             {/if}
             {#if meeting.status === "done"}
               <button

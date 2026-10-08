@@ -4,12 +4,8 @@
   import type { MinutesStyle } from "$lib/minutes";
   import { showToast } from "$lib/toast.svelte";
 
-  // Tombol salin isi satu tab. `whatsapp` → tombol kedua dengan format *tebal* dan bullet.
-  let {
-    text,
-    whatsapp = false,
-    okText = id.minutes.copied,
-  }: { text: (style: MinutesStyle) => string; whatsapp?: boolean; okText?: string } = $props();
+  // Tombol salin isi satu tab (teks biasa).
+  let { text, okText = id.minutes.copied }: { text: (style: MinutesStyle) => string; okText?: string } = $props();
 
   let copied = $state<MinutesStyle | null>(null);
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -34,10 +30,4 @@
     <Icon name={copied === "text" ? "check" : "copy"} size={15} />
     {copied === "text" ? id.minutes.copiedShort : id.minutes.copyTab}
   </button>
-  {#if whatsapp}
-    <button type="button" class={btn} title={id.minutes.copyWhatsapp} onclick={() => copy("whatsapp")}>
-      <Icon name={copied === "whatsapp" ? "check" : "copy"} size={15} />
-      {copied === "whatsapp" ? id.minutes.copiedShort : id.minutes.copyWhatsappShort}
-    </button>
-  {/if}
 </div>

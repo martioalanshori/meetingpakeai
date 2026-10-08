@@ -160,8 +160,6 @@ export const id = {
     actionItemsOf: (title: string) => `Action items — ${title}`,
     copyTab: "Salin",
     copiedShort: "Tersalin",
-    copyWhatsapp: "Salin dengan format WhatsApp (*tebal*)",
-    copyWhatsappShort: "Salin untuk WhatsApp",
     copied: "Ringkasan disalin",
     actionsCopied: "Action items disalin",
     transcriptCopied: "Transkrip disalin",
