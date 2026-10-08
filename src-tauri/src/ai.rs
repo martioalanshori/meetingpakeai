@@ -147,10 +147,19 @@ fn key(role: Role) -> &'static str {
 /// Endpoint aktif; belum pernah diatur → Groq dengan model dari providers.json (perilaku lama).
 pub fn endpoint(conn: &Connection, role: Role, cfg: &ProvidersConfig) -> AppResult<Endpoint> {
     let saved: Option<Endpoint> = repo_settings::get(conn, key(role))?;
-    Ok(saved
+    let mut e = saved
         .filter(|e| preset(&e.provider).is_some())
-        .unwrap_or_else(|| default_endpoint(role, GROQ, cfg).expect("preset groq ada")))
+        .unwrap_or_else(|| default_endpoint(role, GROQ, cfg).expect("preset groq ada"));
+    // Langkah 56 (feedback3 G4): "Akurasi tinggi" mengganti model transkrip bawaan Groq (turbo) ke large-v3.
+    let high = repo_settings::get::<bool>(conn, crate::config::settings::KEY_STT_HIGH_ACCURACY)?.unwrap_or(false);
+    if role == Role::Stt && high && e.provider == GROQ && e.model == cfg.stt_model {
+        e.model = GROQ_STT_HIGH_ACCURACY.to_string();
+    }
+    Ok(e)
 }
+
+/// Model transkrip Groq untuk "Akurasi tinggi" (langkah 56).
+pub const GROQ_STT_HIGH_ACCURACY: &str = "whisper-large-v3";
 
 /// Validasi lalu simpan. Penyedia bawaan selalu memakai alamat preset-nya; kustom memakai alamat isian.
 pub fn set_endpoint(conn: &Connection, role: Role, e: &Endpoint) -> AppResult<Endpoint> {

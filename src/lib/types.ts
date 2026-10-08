@@ -108,7 +108,7 @@ export type SummaryEdit = {
 
 export type MeetingDetail = MeetingListItem & {
   endedAt: number | null;
-  language: "id" | "auto";
+  language: "id" | "auto" | "mixed";
   failedStep: string | null;
   audioDeleted: boolean;
   labels: { mic: string; system: string };
@@ -124,13 +124,17 @@ export type TranscriptSegment = {
   startMs: number;
   endMs: number;
   text: string;
+  /** Whisper ragu (audio kurang jelas). */
+  lowConfidence?: boolean;
 };
 
 export type AudioRetention = "after_transcript" | "days7" | "forever";
 
 export type Settings = {
   userDisplayName: string;
-  sttLanguage: "id" | "auto";
+  sttLanguage: "id" | "auto" | "mixed";
+  /** Groq: model transkrip lebih akurat (lebih lambat). */
+  sttHighAccuracy: boolean;
   /** Retensi audio: hapus setelah transkrip / simpan 7 hari / selamanya. */
   audioRetention: AudioRetention;
   minimizeToTray: boolean;

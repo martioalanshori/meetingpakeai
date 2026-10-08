@@ -147,6 +147,7 @@ fn live_transcript(state: &AppState, conn: &rusqlite::Connection, id: &str) -> A
             channel: s.channel,
             start_ms: s.start_ms,
             end_ms: s.end_ms,
+            low_confidence: s.avg_logprob < crate::db::repo_segments::LOW_CONFIDENCE_LOGPROB || s.no_speech_prob > 0.5,
             text: s.text,
         })
         .collect())

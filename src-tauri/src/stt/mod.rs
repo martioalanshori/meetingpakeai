@@ -18,6 +18,8 @@ pub struct SttRequest {
     pub wav_path: PathBuf,
     pub language: Option<String>,
     pub prompt: Option<String>,
+    /// `None` = 0 (deterministik); dipakai lebih tinggi saat mencoba ulang bagian ragu (langkah 56).
+    pub temperature: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

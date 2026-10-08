@@ -353,6 +353,19 @@
     return transcript[lo];
   }
 
+  /** Notulen format baru (punya sumber waktu): poin tanpa sumber ditandai (meeting lama tidak). */
+  const hasSources = $derived(
+    !!meeting?.summary &&
+      (meeting.summary.decisionSources.some((x) => x !== null) || meeting.actionItems.some((a) => a.sourceMs !== null)),
+  );
+
+  /** Kualitas audio dari porsi segment ragu (E1). */
+  const quality = $derived.by(() => {
+    if (isLive || transcript.length < 5) return null;
+    const share = transcript.filter((s) => s.lowConfidence).length / transcript.length;
+    return share < 0.1 ? "good" : share < 0.25 ? "fair" : "poor";
+  });
+
   /** Kutipan transkrip ±20 dtk di sekitar momen ditandai (dipotong ±280 karakter). */
   function quoteAround(ms: number): string {
     const text = transcript
@@ -541,7 +554,10 @@
 </script>
 
 {#snippet sourceChip(ms: number | null | undefined)}
-  {#if ms !== null && ms !== undefined && transcript.length > 0}
+  {#if (ms === null || ms === undefined) && hasSources && transcript.length > 0}
+    <!-- E2: poin tanpa waktu sumber (kemungkinan tebakan AI) ditandai halus. -->
+    <span class="ml-1.5 align-middle text-xs text-ink-faint italic print:hidden" title={t.detail.noSourceTitle}>{t.detail.noSource}</span>
+  {:else if ms !== null && ms !== undefined && transcript.length > 0}
     <button
       type="button"
       class="tabular ml-1.5 inline-flex translate-y-[-0.1em] items-center gap-1 rounded-md bg-wash px-1.5 py-px align-middle text-xs text-ink-soft hover:bg-line-soft hover:text-ink print:hidden"
@@ -1070,7 +1086,11 @@
               </div>
             {/if}
           </div>
-        {:else if !meeting.audioDeleted}<p class="-mt-2 text-sm text-ink-faint">{t.detail.clickToPlay}</p>{/if}
+        {:else if !meeting.audioDeleted}<p class="-mt-2 text-sm text-ink-faint">
+            {t.detail.clickToPlay}{#if quality}&ensp;<span class={quality === "poor" ? "text-bad" : quality === "fair" ? "text-warn" : ""}
+                >{t.detail.quality(t.detail.qualityLabels[quality])}</span
+              >{/if}
+          </p>{/if}
 
         {#if replaceOffer}
           <div class="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-paper/60 px-4 py-3" role="status">
@@ -1174,7 +1194,10 @@
                 {:else}
                   {#if markedSegIds.has(s.id)}<Icon name="star" size={14} class="mr-1 inline -translate-y-px text-warn" /><span
                       class="sr-only">{t.detail.bookmarkMarker}:</span
-                    >{/if}{s.text.trim()}
+                    >{/if}{#if s.lowConfidence}<span
+                      class="decoration-ink-faint underline decoration-dotted underline-offset-4"
+                      title={t.detail.lowConfidence}>{s.text.trim()}</span
+                    >{:else}{s.text.trim()}{/if}
                 {/if}
               </p>
             </li>

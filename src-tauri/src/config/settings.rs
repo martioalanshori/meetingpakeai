@@ -23,6 +23,7 @@ pub const KEY_STT_GLOSSARY: &str = "stt_glossary";
 pub const KEY_BOOKMARK_SHORTCUT: &str = "bookmark_shortcut";
 pub const KEY_AUTO_RECORD: &str = "auto_record";
 pub const KEY_NOTES_LANGUAGE: &str = "notes_language";
+pub const KEY_STT_HIGH_ACCURACY: &str = "stt_high_accuracy";
 pub const DEFAULT_BOOKMARK_SHORTCUT: &str = "Ctrl+Alt+B";
 /// Batas glosarium (= batas prompt STT).
 pub const GLOSSARY_MAX_CHARS: usize = 800;
@@ -36,6 +37,8 @@ pub const DEFAULT_GLOBAL_SHORTCUT: &str = "Ctrl+Alt+R";
 pub enum SttLanguage {
     Id,
     Auto,
+    /// Campuran Indonesia–Inggris: `language=id` + prompt berisi istilah Inggris (langkah 56).
+    Mixed,
 }
 
 impl SttLanguage {
@@ -43,6 +46,7 @@ impl SttLanguage {
         match self {
             Self::Id => "id",
             Self::Auto => "auto",
+            Self::Mixed => "mixed",
         }
     }
 }
@@ -80,6 +84,8 @@ pub struct Settings {
     pub auto_record: bool,
     /// Bahasa notulen: `id` (default) / `en` / `auto` (ikuti bahasa meeting), langkah 50.
     pub notes_language: String,
+    /// Groq: pakai `whisper-large-v3` (lebih akurat, lebih lambat & boros kuota), langkah 56.
+    pub stt_high_accuracy: bool,
 }
 
 /// `Partial<Settings>` dari `update_settings`.
@@ -97,6 +103,7 @@ pub struct SettingsPatch {
     pub bookmark_shortcut: Option<String>,
     pub auto_record: Option<bool>,
     pub notes_language: Option<String>,
+    pub stt_high_accuracy: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -129,6 +136,7 @@ pub fn load(conn: &Connection) -> AppResult<Settings> {
             .unwrap_or_else(|| DEFAULT_BOOKMARK_SHORTCUT.to_string()),
         auto_record: repo_settings::get(conn, KEY_AUTO_RECORD)?.unwrap_or(false),
         notes_language: repo_settings::get(conn, KEY_NOTES_LANGUAGE)?.unwrap_or_else(|| "id".to_string()),
+        stt_high_accuracy: repo_settings::get(conn, KEY_STT_HIGH_ACCURACY)?.unwrap_or(false),
     })
 }
 
@@ -157,6 +165,9 @@ pub fn apply_patch(conn: &Connection, patch: SettingsPatch) -> AppResult<Setting
     }
     if let Some(v) = patch.meeting_detection {
         repo_settings::set(conn, KEY_MEETING_DETECTION, &v)?;
+    }
+    if let Some(v) = patch.stt_high_accuracy {
+        repo_settings::set(conn, KEY_STT_HIGH_ACCURACY, &v)?;
     }
     if let Some(v) = patch.notes_language {
         let v = if matches!(v.as_str(), "id" | "en" | "auto") { v } else { "id".to_string() };

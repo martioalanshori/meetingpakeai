@@ -101,7 +101,7 @@ impl SttProvider for OpenAiStt {
             .text("model", self.model.clone())
             .text("response_format", "verbose_json")
             .text("timestamp_granularities[]", "segment")
-            .text("temperature", "0");
+            .text("temperature", req.temperature.unwrap_or(0.0).to_string());
         // "auto" → field language tidak dikirim (AC F9.2).
         if let Some(lang) = req.language {
             form = form.text("language", lang);

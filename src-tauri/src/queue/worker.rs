@@ -38,6 +38,11 @@ const QUOTA_RETRY_MS: i64 = 15 * 60 * 1000;
 const NETWORK_RETRY_MS: i64 = 60 * 1000;
 const IDLE_MAX_SLEEP: Duration = Duration::from_secs(60);
 /// Satu transkripsi chunk yang berjalan (lihat `step_transcribe`).
+/// Panjang konteks dari potongan sebelumnya di prompt STT (langkah 56, G3).
+const CONTEXT_TAIL_CHARS: usize = 200;
+/// Maks bagian ragu yang dicoba ulang per potongan (langkah 56, G6).
+const RETRY_UNCERTAIN_MAX: usize = 3;
+
 /// Opsi STT per meeting (bahasa + prompt glosarium).
 struct SttOpts {
     language: Option<String>,
@@ -635,7 +640,7 @@ impl Worker {
     /// muncul 30 hari terakhir. Ditulis sebagai kalimat Indonesia rapi karena Whisper meniru gaya prompt
     /// (ejaan, kapital, tanda baca) — langkah 45, feedback3 G2.
     fn stt_opts(&self, m: &MeetingRow) -> SttOpts {
-        let language = (m.language == "id").then(|| "id".to_string());
+        let language = (m.language == "id" || m.language == "mixed").then(|| "id".to_string());
         let conn = self.db.conn();
         let glossary = settings::load(&conn).map(|s| s.stt_glossary).unwrap_or_default();
         let mut terms = settings::glossary_terms(&glossary);
@@ -652,8 +657,13 @@ impl Worker {
             prompt.push_str(". ");
         }
         // Daftar istilah dipotong per istilah (bukan di tengah kata) agar muat batas prompt.
+        // Bahasa campuran (G5): contoh istilah Inggris yang ditulis dengan ejaan aslinya.
+        if m.language == "mixed" {
+            prompt.push_str("Percakapan campuran Bahasa Indonesia dan English: meeting, deadline, follow up, budget, review, update. ");
+        }
         let mut list = String::new();
-        let budget = settings::GLOSSARY_MAX_CHARS.saturating_sub(prompt.chars().count() + 24);
+        // Sisakan ±200 karakter untuk konteks potongan sebelumnya (G3), batas prompt 800.
+        let budget = (settings::GLOSSARY_MAX_CHARS - CONTEXT_TAIL_CHARS).saturating_sub(prompt.chars().count() + 24);
         for t in &terms {
             let add = t.chars().count() + if list.is_empty() { 0 } else { 2 };
             if list.chars().count() + add > budget {
@@ -679,8 +689,105 @@ impl Worker {
     ) -> (&'a repo_chunks::ChunkRow, StepResult<Vec<SttSegment>>) {
         let path = self.data_dir.join(&c.path);
         let map: Vec<preprocess::OffsetEntry> = serde_json::from_str(&c.offset_map_json).unwrap_or_default();
-        let result = self.transcribe_file(stt, opts, &path, c.duration_ms, &map, 0).await;
+        // G3: akhir teks potongan sebelumnya (channel sama) bila sudah ditranskrip → ejaan konsisten antar-potongan.
+        let tail = self.previous_chunk_tail(c);
+        let local = SttOpts {
+            language: opts.language.clone(),
+            prompt: match (&opts.prompt, tail) {
+                (Some(p), Some(t)) => Some(format!("{p} {t}")),
+                (None, Some(t)) => Some(t),
+                (p, None) => p.clone(),
+            },
+        };
+        let result = self.transcribe_file(stt, &local, &path, c.duration_ms, &map, 0).await;
+        let result = match result {
+            Ok(segs) => Ok(self.retry_uncertain(stt, &local, &path, segs).await),
+            Err(e) => Err(e),
+        };
         (c, result)
+    }
+
+    /// ±200 karakter terakhir transkrip potongan sebelumnya (channel sama), jika sudah selesai.
+    fn previous_chunk_tail(&self, c: &repo_chunks::ChunkRow) -> Option<String> {
+        if c.idx <= 0 {
+            return None;
+        }
+        let json: Option<String> = self
+            .db
+            .conn()
+            .query_row(
+                "SELECT p.response_json FROM upload_chunks p JOIN upload_chunks c ON c.meeting_id = p.meeting_id
+                 WHERE c.id = ?1 AND p.channel = c.channel AND p.idx = c.idx - 1 AND p.stt_status = 'done'",
+                [c.id],
+                |r| r.get(0),
+            )
+            .ok()
+            .flatten();
+        let segs: Vec<SttSegment> = serde_json::from_str(&json?).ok()?;
+        let text = segs.iter().map(|s| s.text.trim()).collect::<Vec<_>>().join(" ");
+        let n = text.chars().count();
+        let tail: String = text.chars().skip(n.saturating_sub(CONTEXT_TAIL_CHARS)).collect();
+        // Mulai dari awal kata.
+        let tail = if n > CONTEXT_TAIL_CHARS { tail.split_once(' ').map_or(tail.clone(), |(_, r)| r.to_string()) } else { tail };
+        (!tail.trim().is_empty()).then_some(tail)
+    }
+
+    /// G6: segment yang ragu (ucapan ada tetapi `avg_logprob` rendah, atau pengulangan) ditranskrip ulang
+    /// sekali dengan temperature 0,2; hasil dipakai jika keyakinannya lebih baik. Maks 3 per potongan.
+    async fn retry_uncertain(&self, stt: &OpenAiStt, opts: &SttOpts, path: &Path, mut segs: Vec<SttSegment>) -> Vec<SttSegment> {
+        let cfg = &self.providers.pipeline;
+        let candidates: Vec<usize> = segs
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| {
+                let unsure = s.avg_logprob < cfg.avg_logprob_min && s.no_speech_prob < cfg.no_speech_prob_max;
+                (unsure || s.compression_ratio > cfg.compression_ratio_max) && s.end_s - s.start_s >= 1.5
+            })
+            .map(|(i, _)| i)
+            .take(RETRY_UNCERTAIN_MAX)
+            .collect();
+        for i in candidates {
+            let (start_ms, end_ms) = (((segs[i].start_s - 0.3).max(0.0) * 1000.0) as i64, ((segs[i].end_s + 0.3) * 1000.0) as i64);
+            let part = path.with_extension(format!("retry{i}.wav"));
+            let ok = {
+                let (src, dst) = (path.to_path_buf(), part.clone());
+                tokio::task::spawn_blocking(move || preprocess::chunker::extract_wav(&src, start_ms, end_ms, &dst))
+                    .await
+                    .is_ok_and(|r| r.is_ok())
+            };
+            if !ok {
+                continue;
+            }
+            let cost = Cost::Stt { audio_sec: (end_ms - start_ms) as f64 / 1000.0 };
+            let res = self
+                .with_retry(cost, || {
+                    stt.transcribe(SttRequest {
+                        wav_path: part.clone(),
+                        language: opts.language.clone(),
+                        prompt: opts.prompt.clone(),
+                        temperature: Some(0.2),
+                    })
+                })
+                .await;
+            let _ = std::fs::remove_file(&part);
+            let Ok(again) = res else { continue };
+            let text = again.iter().map(|s| s.text.trim()).collect::<Vec<_>>().join(" ");
+            if again.is_empty() || text.trim().is_empty() {
+                continue;
+            }
+            let n = again.len() as f64;
+            let avg = again.iter().map(|s| s.avg_logprob).sum::<f64>() / n;
+            let cr = again.iter().map(|s| s.compression_ratio).fold(0.0, f64::max);
+            let better = avg > segs[i].avg_logprob + 0.1 || (segs[i].compression_ratio > cfg.compression_ratio_max && cr <= cfg.compression_ratio_max);
+            if better {
+                tracing::debug!("bagian ragu {:.1}–{:.1} dtk diperbaiki ({:.2} → {avg:.2})", segs[i].start_s, segs[i].end_s, segs[i].avg_logprob);
+                segs[i].text = text;
+                segs[i].avg_logprob = avg;
+                segs[i].compression_ratio = cr;
+                segs[i].no_speech_prob = again.iter().map(|s| s.no_speech_prob).fold(1.0, f64::min);
+            }
+        }
+        segs
     }
 
     /// Transkrip satu file chunk. Ditolak 413 → pecah dua di jeda antar-region (offset map) dan
@@ -702,6 +809,7 @@ impl Worker {
                         wav_path: path.to_path_buf(),
                         language: opts.language.clone(),
                         prompt: opts.prompt.clone(),
+                        temperature: None,
                     })
                 })
                 .await;

@@ -151,6 +151,19 @@ pub fn split_wav(src: &Path, cut_ms: i64, a: &Path, b: &Path) -> std::io::Result
     Ok(())
 }
 
+/// Salin rentang `[start_ms, end_ms)` dari WAV `src` ke `dst` (coba ulang bagian ragu, langkah 56).
+pub fn extract_wav(src: &Path, start_ms: i64, end_ms: i64, dst: &Path) -> std::io::Result<()> {
+    let mut r = hound::WavReader::open(src).map_err(std::io::Error::other)?;
+    let from = (start_ms.max(0) as u64 * SR / 1000) as usize;
+    let to = (end_ms.max(0) as u64 * SR / 1000) as usize;
+    let mut w = hound::WavWriter::create(dst, WAV_SPEC).map_err(std::io::Error::other)?;
+    for s in r.samples::<i16>().skip(from).take(to.saturating_sub(from)) {
+        w.write_sample(s.map_err(std::io::Error::other)?).map_err(std::io::Error::other)?;
+    }
+    w.finalize().map_err(std::io::Error::other)?;
+    Ok(())
+}
+
 fn to_ms(samples: u64) -> i64 {
     (samples * 1000 / SR) as i64
 }

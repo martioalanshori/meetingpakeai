@@ -184,11 +184,13 @@
           value={form.sttLanguage}
           options={[
             { value: "id", label: t.langId, hint: t.langIdHint },
+            { value: "mixed", label: t.langMixed, hint: t.langMixedHint },
             { value: "auto", label: t.langAuto, hint: t.langAutoNote },
           ]}
           onchange={(v) => patch({ sttLanguage: v })}
         />
       </div>
+      {@render toggleRow(t.highAccuracy, t.highAccuracyNote, form.sttHighAccuracy, (v) => patch({ sttHighAccuracy: v }))}
       <div class="flex flex-col gap-2.5 py-5">
         <span class="label">{t.notesLanguage}</span>
         <ChoiceCards
