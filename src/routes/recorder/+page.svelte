@@ -28,6 +28,7 @@
   let micDb = $state(-90);
   let sysDb = $state(-90);
   let lostChannels = $state<Channel[]>([]);
+  let systemSilent = $state(false);
   let autoStopDeadline = $state<number | null>(null);
   let autoStopReason = $state<"silence" | "meeting_ended">("silence");
   let busy = $state(false);
@@ -37,7 +38,9 @@
   const secondsLeft = $derived(
     autoStopDeadline === null ? 0 : Math.max(0, Math.ceil((autoStopDeadline - now) / 1000)),
   );
-  const extraRows = $derived(lostChannels.length + (autoStopDeadline !== null ? 1 : 0) + (error ? 1 : 0));
+  const extraRows = $derived(
+    lostChannels.length + (systemSilent && !lostChannels.includes("system") ? 1 : 0) + (autoStopDeadline !== null ? 1 : 0) + (error ? 1 : 0),
+  );
 
   function applyState(s: RecordingState) {
     rs = s;
@@ -45,6 +48,7 @@
     baseAt = performance.now();
     if (s.status === "idle") {
       lostChannels = [];
+      systemSilent = false;
       autoStopDeadline = null;
       error = null;
     }
@@ -76,7 +80,9 @@
         sysDb = l.systemDbfs;
       }),
       await events.recordingWarning((w) => {
-        if (!lostChannels.includes(w.channel)) lostChannels = [...lostChannels, w.channel];
+        if (w.code === "system_silent") systemSilent = true;
+        else if (w.code === "system_ok") systemSilent = false;
+        else if (!lostChannels.includes(w.channel)) lostChannels = [...lostChannels, w.channel];
       }),
       await events.autoStopWarning((w) => {
         autoStopReason = w.reason;
@@ -196,6 +202,10 @@
   {#each lostChannels as ch (ch)}
     <div class="flex h-11 items-center bg-amber-600/90 px-3 text-xs">{id.recorder.deviceLost(ch)}</div>
   {/each}
+
+  {#if systemSilent && !lostChannels.includes("system")}
+    <div class="flex h-11 items-center bg-amber-600/90 px-3 text-xs leading-tight">{id.recorder.systemSilent}</div>
+  {/if}
 
   {#if autoStopDeadline !== null}
     <div class="flex h-11 items-center gap-2 bg-gray-800 px-3 text-xs">

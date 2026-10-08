@@ -1,4 +1,4 @@
-//! Integrasi Windows: sisa disk, izin mikrofon, pemutar nada tes.
+//! Integrasi Windows: sisa disk, izin mikrofon, pemutar nada tes, teks clipboard.
 
 pub mod meeting_detect;
 pub mod mic_permission;
@@ -19,6 +19,50 @@ unsafe extern "system" {
         total: *mut u64,
         total_free: *mut u64,
     ) -> i32;
+}
+
+#[link(name = "user32")]
+unsafe extern "system" {
+    fn OpenClipboard(owner: *mut core::ffi::c_void) -> i32;
+    fn CloseClipboard() -> i32;
+    fn GetClipboardData(format: u32) -> *mut core::ffi::c_void;
+}
+
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn GlobalLock(mem: *mut core::ffi::c_void) -> *mut core::ffi::c_void;
+    fn GlobalUnlock(mem: *mut core::ffi::c_void) -> i32;
+    fn GlobalSize(mem: *mut core::ffi::c_void) -> usize;
+}
+
+const CF_UNICODETEXT: u32 = 13;
+/// Teks clipboard lebih panjang dari ini diabaikan (API key hanya ±56 karakter).
+const CLIPBOARD_MAX_CHARS: usize = 4096;
+
+/// Teks di clipboard Windows (`None` jika kosong / bukan teks / terlalu panjang).
+pub fn clipboard_text() -> Option<String> {
+    // SAFETY: clipboard dibuka-tutup di fungsi ini; pointer hanya dibaca selama GlobalLock,
+    // panjang dibatasi GlobalSize dan berhenti di karakter nol.
+    unsafe {
+        if OpenClipboard(std::ptr::null_mut()) == 0 {
+            return None;
+        }
+        let mut out = None;
+        let handle = GetClipboardData(CF_UNICODETEXT);
+        if !handle.is_null() {
+            let ptr = GlobalLock(handle) as *const u16;
+            if !ptr.is_null() {
+                let max = (GlobalSize(handle) / 2).min(CLIPBOARD_MAX_CHARS + 1);
+                let len = (0..max).find(|&i| *ptr.add(i) == 0).unwrap_or(max);
+                if len <= CLIPBOARD_MAX_CHARS {
+                    out = Some(String::from_utf16_lossy(std::slice::from_raw_parts(ptr, len)));
+                }
+                GlobalUnlock(handle);
+            }
+        }
+        CloseClipboard();
+        out
+    }
 }
 
 #[link(name = "winmm")]

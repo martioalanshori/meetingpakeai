@@ -49,3 +49,16 @@ pub async fn delete_api_key() -> AppResult<()> {
     tracing::info!("api key dihapus");
     Ok(())
 }
+
+/// Tambahan (langkah 24): API key Groq (`gsk_…`) di clipboard, untuk ditawarkan ke pengguna.
+/// Teks clipboard lain tidak pernah dikembalikan ke UI.
+#[tauri::command]
+pub async fn detect_api_key_in_clipboard() -> AppResult<Option<String>> {
+    let text = crate::windows_integration::clipboard_text().unwrap_or_default();
+    let key = text.trim();
+    let looks_like_key = key.len() >= 24
+        && key.len() <= 200
+        && key.starts_with("gsk_")
+        && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+    Ok(looks_like_key.then(|| key.to_string()))
+}

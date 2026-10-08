@@ -41,6 +41,7 @@ export const api = {
   saveApiKey: (key: string) => call<void>("save_api_key", { key }),
   testApiKey: (key?: string) => call<TestApiKeyResult>("test_api_key", { key }),
   deleteApiKey: () => call<void>("delete_api_key"),
+  detectApiKeyInClipboard: () => call<string | null>("detect_api_key_in_clipboard"),
   checkMicPermission: () => call<MicPermission>("check_mic_permission"),
   openMicSettings: () => call<void>("open_mic_settings"),
   runAudioTest: () => call<AudioTestResult>("run_audio_test"),

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api } from "$lib/api";
+  import ClipboardKeyHint from "$lib/components/ClipboardKeyHint.svelte";
   import { id } from "$lib/i18n/id";
   import type { AppError } from "$lib/types";
 
@@ -83,6 +84,9 @@
   </div>
 
   {#if editing}
+    {#if keyInput.trim() === ""}
+      <ClipboardKeyHint onuse={(k) => (keyInput = k)} />
+    {/if}
     <form
       class="flex flex-wrap items-end gap-2"
       onsubmit={(e) => {

@@ -4,6 +4,7 @@
   import { openUrl } from "@tauri-apps/plugin-opener";
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { api, events } from "$lib/api";
+  import ClipboardKeyHint from "$lib/components/ClipboardKeyHint.svelte";
   import { id } from "$lib/i18n/id";
   import type { AppError, AudioTestResult, MicPermission } from "$lib/types";
 
@@ -129,6 +130,14 @@
       <button type="button" class={[secondary, "self-start"]} onclick={() => openUrl("https://console.groq.com/keys")}>
         {t.openConsole}
       </button>
+      {#if keyInput.trim() === "" && !keyOk}
+        <ClipboardKeyHint
+          onuse={(k) => {
+            keyInput = k;
+            testKey();
+          }}
+        />
+      {/if}
       <form
         class="flex flex-wrap items-end gap-2"
         onsubmit={(e) => {

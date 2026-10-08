@@ -31,6 +31,10 @@ const DISK_CHECK_EVERY: Duration = Duration::from_secs(30);
 const REOPEN_EVERY: Duration = Duration::from_secs(1);
 const REOPEN_MAX_ATTEMPTS: u32 = 10;
 const MONITOR_TICK: Duration = Duration::from_millis(100);
+/// Audio sistem dianggap tidak terdengar di bawah ini (loopback diam / volume 0 / device salah).
+const SYSTEM_SILENT_DBFS: f32 = -70.0;
+/// Peringatan "audio sistem tidak terdengar" setelah selama ini, jika mic sempat aktif.
+const SYSTEM_SILENT_WARN_AFTER: Duration = Duration::from_secs(120);
 /// Windows sering mengirim beberapa notifikasi default device beruntun; tunggu sebelum membuka ulang.
 const DEVICE_SWITCH_DEBOUNCE: Duration = Duration::from_secs(1);
 
@@ -404,6 +408,7 @@ impl RecordingService {
         let mut last_disk_check = Instant::now();
         let mut last_alive = [true, true];
         let watcher = DeviceWatcher::start();
+        let mut system_health = SystemHealth::default();
         let mut switch_at: [Option<Instant>; 2] = [None, None];
 
         let stop_reason = loop {
@@ -474,6 +479,12 @@ impl RecordingService {
                 break StopReason::DeviceLost;
             }
 
+            // Audio sistem tidak terdengar padahal mic aktif → beri tahu saat meeting, bukan setelahnya.
+            if let Some(warn) = system_health.update(now, rec.is_paused(), rec.mic_muted(), mic_db, sys_db) {
+                let code = if warn { "system_silent" } else { "system_ok" };
+                self.events.emit_json(events::EV_RECORDING_WARNING, serde_json::json!({ "code": code, "channel": "system" }));
+            }
+
             // Durasi maksimal.
             if rec.elapsed() >= max_duration {
                 break StopReason::MaxDuration;
@@ -517,6 +528,39 @@ impl RecordingService {
         if let Err(e) = self.stop(stop_reason) {
             tracing::warn!("auto-stop gagal: {}", e.message);
         }
+    }
+}
+
+/// Pelacak "audio sistem tidak terdengar" (langkah 24).
+#[derive(Default)]
+struct SystemHealth {
+    silent_since: Option<Instant>,
+    mic_active: bool,
+    warned: bool,
+}
+
+impl SystemHealth {
+    /// `Some(true)` = mulai peringatan, `Some(false)` = peringatan selesai, `None` = tidak berubah.
+    fn update(&mut self, now: Instant, paused: bool, mic_muted: bool, mic_db: f32, sys_db: f32) -> Option<bool> {
+        if paused {
+            self.silent_since = None;
+            self.mic_active = false;
+            return None;
+        }
+        if sys_db >= SYSTEM_SILENT_DBFS {
+            self.silent_since = None;
+            self.mic_active = false;
+            return std::mem::take(&mut self.warned).then_some(false);
+        }
+        let since = *self.silent_since.get_or_insert(now);
+        if !mic_muted && mic_db >= SILENCE_THRESHOLD_DBFS {
+            self.mic_active = true;
+        }
+        if !self.warned && self.mic_active && now.duration_since(since) >= SYSTEM_SILENT_WARN_AFTER {
+            self.warned = true;
+            return Some(true);
+        }
+        None
     }
 }
 

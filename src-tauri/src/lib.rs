@@ -276,6 +276,7 @@ pub fn run() {
             commands::api_key::save_api_key,
             commands::api_key::test_api_key,
             commands::api_key::delete_api_key,
+            commands::api_key::detect_api_key_in_clipboard,
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::recording::start_recording,
