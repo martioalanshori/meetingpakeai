@@ -101,6 +101,9 @@ export const api = {
   summarizeSoFar: (id: string) => call<string[]>("summarize_so_far", { id }),
   askMeeting: (id: string, question: string) => call<QaItem>("ask_meeting", { id, question }),
   askAllMeetings: (question: string) => call<AskAllResult>("ask_all_meetings", { question }),
+  previousMergeable: (id: string) => call<MeetingListItem | null>("previous_mergeable", { id }),
+  mergeWithPrevious: (id: string) => call<string>("merge_with_previous", { id }),
+  deleteSegment: (segmentId: number) => call<void>("delete_segment", { segmentId }),
   takePendingNav: () => call<string | null>("take_pending_nav"),
   weeklyDigest: () =>
     call<{ weekStart: string; meetings: number; minutes: number; decisions: number; openTasks: number; overdue: number }>(

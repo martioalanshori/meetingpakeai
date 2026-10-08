@@ -254,6 +254,7 @@
         hint: m.audioDeleted ? t.detail.audioDeleted : canRetranscribe ? undefined : t.detail.retranscribeUnavailable,
         onselect: () => act(() => api.retranscribe(meetingId), t.toast.requeued),
       },
+      { label: t.detail.mergePrev, icon: "plus", disabled: m.status !== "done", onselect: requestMerge },
       { separator: true },
       { label: t.detail.delete, icon: "trash", danger: true, disabled: m.status === "recording", onselect: requestDelete },
     );
@@ -302,6 +303,44 @@
       showToast(t.minutes.copyFailed, "error");
     }
   }
+
+  /** Gabung dengan meeting sebelumnya (feedback3 C6). */
+  async function requestMerge() {
+    const prev = await api.previousMergeable(meetingId).catch(() => null);
+    if (!prev) {
+      showToast(t.detail.mergeNone, "error");
+      return;
+    }
+    const ok = await confirmDialog({ title: t.detail.mergeTitle(prev.title), message: t.detail.mergeMessage, confirmText: t.detail.mergeConfirm });
+    if (!ok) return;
+    try {
+      const target = await api.mergeWithPrevious(meetingId);
+      showToast(t.detail.merged, "success");
+      await goto(embedded ? `/?m=${target}` : `/meeting/${target}`, { replaceState: true });
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+
+  /** Hapus satu baris transkrip + audionya (feedback3 C7). */
+  async function deleteLine(s: TranscriptSegment) {
+    const ok = await confirmDialog({
+      title: t.detail.deleteLineTitle,
+      message: t.detail.deleteLineMessage,
+      confirmText: t.detail.deleteLine,
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.deleteSegment(s.id);
+      transcript = transcript.filter((x) => x.id !== s.id);
+      audioSrc = null;
+      lineDeleted = true;
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+  let lineDeleted = $state(false);
 
   async function saveSummary(edit: SummaryEdit) {
     try {
@@ -1146,6 +1185,15 @@
               >{/if}
           </p>{/if}
 
+        {#if lineDeleted}
+          <div class="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-paper/60 px-4 py-3" role="status">
+            <span class="flex-1 text-sm">{t.detail.deletedLine}</span>
+            {#if canRegenerate}
+              <button type="button" class="btn btn-ink btn-sm" onclick={() => ((lineDeleted = false), requestRegenerate())}>{t.detail.regenStart}</button>
+            {/if}
+            <button type="button" class="btn btn-quiet btn-sm" onclick={() => (lineDeleted = false)}>{t.detail.dismiss}</button>
+          </div>
+        {/if}
         {#if replaceOffer}
           <div class="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-paper/60 px-4 py-3" role="status">
             <span class="flex-1 text-sm">{t.detail.replaceOffer(replaceOffer.from, replaceOffer.to)}</span>
@@ -1203,6 +1251,15 @@
               {/if}
               <p class="group/row relative max-w-[70ch] leading-[1.7]">
                 {#if !isLive && editingSeg !== s.id}
+                  <button
+                    type="button"
+                    class="absolute top-0.5 -right-24 rounded p-1 text-ink-faint opacity-0 group-hover/row:opacity-100 hover:bg-bad-wash hover:text-bad focus:opacity-100 print:hidden"
+                    title={t.detail.deleteLine}
+                    aria-label={t.detail.deleteLine}
+                    onclick={() => deleteLine(s)}
+                  >
+                    <Icon name="trash" size={14} />
+                  </button>
                   <button
                     type="button"
                     class="absolute top-0.5 -right-16 rounded p-1 text-ink-faint opacity-0 group-hover/row:opacity-100 hover:bg-wash hover:text-ink focus:opacity-100 print:hidden"

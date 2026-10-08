@@ -6,6 +6,7 @@ pub mod commands;
 pub mod config;
 pub mod db;
 pub mod desktop;
+pub mod edit_audio;
 pub mod error;
 pub mod events;
 pub mod import;
@@ -417,6 +418,9 @@ pub fn run() {
             commands::meetings::save_notes,
             commands::meetings::toggle_bookmark_at,
             commands::meetings::ask_meeting,
+            commands::meetings::previous_mergeable,
+            commands::meetings::merge_with_previous,
+            commands::meetings::delete_segment,
             commands::meetings::weekly_digest,
             commands::meetings::weekly_summary_text,
             commands::meetings::previous_open_tasks,

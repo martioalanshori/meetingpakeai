@@ -1012,6 +1012,39 @@ pub async fn weekly_summary_text(state: State<'_, AppState>) -> AppResult<String
     Ok(text)
 }
 
+/// Tambahan (langkah 58, feedback3 C6): meeting sebelumnya yang bisa digabung (≤ 12 jam, selesai).
+#[tauri::command]
+pub async fn previous_mergeable(state: State<'_, AppState>, id: String) -> AppResult<Option<MeetingListItem>> {
+    Ok(crate::edit_audio::previous_mergeable(&state.db, &id)?.as_ref().map(MeetingListItem::from))
+}
+
+/// Gabungkan meeting ini ke meeting sebelumnya; ringkasan meeting gabungan dibuat ulang. Mengembalikan id hasil.
+#[tauri::command]
+pub async fn merge_with_previous(state: State<'_, AppState>, id: String) -> AppResult<String> {
+    let prev = crate::edit_audio::previous_mergeable(&state.db, &id)?
+        .ok_or_else(|| AppError::with_message(ErrorCode::InvalidState, "Tidak ada meeting sebelumnya yang bisa digabung."))?;
+    let (data_dir, db, a, b) = (state.data_dir.clone(), state.db.clone(), prev.id.clone(), id.clone());
+    tauri::async_runtime::spawn_blocking(move || crate::edit_audio::merge(&data_dir, &db, &a, &b))
+        .await
+        .map_err(AppError::internal)??;
+    emit_updated(&state, &id);
+    reindex(&state, &prev.id);
+    requeue(&state, &prev.id, MeetingStatus::Summarizing)?;
+    Ok(prev.id)
+}
+
+/// Tambahan (langkah 58, feedback3 C7): hapus satu baris transkrip beserta audionya (dinolkan).
+#[tauri::command]
+pub async fn delete_segment(state: State<'_, AppState>, segment_id: i64) -> AppResult<()> {
+    let (data_dir, db) = (state.data_dir.clone(), state.db.clone());
+    let meeting_id = tauri::async_runtime::spawn_blocking(move || crate::edit_audio::delete_segment(&data_dir, &db, segment_id))
+        .await
+        .map_err(AppError::internal)??;
+    reindex(&state, &meeting_id);
+    emit_updated(&state, &meeting_id);
+    Ok(())
+}
+
 /// Tambahan (langkah 44): hapus satu momen ditandai.
 #[tauri::command]
 pub async fn delete_bookmark(state: State<'_, AppState>, id: String, at_ms: i64) -> AppResult<()> {
