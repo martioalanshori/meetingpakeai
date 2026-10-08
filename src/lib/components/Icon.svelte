@@ -20,12 +20,14 @@
     | "arrow-left"
     | "speaker"
     | "download"
+    | "upload"
     | "pencil"
     | "printer"
     | "refresh"
     | "trash"
     | "send"
-    | "chevron-down";
+    | "chevron-down"
+    | "panel-left";
 </script>
 
 <script lang="ts">
@@ -117,6 +119,10 @@
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
     <polyline points="7 10 12 15 17 10" />
     <line x1="12" x2="12" y1="15" y2="3" />
+  {:else if name === "upload"}
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" />
+    <line x1="12" x2="12" y1="3" y2="15" />
   {:else if name === "pencil"}
     <path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z" />
   {:else if name === "printer"}
@@ -137,5 +143,8 @@
     <path d="M22 2 11 13" />
   {:else if name === "chevron-down"}
     <path d="m6 9 6 6 6-6" />
+  {:else if name === "panel-left"}
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M9 3v18" />
   {/if}
 </svg>

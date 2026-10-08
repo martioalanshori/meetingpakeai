@@ -5,6 +5,7 @@
   import Icon, { type IconName } from "$lib/components/Icon.svelte";
   import RecordButton from "$lib/components/RecordButton.svelte";
   import { id } from "$lib/i18n/id";
+  import { toggleRail } from "$lib/ui.svelte";
 
   let shortcut = $state("");
   onMount(async () => {
@@ -40,7 +41,19 @@
     {/each}
   </nav>
 
-  {#if shortcut}
-    <p class="mt-auto hidden px-1 text-xs leading-relaxed text-ink-faint xl:block">{id.rail.shortcutHint(shortcut)}</p>
-  {/if}
+  <div class="mt-auto flex flex-col gap-3">
+    {#if shortcut}
+      <p class="hidden px-1 text-xs leading-relaxed text-ink-faint xl:block">{id.rail.shortcutHint(shortcut)}</p>
+    {/if}
+    <button
+      type="button"
+      class="flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-soft hover:bg-wash hover:text-ink xl:justify-start xl:py-2"
+      title={id.rail.hide}
+      aria-label={id.rail.hide}
+      onclick={() => toggleRail(true)}
+    >
+      <Icon name="panel-left" size={18} class="shrink-0" />
+      <span class="sr-only xl:not-sr-only">{id.rail.hide.replace(" (Ctrl+B)", "")}</span>
+    </button>
+  </div>
 </aside>

@@ -11,6 +11,9 @@
   import MeetingOfferBanner from "$lib/components/MeetingOfferBanner.svelte";
   import Toaster from "$lib/components/Toaster.svelte";
   import { initRecording, rec } from "$lib/recording.svelte";
+  import Icon from "$lib/components/Icon.svelte";
+  import { id } from "$lib/i18n/id";
+  import { toggleRail, ui } from "$lib/ui.svelte";
 
   let { children } = $props();
 
@@ -51,11 +54,37 @@
   });
 </script>
 
+<svelte:window
+  onkeydown={(e) => {
+    // Ctrl+B: sembunyikan / tampilkan sidebar (hanya jendela main).
+    if (isRecorderWindow || isOnboarding) return;
+    if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      toggleRail();
+    }
+  }}
+/>
+
 {#if isRecorderWindow || isOnboarding}
   {@render children()}
 {:else}
   <div class="flex h-full print:block">
-    <div class="contents print:hidden"><AppRail /></div>
+    {#if ui.railHidden}
+      <!-- Sidebar disembunyikan: sisakan strip tipis berisi tombol tampilkan (isi tidak tertutup). -->
+      <div class="flex w-11 shrink-0 justify-center pt-5 print:hidden">
+        <button
+          type="button"
+          class="h-fit rounded-lg p-1.5 text-ink-soft hover:bg-wash hover:text-ink"
+          title={id.rail.show}
+          aria-label={id.rail.show}
+          onclick={() => toggleRail(false)}
+        >
+          <Icon name="panel-left" size={18} />
+        </button>
+      </div>
+    {:else}
+      <div class="contents print:hidden"><AppRail /></div>
+    {/if}
     <div class="min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] border-l border-line bg-sheet print:overflow-visible print:border-0">
       {@render children()}
     </div>
