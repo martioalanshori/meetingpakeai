@@ -158,6 +158,17 @@ pub fn list(conn: &Connection, limit: i64, offset: i64) -> AppResult<Vec<Meeting
     Ok(rows)
 }
 
+/// Meeting berlabel `tag` (langkah 59), terbaru dulu.
+pub fn list_by_tag(conn: &Connection, tag: &str, limit: i64, offset: i64) -> AppResult<Vec<MeetingRow>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {COLS} FROM meetings WHERE id IN (
+           SELECT mt.meeting_id FROM meeting_tags mt JOIN tags t ON t.id = mt.tag_id WHERE t.name = ?1)
+         ORDER BY started_at DESC LIMIT ?2 OFFSET ?3"
+    ))?;
+    let rows = stmt.query_map(params![tag, limit, offset], map_row)?.collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
 pub fn list_by_status(conn: &Connection, status: MeetingStatus) -> AppResult<Vec<MeetingRow>> {
     let mut stmt =
         conn.prepare(&format!("SELECT {COLS} FROM meetings WHERE status = ?1 ORDER BY started_at ASC"))?;

@@ -11,6 +11,7 @@
   import FollowUpPanel from "$lib/components/FollowUpPanel.svelte";
   import NotesEditor from "$lib/components/NotesEditor.svelte";
   import AskPanel from "$lib/components/AskPanel.svelte";
+  import TagEditor from "$lib/components/TagEditor.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import Wordmark from "$lib/components/Wordmark.svelte";
   import Menu, { type MenuEntry } from "$lib/components/Menu.svelte";
@@ -255,6 +256,15 @@
         onselect: () => act(() => api.retranscribe(meetingId), t.toast.requeued),
       },
       { label: t.detail.mergePrev, icon: "plus", disabled: m.status !== "done", onselect: requestMerge },
+      ...(m.transcriptTidied
+        ? [
+            {
+              label: t.detail.restoreTranscript,
+              icon: "refresh" as const,
+              onselect: () => act(() => api.restoreTranscript(meetingId), t.detail.restored),
+            },
+          ]
+        : []),
       { separator: true },
       { label: t.detail.delete, icon: "trash", danger: true, disabled: m.status === "recording", onselect: requestDelete },
     );
@@ -823,6 +833,9 @@
         </button>
       </div>
     {/if}
+
+    <!-- Label proyek/klien (feedback3 D4). -->
+    {#key meeting.id}<TagEditor meetingId={meeting.id} tags={meeting.tags} />{/key}
 
     <!-- Baris tab + aksi tab aktif (Salin / Ubah) di ujung kanan: tanpa baris toolbar terpisah. -->
     <div class="flex flex-wrap items-end gap-x-6 gap-y-2 border-b border-line">

@@ -83,8 +83,8 @@ export const api = {
   addActionItem: (id: string, task: string, assignee?: string, dueDate?: string) =>
     call<number>("add_action_item", { id, task, assignee: assignee ?? null, dueDate: dueDate ?? null }),
   exportTasksIcs: () => call<boolean>("export_tasks_ics"),
-  listMeetings: (limit: number, offset: number) =>
-    call<MeetingListItem[]>("list_meetings", { limit, offset }),
+  listMeetings: (limit: number, offset: number, tag?: string | null) =>
+    call<MeetingListItem[]>("list_meetings", { limit, offset, tag: tag ?? null }),
   getMeeting: (id: string) => call<MeetingDetail>("get_meeting", { id }),
   getTranscript: (id: string) => call<TranscriptSegment[]>("get_transcript", { id }),
   renameMeeting: (id: string, title: string) => call<void>("rename_meeting", { id, title }),
@@ -101,6 +101,9 @@ export const api = {
   summarizeSoFar: (id: string) => call<string[]>("summarize_so_far", { id }),
   askMeeting: (id: string, question: string) => call<QaItem>("ask_meeting", { id, question }),
   askAllMeetings: (question: string) => call<AskAllResult>("ask_all_meetings", { question }),
+  listTags: () => call<string[]>("list_tags"),
+  setMeetingTags: (id: string, tags: string[]) => call<string[]>("set_meeting_tags", { id, tags }),
+  restoreTranscript: (id: string) => call<void>("restore_transcript", { id }),
   previousMergeable: (id: string) => call<MeetingListItem | null>("previous_mergeable", { id }),
   mergeWithPrevious: (id: string) => call<string>("merge_with_previous", { id }),
   deleteSegment: (segmentId: number) => call<void>("delete_segment", { segmentId }),

@@ -140,7 +140,7 @@
   async function reload() {
     try {
       const limit = Math.max(PAGE, items.length);
-      const rows = await api.listMeetings(limit, 0);
+      const rows = await api.listMeetings(limit, 0, activeTag);
       items = rows;
       hasMore = rows.length === limit;
       loadError = null;
@@ -156,7 +156,7 @@
     if (loadingMore) return;
     loadingMore = true;
     try {
-      const rows = await api.listMeetings(PAGE, items.length);
+      const rows = await api.listMeetings(PAGE, items.length, activeTag);
       const seen = new Set(items.map((m) => m.id));
       items = [...items, ...rows.filter((m) => !seen.has(m.id))];
       hasMore = rows.length === PAGE;
@@ -219,6 +219,22 @@
     }
   }
 
+  // Label proyek/klien (feedback3 D4): saring daftar.
+  let allTags = $state<string[]>([]);
+  let activeTag = $state<string | null>(null);
+
+  async function loadTags() {
+    allTags = await api.listTags().catch(() => []);
+    if (activeTag && !allTags.includes(activeTag)) activeTag = null;
+  }
+
+  function pickTag(tag: string | null) {
+    activeTag = tag;
+    items = [];
+    loaded = false;
+    reload();
+  }
+
   let importing = $state(false);
   let dragOver = $state(false);
 
@@ -278,6 +294,7 @@
       }),
     );
     await reload();
+    loadTags();
     loadWeek();
     refreshQueuePaused();
     lastRecordingStatus = await api.getRecordingState().then((r) => r.status, () => "idle");
@@ -293,6 +310,7 @@
       }),
       await events.meetingUpdated(() => {
         reload();
+        loadTags();
         refreshQueuePaused();
         if (query.trim() !== "") runSearch();
       }),
@@ -336,6 +354,21 @@
         oninput={onSearchInput}
       />
     </label>
+    {#if allTags.length > 0}
+      <div class="flex flex-wrap gap-1.5" role="group" aria-label={id.home.tagFilter}>
+        {#each [null, ...allTags] as tag (tag ?? "")}
+          <button
+            type="button"
+            class={[
+              "rounded-full border px-2.5 py-0.5 text-sm",
+              activeTag === tag ? "border-ink bg-ink-strong text-white" : "border-line text-ink-soft hover:border-ink-faint hover:text-ink",
+            ]}
+            aria-pressed={activeTag === tag}
+            onclick={() => pickTag(tag)}>{tag ?? id.home.allTags}</button
+          >
+        {/each}
+      </div>
+    {/if}
   </div>
 
   {#if queuePaused}
@@ -511,6 +544,11 @@
                   <span class="tabular text-sm text-ink-soft">{formatTime(m.startedAt)}</span>
                   <span class="flex min-w-0 flex-col gap-1">
                     <span class="leading-snug font-semibold text-pretty wrap-anywhere">{m.title}</span>
+                    {#if m.tags.length > 0}
+                      <span class="flex flex-wrap gap-1">
+                        {#each m.tags as tag (tag)}<span class="rounded-full bg-wash px-2 py-px text-xs text-ink-soft">{tag}</span>{/each}
+                      </span>
+                    {/if}
                     {#if compact}
                       <span class="flex flex-wrap items-center gap-x-3 gap-y-0.5">
                         {#if m.durationMs > 0}

@@ -20,8 +20,12 @@
 | 54 | D2 Tugas terstruktur: ubah PJ/tenggat, tambah manual, pengingat tenggat, .ics |
 | 55 | D3 Meeting rutin + status tindak lanjut |
 | 56 | Akurasi lanjutan: G3 konteks antar-potongan, G4 Akurasi tinggi, G5 bahasa campuran, G6 coba ulang bagian ragu; E1 indikator kualitas, E2 poin tanpa rujukan |
-| 57 | Penyempurnaan: A4 menu tray, F2 tombol Bagikan, F3 notulen kosong, C6 gabung meeting, C7 hapus bagian, D4 label proyek, D5 ringkasan mingguan, G9 rapikan transkrip dengan AI |
+| 57 | Penyempurnaan 1: A4 menu tray, F2 tombol Bagikan, F3 notulen kosong, D5 ringkasan mingguan |
+| 58 | C6 gabung meeting, C7 hapus bagian (per baris) |
+| 59 | D4 label proyek/klien, G9 rapikan transkrip dengan AI |
 
 **Ditunda (butuh akun/OAuth atau evaluasi perangkat):**
 - D6 integrasi To Do/kalender (.ics di langkah 54 sebagai pengganti sementara).
 - E3 transkripsi lokal whisper.cpp (preset Kustom tetap jalan sementara).
+
+**Status:** langkah 45–59 selesai (8 Okt 2026), belum diuji pemilik.

@@ -45,6 +45,8 @@ export const id = {
     weekBusy: "Meringkas…",
     weekClose: "Tutup sampai minggu depan",
     weekTasksLink: "Lihat tugas",
+    allTags: "Semua",
+    tagFilter: "Saring berdasarkan label",
     importButton: "Impor rekaman",
     importHint: "mp3, m4a, mp4, wav, ogg, flac, webm",
     importing: "Mengimpor rekaman…",
@@ -178,6 +180,13 @@ export const id = {
     tabActionItems: "Tugas",
     tabTranscript: "Transkrip",
     tabAsk: "Tanya",
+    tags: "Label",
+    addTag: "Label",
+    tagPlaceholder: "mis. Klien A, Proyek X",
+    removeTag: (t: string) => `Hapus label ${t}`,
+    restoreTranscript: "Kembalikan teks asli transkrip",
+    restored: "Teks asli transkrip dikembalikan.",
+    tidiedNote: "Transkrip dirapikan AI (typo & tanda baca).",
     mergePrev: "Gabungkan dengan meeting sebelumnya",
     mergeTitle: (title: string) => `Gabungkan dengan "${title}"?`,
     mergeMessage:
@@ -433,6 +442,9 @@ export const id = {
     langId: "Indonesia",
     langMixed: "Campuran Indonesia–Inggris",
     langMixedHint: "Istilah Inggris (deadline, follow up, budget) ditulis dengan ejaan aslinya.",
+    tidyTranscript: "Rapikan transkrip dengan AI",
+    tidyTranscriptNote:
+      "Setelah transkripsi, AI membetulkan salah ketik, ejaan nama (dari glosarium), dan tanda baca tanpa mengubah makna. Teks asli bisa dikembalikan. Menambah waktu proses dan pemakaian kuota AI.",
     highAccuracy: "Akurasi tinggi",
     highAccuracyNote:
       "Groq memakai model whisper-large-v3: lebih sedikit salah kata, tetapi pemrosesan lebih lambat dan kuota harian lebih cepat habis.",

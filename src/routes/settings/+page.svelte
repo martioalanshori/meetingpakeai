@@ -191,6 +191,7 @@
         />
       </div>
       {@render toggleRow(t.highAccuracy, t.highAccuracyNote, form.sttHighAccuracy, (v) => patch({ sttHighAccuracy: v }))}
+      {@render toggleRow(t.tidyTranscript, t.tidyTranscriptNote, form.tidyTranscript, (v) => patch({ tidyTranscript: v }))}
       <div class="flex flex-col gap-2.5 py-5">
         <span class="label">{t.notesLanguage}</span>
         <ChoiceCards

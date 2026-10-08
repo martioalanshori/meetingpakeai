@@ -10,6 +10,7 @@ pub mod repo_search;
 pub mod repo_segments;
 pub mod repo_settings;
 pub mod repo_summary;
+pub mod repo_tags;
 pub mod repo_usage;
 
 use std::path::Path;
@@ -35,6 +36,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/012_qa.sql"),
     include_str!("migrations/013_task_due.sql"),
     include_str!("migrations/014_followup.sql"),
+    include_str!("migrations/015_tags_tidy.sql"),
 ];
 
 pub struct Db {

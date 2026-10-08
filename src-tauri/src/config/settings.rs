@@ -24,6 +24,7 @@ pub const KEY_BOOKMARK_SHORTCUT: &str = "bookmark_shortcut";
 pub const KEY_AUTO_RECORD: &str = "auto_record";
 pub const KEY_NOTES_LANGUAGE: &str = "notes_language";
 pub const KEY_STT_HIGH_ACCURACY: &str = "stt_high_accuracy";
+pub const KEY_TIDY_TRANSCRIPT: &str = "tidy_transcript";
 pub const DEFAULT_BOOKMARK_SHORTCUT: &str = "Ctrl+Alt+B";
 /// Batas glosarium (= batas prompt STT).
 pub const GLOSSARY_MAX_CHARS: usize = 800;
@@ -86,6 +87,8 @@ pub struct Settings {
     pub notes_language: String,
     /// Groq: pakai `whisper-large-v3` (lebih akurat, lebih lambat & boros kuota), langkah 56.
     pub stt_high_accuracy: bool,
+    /// Rapikan typo & tanda baca transkrip dengan AI setelah transkripsi (langkah 59), default mati.
+    pub tidy_transcript: bool,
 }
 
 /// `Partial<Settings>` dari `update_settings`.
@@ -104,6 +107,7 @@ pub struct SettingsPatch {
     pub auto_record: Option<bool>,
     pub notes_language: Option<String>,
     pub stt_high_accuracy: Option<bool>,
+    pub tidy_transcript: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -137,6 +141,7 @@ pub fn load(conn: &Connection) -> AppResult<Settings> {
         auto_record: repo_settings::get(conn, KEY_AUTO_RECORD)?.unwrap_or(false),
         notes_language: repo_settings::get(conn, KEY_NOTES_LANGUAGE)?.unwrap_or_else(|| "id".to_string()),
         stt_high_accuracy: repo_settings::get(conn, KEY_STT_HIGH_ACCURACY)?.unwrap_or(false),
+        tidy_transcript: repo_settings::get(conn, KEY_TIDY_TRANSCRIPT)?.unwrap_or(false),
     })
 }
 
@@ -165,6 +170,9 @@ pub fn apply_patch(conn: &Connection, patch: SettingsPatch) -> AppResult<Setting
     }
     if let Some(v) = patch.meeting_detection {
         repo_settings::set(conn, KEY_MEETING_DETECTION, &v)?;
+    }
+    if let Some(v) = patch.tidy_transcript {
+        repo_settings::set(conn, KEY_TIDY_TRANSCRIPT, &v)?;
     }
     if let Some(v) = patch.stt_high_accuracy {
         repo_settings::set(conn, KEY_STT_HIGH_ACCURACY, &v)?;

@@ -26,6 +26,8 @@ pub struct MeetingListItem {
     pub error_message: Option<String>,
     /// Tambahan: untuk banner "antrean dijeda" di Beranda.
     pub error_code: Option<String>,
+    /// Label proyek/klien (langkah 59).
+    pub tags: Vec<String>,
 }
 
 impl From<&MeetingRow> for MeetingListItem {
@@ -40,6 +42,7 @@ impl From<&MeetingRow> for MeetingListItem {
             progress_total: m.progress_total,
             error_message: m.error_message.clone(),
             error_code: m.error_code.clone(),
+            tags: Vec::new(),
         }
     }
 }
@@ -66,6 +69,8 @@ pub struct MeetingDetail {
     pub action_items: Vec<ActionItemView>,
     /// Momen ditandai (ms), langkah 44.
     pub bookmarks: Vec<i64>,
+    /// Transkrip sudah dirapikan AI (teks asli bisa dikembalikan), langkah 59.
+    pub transcript_tidied: bool,
 }
 
 /// Index pencarian ikut diperbarui setelah pengguna mengubah teks meeting yang sudah selesai.
@@ -92,9 +97,25 @@ fn emit_updated(state: &AppState, id: &str) {
 }
 
 #[tauri::command]
-pub async fn list_meetings(state: State<'_, AppState>, limit: i64, offset: i64) -> AppResult<Vec<MeetingListItem>> {
-    let rows = repo_meetings::list(&state.db.conn(), limit.clamp(1, 500), offset.max(0))?;
-    Ok(rows.iter().map(MeetingListItem::from).collect())
+pub async fn list_meetings(
+    state: State<'_, AppState>,
+    limit: i64,
+    offset: i64,
+    tag: Option<String>,
+) -> AppResult<Vec<MeetingListItem>> {
+    let conn = state.db.conn();
+    let (limit, offset) = (limit.clamp(1, 500), offset.max(0));
+    let rows = match tag.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
+        Some(t) => repo_meetings::list_by_tag(&conn, t, limit, offset)?,
+        None => repo_meetings::list(&conn, limit, offset)?,
+    };
+    rows.iter()
+        .map(|m| {
+            let mut item = MeetingListItem::from(m);
+            item.tags = crate::db::repo_tags::for_meeting(&conn, &m.id)?;
+            Ok(item)
+        })
+        .collect()
 }
 
 #[tauri::command]
@@ -106,8 +127,10 @@ pub async fn get_meeting(state: State<'_, AppState>, id: String) -> AppResult<Me
         mic: settings::load(&conn)?.user_display_name,
         system: DEFAULT_SYSTEM_LABEL.to_string(),
     };
+    let mut base = MeetingListItem::from(&m);
+    base.tags = crate::db::repo_tags::for_meeting(&conn, &id)?;
     Ok(MeetingDetail {
-        base: MeetingListItem::from(&m),
+        base,
         ended_at: m.ended_at,
         language: m.language.clone(),
         failed_step: m.failed_step.clone(),
@@ -116,6 +139,11 @@ pub async fn get_meeting(state: State<'_, AppState>, id: String) -> AppResult<Me
         summary: repo_summary::get(&conn, &id)?,
         action_items: repo_summary::action_items(&conn, &id)?,
         bookmarks: crate::db::repo_bookmarks::list(&conn, &id)?,
+        transcript_tidied: conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM transcript_segments WHERE meeting_id = ?1 AND original_text IS NOT NULL)",
+            [&id],
+            |r| r.get(0),
+        )?,
     })
 }
 
@@ -1042,6 +1070,31 @@ pub async fn delete_segment(state: State<'_, AppState>, segment_id: i64) -> AppR
         .map_err(AppError::internal)??;
     reindex(&state, &meeting_id);
     emit_updated(&state, &meeting_id);
+    Ok(())
+}
+
+/// Tambahan (langkah 59, feedback3 D4): label proyek/klien.
+#[tauri::command]
+pub async fn list_tags(state: State<'_, AppState>) -> AppResult<Vec<String>> {
+    crate::db::repo_tags::all(&state.db.conn())
+}
+
+#[tauri::command]
+pub async fn set_meeting_tags(state: State<'_, AppState>, id: String, tags: Vec<String>) -> AppResult<Vec<String>> {
+    let result = crate::db::repo_tags::set_for_meeting(&mut state.db.conn(), &id, &tags)?;
+    emit_updated(&state, &id);
+    Ok(result)
+}
+
+/// Tambahan (langkah 59, feedback3 G9): kembalikan teks transkrip sebelum dirapikan AI.
+#[tauri::command]
+pub async fn restore_transcript(state: State<'_, AppState>, id: String) -> AppResult<()> {
+    state.db.conn().execute(
+        "UPDATE transcript_segments SET text = original_text, original_text = NULL WHERE meeting_id = ?1 AND original_text IS NOT NULL",
+        [&id],
+    )?;
+    reindex(&state, &id);
+    emit_updated(&state, &id);
     Ok(())
 }
 

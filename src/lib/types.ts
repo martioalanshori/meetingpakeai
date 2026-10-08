@@ -57,6 +57,8 @@ export type MeetingListItem = {
   errorMessage: string | null;
   /** Tambahan dari backend: kode error untuk status failed. */
   errorCode: ErrorCode | null;
+  /** Label proyek/klien. */
+  tags: string[];
 };
 
 export type ActionItem = {
@@ -116,6 +118,8 @@ export type MeetingDetail = MeetingListItem & {
   actionItems: ActionItem[];
   /** Momen ditandai saat merekam (ms). */
   bookmarks: number[];
+  /** Transkrip sudah dirapikan AI. */
+  transcriptTidied: boolean;
 };
 
 export type TranscriptSegment = {
@@ -135,6 +139,8 @@ export type Settings = {
   sttLanguage: "id" | "auto" | "mixed";
   /** Groq: model transkrip lebih akurat (lebih lambat). */
   sttHighAccuracy: boolean;
+  /** Rapikan typo & tanda baca transkrip dengan AI. */
+  tidyTranscript: boolean;
   /** Retensi audio: hapus setelah transkrip / simpan 7 hari / selamanya. */
   audioRetention: AudioRetention;
   minimizeToTray: boolean;
