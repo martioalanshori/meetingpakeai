@@ -68,10 +68,6 @@ export const id = {
     newImport: "Punya rekaman yang sudah ada?",
   },
   home: {
-    askAll: (q: string) => `Tanya AI: "${q}"`,
-    askAllTitle: "Jawaban dari meeting Anda",
-    askAllBusy: "Mencari di semua meeting…",
-    askAllRefs: "Rujukan",
     weekTitle: "Minggu lalu",
     weekStats: (m: number, minutes: number, d: number) =>
       `${m} meeting (${minutes >= 60 ? `${Math.floor(minutes / 60)} jam ${minutes % 60} mnt` : `${minutes} mnt`}), ${d} keputusan`,

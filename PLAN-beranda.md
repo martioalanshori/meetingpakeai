@@ -112,3 +112,5 @@ Sesi lain (`meetingpakeai-f9`) masih punya perubahan belum di-commit di:
 - `MeetingDetail.svelte`
 
 B1 memindahkan `+page.svelte` dan mengubah `AppRail.svelte`, jadi sebaiknya perubahan itu di-commit dulu.
+
+**Status:** B1–B4 selesai (8 Okt 2026), belum diuji pemilik.
