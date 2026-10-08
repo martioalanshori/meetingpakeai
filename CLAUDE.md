@@ -99,6 +99,8 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | CSP (langkah 17) | `default-src 'self'; connect-src ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' data:`. Hash script inline SvelteKit ditambahkan otomatis oleh Tauri. |
 | Posisi widget (langkah 17) | Posisi tersimpan dipakai hanya jika pojok kiri-atas (+40 px) ada di `work_area` salah satu monitor; selain itu pojok kanan atas monitor utama (margin 16 px). |
 | Ikon UI (langkah 17) | `src/lib/components/Icon.svelte`: path SVG Lucide (ISC) disalin inline, tanpa dependensi npm. |
+| Notifikasi "Notulen siap" (langkah 18) | `EventSink::meeting_done`. `tauri-plugin-notification` 2.5 di desktop tidak punya handler klik → id meeting disimpan di `TauriBridge.pending_meeting` (berlaku 1 jam); jendela main mengambilnya lewat command tambahan `take_pending_meeting` saat dibuat / mendapat fokus (klik notifikasi membuka instance kedua → single-instance → fokus). Tidak dikirim jika jendela main sedang fokus. |
+| Salin notulen (langkah 18) | `src/lib/minutes.ts` (format §14.7: `markdown`, `text`, `whatsapp`); dipakai juga untuk ekspor. Clipboard lewat `navigator.clipboard`. |
 
 ## Hasil verifikasi §21
 

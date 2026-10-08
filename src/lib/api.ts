@@ -54,6 +54,7 @@ export const api = {
   stopRecording: () => call<{ meetingId: string | null }>("stop_recording"),
   getRecordingState: () => call<RecordingState>("get_recording_state"),
   takePendingConsent: () => call<boolean>("take_pending_consent"),
+  takePendingMeeting: () => call<string | null>("take_pending_meeting"),
   respondAutoStop: (continueRecording: boolean) =>
     call<void>("respond_auto_stop", { continueRecording }),
 

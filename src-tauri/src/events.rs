@@ -17,6 +17,10 @@ pub trait EventSink: Send + Sync {
     fn notify(&self, title: &str, body: &str);
     /// Rekaman mulai/berhenti: ikon tray, label menu tray, jendela widget.
     fn recording_changed(&self, recording: bool);
+    /// Job selesai: notifikasi "Notulen siap" yang membuka detail meeting.
+    fn meeting_done(&self, _meeting_id: &str, title: &str) {
+        self.notify("Notulen siap", title);
+    }
 }
 
 pub fn emit<T: Serialize>(sink: &dyn EventSink, event: &str, payload: &T) {

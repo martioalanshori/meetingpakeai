@@ -108,6 +108,18 @@ export const id = {
     noSpeech: "Tidak ada percakapan yang terdeteksi.",
   },
 
+  minutes: {
+    date: "Tanggal",
+    actionItemsOf: (title: string) => `Action items — ${title}`,
+    copy: "Salin notulen",
+    copyPlain: "Teks biasa",
+    copyWhatsapp: "Format WhatsApp",
+    copyActions: "Salin action items",
+    copied: "Notulen disalin",
+    actionsCopied: "Action items disalin",
+    copyFailed: "Gagal menyalin ke clipboard",
+  },
+
   settings: {
     title: "Pengaturan",
     apiKey: {

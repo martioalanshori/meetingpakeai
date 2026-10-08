@@ -196,9 +196,15 @@ impl Worker {
             };
         }
         if repo_meetings::set_status(&self.db.conn(), &id, MeetingStatus::Done).is_ok() {
-            tracing::info!("meeting {id} selesai dalam {} dtk", started.elapsed().as_secs());
+            let row = repo_meetings::get(&self.db.conn(), &id).ok();
+            // Metrik "Stop → Notulen siap" (feedback §E) dibaca dari log ini.
+            let since_stop = row.as_ref().and_then(|r| r.ended_at).map_or(-1, |t| (now_ms() - t) / 1000);
+            tracing::info!("meeting {id} selesai dalam {} dtk ({since_stop} dtk sejak Stop)", started.elapsed().as_secs());
             self.emit_progress(&id, MeetingStatus::Done, 0, 0);
             events::emit(self.events.as_ref(), events::EV_MEETING_UPDATED, &MeetingUpdated { meeting_id: &id });
+            if let Some(r) = row {
+                self.events.meeting_done(&id, &r.title);
+            }
         }
     }
 

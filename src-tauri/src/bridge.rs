@@ -2,6 +2,7 @@
 //! Demi RAM kecil (PRD §17), widget hanya ada selama merekam dan jendela main dihancurkan saat ditutup ke tray.
 
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use tauri::image::Image;
 use tauri::menu::MenuItem;
@@ -16,6 +17,8 @@ pub const TRAY_ID: &str = "main-tray";
 pub const TRAY_ICON_IDLE: &[u8] = include_bytes!("../icons/tray-idle.png");
 pub const TRAY_ICON_RECORDING: &[u8] = include_bytes!("../icons/tray-recording.png");
 const RECORDER_LABEL: &str = "recorder";
+/// Meeting dari notifikasi "Notulen siap" dibuka jika jendela main dibuka dalam waktu ini.
+const PENDING_MEETING_TTL: Duration = Duration::from_secs(60 * 60);
 const RECORDER_WIDTH: f64 = 300.0;
 /// Jarak widget dari tepi layar (logical px).
 const RECORDER_MARGIN: f64 = 16.0;
@@ -25,6 +28,9 @@ pub struct TauriBridge {
     db: Arc<Db>,
     /// Item menu tray "Mulai rekam" / "Stop rekam" (diisi setelah tray dibuat).
     pub record_item: Mutex<Option<MenuItem<Wry>>>,
+    /// Notifikasi desktop tidak punya handler klik: meeting terakhir yang selesai dibuka
+    /// saat jendela main berikutnya mendapat fokus (klik notifikasi / tray).
+    pending_meeting: Mutex<Option<(String, Instant)>>,
 }
 
 /// Tampilkan jendela main; dibuat ulang dari konfigurasi jika sudah dihancurkan.
@@ -55,7 +61,13 @@ pub fn show_main_window(app: &AppHandle, open_consent: bool) {
 
 impl TauriBridge {
     pub fn new(app: AppHandle, db: Arc<Db>) -> Self {
-        Self { app, db, record_item: Mutex::new(None) }
+        Self { app, db, record_item: Mutex::new(None), pending_meeting: Mutex::new(None) }
+    }
+
+    /// Meeting yang menunggu dibuka dari notifikasi "Notulen siap" (sekali ambil).
+    pub fn take_pending_meeting(&self) -> Option<String> {
+        let taken = self.pending_meeting.lock().unwrap_or_else(|e| e.into_inner()).take();
+        taken.filter(|(_, at)| at.elapsed() < PENDING_MEETING_TTL).map(|(id, _)| id)
     }
 
     fn open_recorder(&self) {
@@ -128,6 +140,17 @@ impl EventSink for TauriBridge {
         if let Err(e) = self.app.notification().builder().title(title).body(body).show() {
             tracing::warn!("notifikasi gagal: {e}");
         }
+    }
+
+    fn meeting_done(&self, meeting_id: &str, title: &str) {
+        // Pengguna sedang melihat aplikasi: status di layar sudah cukup.
+        let focused = self.app.get_webview_window("main").is_some_and(|w| w.is_focused().unwrap_or(false));
+        if focused {
+            return;
+        }
+        *self.pending_meeting.lock().unwrap_or_else(|e| e.into_inner()) = Some((meeting_id.to_string(), Instant::now()));
+        self.notify("Notulen siap", &format!("{title}
+Klik untuk membuka notulen."));
     }
 
     fn recording_changed(&self, recording: bool) {

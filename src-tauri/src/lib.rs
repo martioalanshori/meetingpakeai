@@ -264,6 +264,7 @@ pub fn run() {
             commands::recording::get_recording_state,
             commands::recording::respond_auto_stop,
             commands::recording::take_pending_consent,
+            commands::recording::take_pending_meeting,
             commands::meetings::list_meetings,
             commands::meetings::get_meeting,
             commands::meetings::get_transcript,

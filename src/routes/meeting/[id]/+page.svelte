@@ -4,7 +4,9 @@
   import { page } from "$app/state";
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { api, events } from "$lib/api";
+  import Icon from "$lib/components/Icon.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
+  import { formatActionItems, formatMinutes, type MinutesStyle } from "$lib/minutes";
   import { formatDateTime, formatDuration, formatTime, formatTimestamp } from "$lib/format";
   import { id as t } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
@@ -19,6 +21,7 @@
   let notFound = $state(false);
   let tab = $state<Tab>("summary");
   let menuOpen = $state(false);
+  let copyOpen = $state(false);
   let editing = $state(false);
   let titleDraft = $state("");
   let titleInput = $state<HTMLInputElement | null>(null);
@@ -127,6 +130,19 @@
     }
   }
 
+  async function copyText(text: string, okText: string) {
+    copyOpen = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast(okText, "success");
+    } catch {
+      showToast(t.minutes.copyFailed, "error");
+    }
+  }
+
+  const copyMinutes = (style: MinutesStyle) => meeting && copyText(formatMinutes(meeting, style), t.minutes.copied);
+  const copyActions = () => meeting && copyText(formatActionItems(meeting, "text"), t.minutes.actionsCopied);
+
   function label(ch: "mic" | "system") {
     return ch === "mic" ? meeting!.labels.mic : meeting!.labels.system;
   }
@@ -140,7 +156,10 @@
 
 <svelte:window
   onkeydown={(e) => {
-    if (e.key === "Escape" && menuOpen) menuOpen = false;
+    if (e.key === "Escape") {
+      menuOpen = false;
+      copyOpen = false;
+    }
   }}
 />
 
@@ -177,6 +196,42 @@
           </button>
         {/if}
 
+        {#if meeting.summary}
+          <div class="relative">
+            <button
+              type="button"
+              class="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-gray-100"
+              aria-haspopup="menu"
+              aria-expanded={copyOpen}
+              onclick={() => (copyOpen = !copyOpen)}
+            >
+              <Icon name="copy" size={16} />
+              {t.minutes.copy}
+            </button>
+            {#if copyOpen}
+              <div
+                role="menu"
+                class="absolute right-0 z-20 mt-1 flex w-56 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+              >
+                <button type="button" role="menuitem" class="px-4 py-2 text-left hover:bg-gray-100" onclick={() => copyMinutes("text")}>
+                  {t.minutes.copyPlain}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="px-4 py-2 text-left hover:bg-gray-100"
+                  onclick={() => copyMinutes("whatsapp")}
+                >
+                  {t.minutes.copyWhatsapp}
+                </button>
+                <button type="button" role="menuitem" class="px-4 py-2 text-left hover:bg-gray-100" onclick={copyActions}>
+                  {t.minutes.copyActions}
+                </button>
+              </div>
+            {/if}
+          </div>
+        {/if}
+
         <div class="relative">
           <button
             type="button"
@@ -184,7 +239,10 @@
             aria-label={t.detail.menu}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            onclick={() => (menuOpen = !menuOpen)}
+            onclick={() => {
+              menuOpen = !menuOpen;
+              copyOpen = false;
+            }}
           >
             ⋯
           </button>
