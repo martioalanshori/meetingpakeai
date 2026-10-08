@@ -3,6 +3,7 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import type { UnlistenFn } from "@tauri-apps/api/event";
+  import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { api, events } from "$lib/api";
   import Icon from "$lib/components/Icon.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
@@ -147,6 +148,28 @@
     return () => io.disconnect();
   }
 
+  let importing = $state(false);
+  let dragOver = $state(false);
+
+  /** Impor file (dialog jika tanpa path); meeting baru langsung dibuka. */
+  async function importFile(path?: string) {
+    if (importing) return;
+    importing = true;
+    try {
+      const meetingId = await api.importRecording(path);
+      if (meetingId) {
+        showToast(id.home.imported, "success");
+        await reload();
+        if (viewport.wide) select(meetingId);
+        else goto(`/meeting/${meetingId}`);
+      }
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    } finally {
+      importing = false;
+    }
+  }
+
   async function resolve(meetingId: string, action: "process" | "discard") {
     if (action === "discard") {
       const ok = await confirmDialog({
@@ -171,6 +194,18 @@
 
   const unlisten: UnlistenFn[] = [];
   onMount(async () => {
+    // Seret-lepas file rekaman ke jendela → impor.
+    unlisten.push(
+      await getCurrentWebview().onDragDropEvent((e) => {
+        const p = e.payload;
+        if (p.type === "enter" || p.type === "over") dragOver = true;
+        else if (p.type === "leave") dragOver = false;
+        else if (p.type === "drop") {
+          dragOver = false;
+          if (p.paths.length > 0) importFile(p.paths[0]);
+        }
+      }),
+    );
     await reload();
     refreshQueuePaused();
     lastRecordingStatus = await api.getRecordingState().then((r) => r.status, () => "idle");
@@ -204,7 +239,20 @@
 
 {#snippet listBody(compact: boolean)}
   <div class="flex flex-col gap-4">
-    <h1 class="text-2xl font-bold tracking-[-0.02em]">{id.nav.meetings}</h1>
+    <div class="flex items-center justify-between gap-3">
+      <h1 class="text-2xl font-bold tracking-[-0.02em]">{id.nav.meetings}</h1>
+      <!-- Impor rekaman yang sudah ada (feedback3 A1); file juga bisa diseret ke jendela. -->
+      <button
+        type="button"
+        class="btn btn-line btn-sm"
+        title={`${id.home.importButton} (${id.home.importHint})`}
+        disabled={importing}
+        onclick={() => importFile()}
+      >
+        <Icon name={importing ? "refresh" : "download"} size={14} class={importing ? "motion-safe:animate-spin" : ""} />
+        {#if !compact}{importing ? id.home.importing : id.home.importButton}{/if}
+      </button>
+    </div>
     <label class="relative flex items-center">
       <span class="sr-only">{id.home.searchLabel}</span>
       <Icon name="search" size={18} class="pointer-events-none absolute left-3.5 text-ink-faint" />
@@ -358,6 +406,15 @@
     {/if}
   {/if}
 {/snippet}
+
+{#if dragOver}
+  <div
+    class="pointer-events-none fixed inset-3 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-ink bg-sheet/90 text-lg font-semibold"
+    role="status"
+  >
+    <Icon name="download" size={22} class="mr-2" />{id.home.dropHere}
+  </div>
+{/if}
 
 {#if viewport.wide}
   <!-- Layar lebar: daftar di kiri, notulen meeting terpilih di kanan; tiap panel bergulir sendiri. -->

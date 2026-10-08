@@ -7,6 +7,7 @@ pub mod db;
 pub mod desktop;
 pub mod error;
 pub mod events;
+pub mod import;
 pub mod ai_http;
 pub mod llm;
 pub mod meeting_watch;
@@ -375,6 +376,7 @@ pub fn run() {
             commands::meetings::regenerate_summary,
             commands::meetings::generate_follow_up,
             commands::meetings::delete_bookmark,
+            commands::meetings::import_recording,
             commands::meetings::retranscribe,
             commands::meetings::resolve_interrupted,
         ])

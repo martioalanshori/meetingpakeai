@@ -33,6 +33,11 @@ export const id = {
   },
 
   home: {
+    importButton: "Impor rekaman",
+    importHint: "mp3, m4a, mp4, wav, ogg, flac, webm",
+    importing: "Mengimpor rekaman…",
+    imported: "Rekaman diimpor dan sedang diproses",
+    dropHere: "Lepas file rekaman di sini untuk diimpor",
     startRecording: "Mulai rekam",
     stopRecording: "Hentikan rekaman",
     starting: "Memulai…",

@@ -165,6 +165,117 @@ pub async fn save_export(app: tauri::AppHandle, file_name: String, contents: Str
     Ok(true)
 }
 
+/// Tambahan (langkah 47, feedback3 A1): impor file audio/video yang sudah ada sebagai meeting baru.
+/// `path = None` → dialog pilih file di Rust. Mengembalikan id meeting (`None` jika dialog dibatalkan).
+#[tauri::command]
+pub async fn import_recording(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    path: Option<String>,
+) -> AppResult<Option<String>> {
+    use std::path::PathBuf;
+    use tauri_plugin_dialog::DialogExt;
+    let src = match path {
+        Some(p) => PathBuf::from(p),
+        None => {
+            let picked = app
+                .dialog()
+                .file()
+                .add_filter("Rekaman audio / video", &crate::import::EXTENSIONS)
+                .blocking_pick_file();
+            let Some(p) = picked.and_then(|f| f.into_path().ok()) else { return Ok(None) };
+            p
+        }
+    };
+    let ext = src.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    if !crate::import::EXTENSIONS.contains(&ext.as_str()) {
+        return Err(AppError::with_message(
+            ErrorCode::InvalidState,
+            "Jenis file tidak didukung. Gunakan mp3, m4a, mp4, wav, ogg, flac, atau webm.",
+        ));
+    }
+    let meeting_id = uuid::Uuid::new_v4().to_string();
+    let rel_dir = crate::import::rel_dir(&meeting_id);
+    let dir = state.data_dir.join(&rel_dir);
+    // Decode bisa makan waktu (file 1 jam ± puluhan detik): thread blocking.
+    let decoded = {
+        let (src, dir) = (src.clone(), dir.clone());
+        tauri::async_runtime::spawn_blocking(move || crate::import::decode_to_parts(&src, &dir))
+            .await
+            .map_err(AppError::internal)?
+    };
+    let decoded = match decoded {
+        Ok(d) => d,
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&dir);
+            return Err(e);
+        }
+    };
+    let duration_ms = (decoded.samples * 1000 / u64::from(crate::audio::SAMPLE_RATE)) as i64;
+    if duration_ms < 5_000 {
+        let _ = std::fs::remove_dir_all(&dir);
+        return Err(AppError::with_message(ErrorCode::InvalidState, "Audio di file ini kurang dari 5 detik."));
+    }
+    // Waktu ubah file ≈ akhir rekaman → mulai = akhir − durasi.
+    let ended_at = std::fs::metadata(&src)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or_else(crate::db::now_ms, |d| d.as_millis() as i64);
+    let started_at = ended_at - duration_ms;
+    let title: String = src
+        .file_stem()
+        .map(|s| s.to_string_lossy().replace(['_', '-'], " ").trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "Rekaman impor".to_string())
+        .chars()
+        .take(100)
+        .collect();
+    {
+        let conn = state.db.conn();
+        let language = settings::load(&conn)?.stt_language;
+        repo_meetings::insert(
+            &conn,
+            &repo_meetings::NewMeeting {
+                id: &meeting_id,
+                title: &title,
+                started_at,
+                language: language.as_str(),
+                source_app: Some("import"),
+                consent_at: started_at,
+            },
+        )?;
+        for ev in &decoded.parts {
+            match ev {
+                crate::audio::writer::PartEvent::Opened { channel, part_index, .. } => {
+                    let rel = rel_dir.join(crate::audio::writer::PartWriter::part_file_name(*channel, *part_index));
+                    crate::db::repo_parts::insert_open(
+                        &conn,
+                        &meeting_id,
+                        channel.as_str(),
+                        i64::from(*part_index),
+                        &rel.to_string_lossy().replace('\\', "/"),
+                    )?;
+                }
+                crate::audio::writer::PartEvent::Finalized { channel, part_index, samples } => {
+                    crate::db::repo_parts::mark_finalized(
+                        &conn,
+                        &meeting_id,
+                        channel.as_str(),
+                        i64::from(*part_index),
+                        *samples as i64,
+                    )?;
+                }
+            }
+        }
+        repo_meetings::finish_recording(&conn, &meeting_id, ended_at, duration_ms)?;
+    }
+    tracing::info!("rekaman diimpor: {meeting_id}, {} dtk ({ext})", duration_ms / 1000);
+    state.queue_wake.notify_one();
+    emit_updated(&state, &meeting_id);
+    Ok(Some(meeting_id))
+}
+
 /// Tambahan (langkah 23): simpan ringkasan & action item hasil edit pengguna.
 #[tauri::command]
 pub async fn update_summary(state: State<'_, AppState>, id: String, edit: SummaryEdit) -> AppResult<()> {
