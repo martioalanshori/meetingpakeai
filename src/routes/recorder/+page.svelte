@@ -82,6 +82,7 @@
       await events.recordingWarning((w) => {
         if (w.code === "system_silent") systemSilent = true;
         else if (w.code === "system_ok") systemSilent = false;
+        else if (w.code === "write_failed") error = id.recorder.writeFailed;
         else if (!lostChannels.includes(w.channel)) lostChannels = [...lostChannels, w.channel];
       }),
       await events.autoStopWarning((w) => {

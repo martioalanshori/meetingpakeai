@@ -67,11 +67,22 @@ pub async fn install(app: &AppHandle) -> AppResult<()> {
     let Some(update) = build(app)?.check().await.map_err(|_| AppError::new(ErrorCode::Network))? else {
         return Ok(());
     };
-    tracing::info!("memasang pembaruan {}", update.version);
-    update.download_and_install(|_, _| {}, || {}).await.map_err(|e| {
+    tracing::info!("mengunduh pembaruan {}", update.version);
+    let failed = |e: tauri_plugin_updater::Error| {
         tracing::error!("pasang pembaruan gagal: {e}");
         AppError::with_message(ErrorCode::Internal, "Pembaruan gagal dipasang. Detail tersimpan di log.")
-    })?;
+    };
+    let bytes = update.download(|_, _| {}, || {}).await.map_err(failed)?;
+    // Rekaman bisa dimulai selama unduhan: installer menutup aplikasi, jadi cek ulang tepat sebelum memasang.
+    if let Some(state) = app.try_state::<AppState>() {
+        if state.recording.is_recording() || state.worker.current_meeting().is_some() {
+            return Err(AppError::with_message(
+                ErrorCode::InvalidState,
+                "Pembaruan sudah diunduh, tetapi rekaman atau pemrosesan sedang berjalan. Coba pasang lagi setelah selesai.",
+            ));
+        }
+    }
+    update.install(bytes).map_err(failed)?;
     app.restart();
 }
 

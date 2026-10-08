@@ -109,6 +109,7 @@ export const id = {
     autoStop: "Tidak ada suara 10 menit. Stop rekam?",
     meetingEnded: "Meeting sepertinya sudah selesai. Stop rekam?",
     autoStopCountdown: (s: number) => `Berhenti otomatis dalam ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`,
+    writeFailed: "Audio tidak bisa disimpan (disk penuh?). Rekaman dihentikan; audio yang sudah terekam aman.",
     systemSilent: "Audio sistem tidak terdengar 2 menit. Periksa volume dan perangkat output.",
     autoStopStop: "Stop",
     autoStopContinue: "Lanjut",

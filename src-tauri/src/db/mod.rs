@@ -14,7 +14,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use rusqlite::Connection;
 
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, ErrorCode};
 
 /// Migrasi berurutan; indeks + 1 = nilai `PRAGMA user_version` setelah migrasi dijalankan.
 const MIGRATIONS: &[&str] = &[
@@ -35,6 +35,7 @@ impl Db {
             std::fs::create_dir_all(dir)?;
         }
         let conn = Connection::open(path)?;
+        backup_before_migration(&conn, path)?;
         Self::init(conn)
     }
 
@@ -58,9 +59,51 @@ impl Db {
     }
 }
 
+/// Backup yang disimpan (yang lebih lama dihapus).
+const MAX_BACKUPS: usize = 3;
+
+fn user_version(conn: &Connection) -> AppResult<usize> {
+    let v: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
+    usize::try_from(v).map_err(AppError::internal)
+}
+
+/// Sebelum migrasi pada DB yang sudah berisi: salin ke `app.sqlite.bak-v{n}` (VACUUM INTO, konsisten
+/// walau mode WAL). DB dari versi aplikasi yang lebih baru ditolak agar tidak dirusak build lama.
+fn backup_before_migration(conn: &Connection, path: &Path) -> AppResult<()> {
+    let current = user_version(conn)?;
+    if current > MIGRATIONS.len() {
+        return Err(AppError::with_message(
+            ErrorCode::Internal,
+            "Database dibuat oleh versi Meeting Pake AI yang lebih baru. Pasang versi terbaru aplikasi.",
+        ));
+    }
+    if current == 0 || current == MIGRATIONS.len() {
+        return Ok(());
+    }
+    let Some(dir) = path.parent() else { return Ok(()) };
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "app.sqlite".into());
+    let backup = dir.join(format!("{name}.bak-v{current}"));
+    if !backup.exists() {
+        conn.execute("VACUUM INTO ?1", [backup.to_string_lossy().as_ref()])?;
+        tracing::info!("backup database sebelum migrasi: {}", backup.display());
+    }
+    // Simpan beberapa backup terbaru saja.
+    let prefix = format!("{name}.bak-v");
+    let mut backups: Vec<_> = std::fs::read_dir(dir)?
+        .flatten()
+        .filter(|e| e.file_name().to_string_lossy().starts_with(&prefix))
+        .filter_map(|e| Some((e.metadata().ok()?.modified().ok()?, e.path())))
+        .collect();
+    backups.sort();
+    while backups.len() > MAX_BACKUPS {
+        let (_, old) = backups.remove(0);
+        let _ = std::fs::remove_file(old);
+    }
+    Ok(())
+}
+
 fn migrate(conn: &mut Connection) -> AppResult<()> {
-    let current: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
-    let current = usize::try_from(current).map_err(AppError::internal)?;
+    let current = user_version(conn)?;
     for (i, sql) in MIGRATIONS.iter().enumerate().skip(current) {
         let tx = conn.transaction()?;
         tx.execute_batch(sql)?;

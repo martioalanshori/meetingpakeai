@@ -59,6 +59,14 @@ pub async fn save_problem_report(app: AppHandle, state: State<'_, AppState>) -> 
         .map(|e| e.path())
         .filter(|p| p.is_file())
         .collect();
+    // Crash terbaru (dari panic hook) ditaruh paling atas.
+    let mut crashes: Vec<_> =
+        logs.iter().filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with("crash-"))).cloned().collect();
+    crashes.sort();
+    if let Some(latest) = crashes.last() {
+        report.push_str(&format!("===== {} =====\n{}\n", latest.display(), std::fs::read_to_string(latest).unwrap_or_default()));
+    }
+    logs.retain(|p| !crashes.contains(p));
     logs.sort();
     let mut budget = REPORT_MAX_LOG_BYTES;
     let mut parts = Vec::new();

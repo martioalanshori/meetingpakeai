@@ -10,30 +10,36 @@ use crate::db::repo_meetings::{self, MeetingStatus};
 use crate::db::{repo_parts, Db};
 use crate::error::AppResult;
 
+/// Perbaiki header part yang belum final dan kembalikan durasi audio yang terselamatkan (ms).
+/// Dipakai saat start (meeting `recording` sisa crash) dan saat Stop gagal menutup writer.
+pub fn salvage_parts(data_dir: &Path, db: &Db, meeting_id: &str) -> AppResult<i64> {
+    let parts = repo_parts::list(&db.conn(), meeting_id)?;
+    let mut per_channel = [0i64; 2];
+    for p in &parts {
+        let samples = if p.finalized {
+            p.samples
+        } else {
+            match repair_wav_header(&data_dir.join(&p.path)) {
+                Ok(n) => {
+                    let n = n as i64;
+                    let _ = repo_parts::mark_finalized(&db.conn(), meeting_id, &p.channel, p.part_index, n);
+                    n
+                }
+                Err(e) => {
+                    tracing::warn!("repair part gagal ({e})");
+                    0
+                }
+            }
+        };
+        per_channel[usize::from(p.channel != "mic")] += samples;
+    }
+    Ok(per_channel.iter().max().copied().unwrap_or(0) * 1000 / i64::from(SAMPLE_RATE))
+}
+
 pub fn run(data_dir: &Path, db: &Db) -> AppResult<()> {
     let stale = repo_meetings::list_by_status(&db.conn(), MeetingStatus::Recording)?;
     for m in stale {
-        let parts = repo_parts::list(&db.conn(), &m.id)?;
-        let mut per_channel = [0i64; 2];
-        for p in &parts {
-            let samples = if p.finalized {
-                p.samples
-            } else {
-                match repair_wav_header(&data_dir.join(&p.path)) {
-                    Ok(n) => {
-                        let n = n as i64;
-                        let _ = repo_parts::mark_finalized(&db.conn(), &m.id, &p.channel, p.part_index, n);
-                        n
-                    }
-                    Err(e) => {
-                        tracing::warn!("repair part gagal ({e})");
-                        0
-                    }
-                }
-            };
-            per_channel[usize::from(p.channel != "mic")] += samples;
-        }
-        let duration_ms = per_channel.iter().max().copied().unwrap_or(0) * 1000 / i64::from(SAMPLE_RATE);
+        let duration_ms = salvage_parts(data_dir, db, &m.id)?;
         let conn = db.conn();
         repo_meetings::set_duration(&conn, &m.id, duration_ms)?;
         repo_meetings::set_status(&conn, &m.id, MeetingStatus::Interrupted)?;

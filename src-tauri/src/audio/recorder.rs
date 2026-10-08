@@ -2,7 +2,7 @@
 //! Tidak bergantung pada Tauri; pemanggil menerima `PartEvent` lewat callback.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -21,13 +21,22 @@ struct ChannelState {
     aligner: Aligner,
     writer: Option<PartWriter>,
     meter: LevelMeter,
+    /// Jumlah gagal tulis beruntun (dibaca monitor lewat `Recorder::write_failures`).
+    failures: Arc<AtomicU32>,
 }
 
 impl ChannelState {
     fn write(&mut self, samples: &[i16]) {
         if let Some(w) = self.writer.as_mut() {
-            if let Err(e) = w.write(samples) {
-                tracing::error!("gagal menulis part: {e}");
+            match w.write(samples) {
+                Ok(()) => self.failures.store(0, Ordering::Relaxed),
+                Err(e) => {
+                    let n = self.failures.fetch_add(1, Ordering::Relaxed) + 1;
+                    // Log tidak membanjir: kegagalan pertama lalu tiap 100.
+                    if n == 1 || n.is_multiple_of(100) {
+                        tracing::error!("gagal menulis part ({n}x beruntun): {e}");
+                    }
+                }
             }
         }
     }
@@ -47,6 +56,7 @@ struct ChannelShared {
     state: Mutex<ChannelState>,
     alive: AtomicBool,
     level: SharedLevel,
+    failures: Arc<AtomicU32>,
 }
 
 impl ChannelShared {
@@ -155,11 +165,18 @@ impl Recorder {
         let make = |channel: Channel| -> Result<Arc<ChannelShared>, AudioError> {
             let cb = on_part.clone();
             let writer = PartWriter::new(dir, channel, Box::new(move |ev| cb(ev)))?;
+            let failures = Arc::new(AtomicU32::new(0));
             Ok(Arc::new(ChannelShared {
                 channel,
-                state: Mutex::new(ChannelState { aligner: Aligner::default(), writer: Some(writer), meter: LevelMeter::default() }),
+                state: Mutex::new(ChannelState {
+                    aligner: Aligner::default(),
+                    writer: Some(writer),
+                    meter: LevelMeter::default(),
+                    failures: failures.clone(),
+                }),
                 alive: AtomicBool::new(true),
                 level: SharedLevel::default(),
+                failures,
             }))
         };
         let mic = make(Channel::Mic)?;
@@ -212,6 +229,11 @@ impl Recorder {
         self.shared(channel).alive.load(Ordering::SeqCst)
     }
 
+    /// Gagal tulis beruntun terbanyak di antara kedua channel (disk penuh / file terkunci).
+    pub fn write_failures(&self) -> u32 {
+        self.mic.failures.load(Ordering::Relaxed).max(self.system.failures.load(Ordering::Relaxed))
+    }
+
     /// dBFS terakhir per channel (mic, system).
     pub fn levels(&self) -> (f32, f32) {
         (self.mic.level.get(), self.system.level.get())
@@ -252,13 +274,24 @@ impl Recorder {
             h.stop();
         }
         let mut totals = [0u64; 2];
+        let mut first_err = None;
+        // Kedua writer selalu ditutup walau salah satu gagal, agar header part lain tetap benar.
         for (i, shared) in [&self.mic, &self.system].into_iter().enumerate() {
             let mut st = shared.lock();
             let zeros = st.aligner.pad_to(final_samples);
             st.write_zeros(zeros);
             if let Some(w) = st.writer.take() {
-                totals[i] = w.finish()?;
+                match w.finish() {
+                    Ok(n) => totals[i] = n,
+                    Err(e) => {
+                        tracing::error!("menutup part {} gagal: {e}", shared.channel.as_str());
+                        first_err.get_or_insert(e);
+                    }
+                }
             }
+        }
+        if let Some(e) = first_err {
+            return Err(e.into());
         }
         Ok(StopResult {
             duration_ms: (final_samples * 1000 / SAMPLE_RATE as u64) as i64,

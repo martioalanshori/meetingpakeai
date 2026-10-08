@@ -31,6 +31,8 @@ const DISK_CHECK_EVERY: Duration = Duration::from_secs(30);
 const REOPEN_EVERY: Duration = Duration::from_secs(1);
 const REOPEN_MAX_ATTEMPTS: u32 = 10;
 const MONITOR_TICK: Duration = Duration::from_millis(100);
+/// Gagal tulis beruntun sebanyak ini (±beberapa detik audio) → rekaman dihentikan dengan aman.
+const MAX_WRITE_FAILURES: u32 = 20;
 /// Audio sistem dianggap tidak terdengar di bawah ini (loopback diam / volume 0 / device salah).
 const SYSTEM_SILENT_DBFS: f32 = -70.0;
 /// Peringatan "audio sistem tidak terdengar" setelah selama ini, jika mic sempat aktif.
@@ -333,13 +335,25 @@ impl RecordingService {
         let result = match result {
             Ok(r) => r,
             Err(e) => {
+                // Jangan pernah menghapus rekaman karena Stop gagal: selamatkan part yang ada di disk.
                 tracing::error!("stop rekaman gagal: {e}");
-                // Tetap antrekan; recovery/preprocess memakai part yang ada.
-                crate::audio::recorder::StopResult { duration_ms: 0, mic_samples: 0, system_samples: 0 }
+                let duration_ms = crate::queue::recovery::salvage_parts(&self.data_dir, &self.db, &meeting_id).unwrap_or(0);
+                let conn = self.db.conn();
+                repo_meetings::set_duration(&conn, &meeting_id, duration_ms)?;
+                repo_meetings::set_status(&conn, &meeting_id, repo_meetings::MeetingStatus::Interrupted)?;
+                drop(conn);
+                tracing::warn!("meeting {meeting_id} ditandai terputus: {duration_ms} ms audio diselamatkan");
+                events::emit(self.events.as_ref(), events::EV_MEETING_UPDATED, &MeetingUpdated { meeting_id: &meeting_id });
+                self.events.notify(
+                    "Rekaman tidak tersimpan sempurna",
+                    "Audio yang sempat terekam diselamatkan. Buka aplikasi lalu pilih Proses pada rekaman yang terputus.",
+                );
+                return Ok(Some(meeting_id));
             }
         };
         tracing::info!("rekaman berhenti ({reason:?}): meeting {meeting_id}, {} ms", result.duration_ms);
 
+        // Hanya rekaman yang benar-benar tersimpan lengkap dan < 5 dtk yang dibuang.
         if result.duration_ms < MIN_DURATION_MS {
             repo_meetings::delete(&self.db.conn(), &meeting_id)?;
             let _ = std::fs::remove_dir_all(&dir);
@@ -484,6 +498,12 @@ impl RecordingService {
             if let Some(warn) = system_health.update(now, rec.is_paused(), rec.mic_muted(), mic_db, sys_db) {
                 let code = if warn { "system_silent" } else { "system_ok" };
                 self.events.emit_json(events::EV_RECORDING_WARNING, serde_json::json!({ "code": code, "channel": "system" }));
+            }
+
+            // Disk penuh / file terkunci: berhenti dengan aman sebelum audio bolong makin banyak.
+            if rec.write_failures() >= MAX_WRITE_FAILURES {
+                self.events.emit_json(events::EV_RECORDING_WARNING, serde_json::json!({ "code": "write_failed", "channel": "mic" }));
+                break StopReason::DiskFull;
             }
 
             // Durasi maksimal.

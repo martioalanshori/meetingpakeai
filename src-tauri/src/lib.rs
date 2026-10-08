@@ -61,6 +61,24 @@ pub struct AppState {
     _log_guard: WorkerGuard,
 }
 
+/// Panic di build release langsung abort (`panic = "abort"`) dan log non-blocking bisa hilang:
+/// tulis pesan, lokasi, dan backtrace secara sinkron ke `logs/crash-*.txt`.
+fn install_panic_hook(log_dir: PathBuf, version: String) {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let when = chrono::Local::now();
+        let path = log_dir.join(format!("crash-{}.txt", when.format("%Y%m%d-%H%M%S")));
+        let thread = std::thread::current().name().unwrap_or("?").to_string();
+        let body = format!(
+            "Meeting Pake AI {version}\nWaktu: {}\nThread: {thread}\n{info}\n\nBacktrace:\n{}\n",
+            when.format("%Y-%m-%d %H:%M:%S %z"),
+            std::backtrace::Backtrace::force_capture()
+        );
+        let _ = std::fs::write(&path, body);
+        default_hook(info);
+    }));
+}
+
 fn init_logging(log_dir: &Path) -> Result<WorkerGuard, Box<dyn std::error::Error>> {
     std::fs::create_dir_all(log_dir)?;
     // Nama file: app.log.YYYY-MM-DD, rotasi harian, simpan 7 file (PRD §6.1, §6.3).
@@ -80,6 +98,7 @@ fn init_state(app: &AppHandle) -> Result<AppState, Box<dyn std::error::Error>> {
     let data_dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&data_dir)?;
     let log_guard = init_logging(&data_dir.join("logs"))?;
+    install_panic_hook(data_dir.join("logs"), app.package_info().version.to_string());
     tracing::info!("app start, versi {}", app.package_info().version);
 
     let db = Arc::new(Db::open(&data_dir.join("db").join("app.sqlite"))?);
@@ -242,7 +261,18 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(desktop::on_shortcut).build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
-            let state = init_state(app.handle())?;
+            let state = match init_state(app.handle()) {
+                Ok(s) => s,
+                Err(e) => {
+                    // Mis. database dari versi yang lebih baru: beri tahu pengguna sebelum keluar.
+                    app.dialog()
+                        .message(e.to_string())
+                        .title("Meeting Pake AI tidak bisa dibuka")
+                        .kind(MessageDialogKind::Error)
+                        .blocking_show();
+                    return Err(e);
+                }
+            };
             build_tray(app.handle(), &state.bridge)?;
             tauri::async_runtime::spawn(state.worker.clone().run());
             meeting_watch::spawn(
