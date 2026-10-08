@@ -15,6 +15,43 @@ const MAX_CHUNK_SAMPLES: u64 = 600 * SR;
 const MIN_LAST_CHUNK_SAMPLES: u64 = 10 * SR;
 const SPLIT_WINDOW: (u64, u64) = (280 * SR, 320 * SR);
 const GAP_SAMPLES: u64 = 300 * 16;
+/// Normalisasi level (langkah 45, G7): persentil 99,9% amplitudo diangkat ke ±−3 dBFS, maks +16 dB,
+/// tidak pernah dikecilkan. Suara pelan (mic jauh, volume Windows rendah) lebih mudah dikenali STT.
+const NORM_TARGET: f32 = 0.7 * 32767.0;
+const NORM_MAX_GAIN: f32 = 6.0;
+
+/// Penguatan untuk satu potongan: dari histogram |sampel| (tahan terhadap klik/ketukan sesaat).
+fn piece_gain(reader: &PartReader, start: u64, end: u64) -> std::io::Result<f32> {
+    let mut hist = vec![0u32; 32769];
+    let mut total = 0u64;
+    let mut pos = start;
+    while pos < end {
+        let n = (end - pos).min(10 * SR);
+        for s in reader.read_range(pos, n)? {
+            hist[(s as i32).unsigned_abs() as usize] += 1;
+            total += 1;
+        }
+        pos += n;
+    }
+    if total == 0 {
+        return Ok(1.0);
+    }
+    let limit = total - total / 1000;
+    let mut acc = 0u64;
+    let mut p999 = 0usize;
+    for (v, &c) in hist.iter().enumerate() {
+        acc += u64::from(c);
+        if acc >= limit {
+            p999 = v;
+            break;
+        }
+    }
+    if p999 < 64 {
+        // Praktis hening: jangan mengangkat derau.
+        return Ok(1.0);
+    }
+    Ok((NORM_TARGET / p999 as f32).clamp(1.0, NORM_MAX_GAIN))
+}
 
 /// Rencana satu chunk: potongan audio asli berurutan.
 #[derive(Debug, Clone, Default)]
@@ -131,12 +168,14 @@ pub fn write_chunk(reader: &PartReader, plan: &ChunkPlan, path: &Path) -> std::i
             file_pos += GAP_SAMPLES;
         }
         map.push(OffsetEntry { file_ms: to_ms(file_pos), orig_ms: to_ms(piece.start), dur_ms: to_ms(piece.len()) });
+        let gain = piece_gain(reader, piece.start, piece.end)?;
         // Baca per 10 dtk agar memori kecil.
         let mut pos = piece.start;
         while pos < piece.end {
             let n = (piece.end - pos).min(10 * SR);
             for s in reader.read_range(pos, n)? {
-                w.write_sample(s).map_err(std::io::Error::other)?;
+                let v = if gain > 1.0 { (f32::from(s) * gain).clamp(-32768.0, 32767.0) as i16 } else { s };
+                w.write_sample(v).map_err(std::io::Error::other)?;
             }
             pos += n;
         }

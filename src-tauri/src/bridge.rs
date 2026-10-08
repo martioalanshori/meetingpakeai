@@ -38,7 +38,7 @@ const PENDING_MEETING_TTL: Duration = Duration::from_secs(60 * 60);
 const PENDING_OFFER_TTL: Duration = Duration::from_secs(5 * 60);
 /// Ada hal tertunda untuk jendela main yang sedang fokus (meeting selesai / tawaran rekam).
 pub const EV_APP_PENDING: &str = "app://pending";
-const RECORDER_WIDTH: f64 = 300.0;
+const RECORDER_WIDTH: f64 = 380.0;
 /// Jarak widget dari tepi layar (logical px).
 const RECORDER_MARGIN: f64 = 16.0;
 

@@ -1,12 +1,13 @@
 //! VAD (PRD §8.1 langkah 2–3): webrtc-vad mode Aggressive, frame 30 ms (480 sampel),
-//! region = frame bersuara + padding 300 ms kiri-kanan, gabung jika jarak < 1000 ms.
+//! region = frame bersuara + padding 450 ms kiri-kanan, gabung jika jarak < 1000 ms.
 
 use webrtc_vad::{SampleRate, Vad, VadMode};
 
 use super::reader::PartReader;
 
 pub const FRAME: usize = 480;
-const PAD_SAMPLES: u64 = 300 * 16;
+/// Langkah 45 (G7): 300 → 450 ms agar awal kata yang diucapkan pelan tidak terpotong.
+const PAD_SAMPLES: u64 = 450 * 16;
 const MERGE_GAP_SAMPLES: u64 = 1000 * 16;
 
 /// Rentang sampel [start, end).

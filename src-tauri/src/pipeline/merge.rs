@@ -5,7 +5,7 @@ use crate::db::repo_chunks::ChunkRow;
 use crate::preprocess::{map_time, region_duration_at, OffsetEntry};
 use crate::stt::SttSegment;
 
-use super::filter::is_hallucination;
+use super::filter::{collapse_repeats, is_hallucination};
 
 #[derive(Debug, Clone)]
 pub struct Segment {
@@ -42,7 +42,7 @@ pub fn build_segments(chunks: &[ChunkRow], cfg: &PipelineConfig) -> Vec<Segment>
                 channel: c.channel.clone(),
                 start_ms: start,
                 end_ms: end,
-                text: s.text.trim().to_string(),
+                text: collapse_repeats(s.text.trim()),
                 no_speech_prob: s.no_speech_prob,
                 avg_logprob: s.avg_logprob,
                 compression_ratio: s.compression_ratio,

@@ -503,7 +503,7 @@ impl Worker {
         // Beberapa chunk sekaligus (mic & sistem paralel). Groq dibatasi lebih ketat karena kuota per menit/jam.
         let concurrency = if e.is_groq() { STT_CONCURRENCY_GROQ } else { STT_CONCURRENCY };
         let stt = OpenAiStt { http: self.http.clone(), base_url: e.base_url, api_key, model: e.model };
-        let opts = self.stt_opts(&m.language);
+        let opts = self.stt_opts(m);
         // Future dibuat lebih dulu (Vec) agar tidak ada closure tersimpan di state future worker (`Send`).
         let mut jobs: Vec<ChunkJob<'_>> = Vec::new();
         for c in chunks.iter().filter(|c| c.stt_status != "done") {
@@ -561,7 +561,7 @@ impl Worker {
         }
         let concurrency = if e.is_groq() { STT_CONCURRENCY_GROQ } else { STT_CONCURRENCY };
         let stt = OpenAiStt { http: self.http.clone(), base_url: e.base_url, api_key, model: e.model };
-        let opts = self.stt_opts(&m.language);
+        let opts = self.stt_opts(&m);
         let mut jobs: Vec<ChunkJob<'_>> = Vec::new();
         for c in chunks.iter().filter(|c| c.stt_status != "done") {
             jobs.push(Box::pin(self.transcribe_chunk(&stt, &opts, c)));
@@ -601,9 +601,11 @@ impl Worker {
         }
     }
 
-    /// Bahasa + prompt STT: glosarium pengguna lalu nama PJ yang sering muncul 30 hari terakhir.
-    fn stt_opts(&self, meeting_language: &str) -> SttOpts {
-        let language = (meeting_language == "id").then(|| "id".to_string());
+    /// Bahasa + prompt STT: judul meeting (jika bermakna), glosarium pengguna, lalu nama PJ yang sering
+    /// muncul 30 hari terakhir. Ditulis sebagai kalimat Indonesia rapi karena Whisper meniru gaya prompt
+    /// (ejaan, kapital, tanda baca) — langkah 45, feedback3 G2.
+    fn stt_opts(&self, m: &MeetingRow) -> SttOpts {
+        let language = (m.language == "id").then(|| "id".to_string());
         let conn = self.db.conn();
         let glossary = settings::load(&conn).map(|s| s.stt_glossary).unwrap_or_default();
         let mut terms = settings::glossary_terms(&glossary);
@@ -614,19 +616,29 @@ impl Worker {
             }
         }
         drop(conn);
-        // Whisper memakai prompt sebagai "teks sebelumnya": daftar istilah dipotong per istilah, bukan di tengah kata.
         let mut prompt = String::new();
+        if m.title_edited || !is_default_title(&m.title) {
+            prompt.push_str(m.title.trim().trim_end_matches('.'));
+            prompt.push_str(". ");
+        }
+        // Daftar istilah dipotong per istilah (bukan di tengah kata) agar muat batas prompt.
+        let mut list = String::new();
+        let budget = settings::GLOSSARY_MAX_CHARS.saturating_sub(prompt.chars().count() + 24);
         for t in &terms {
-            let add = t.chars().count() + if prompt.is_empty() { 0 } else { 2 };
-            if prompt.chars().count() + add + 1 > settings::GLOSSARY_MAX_CHARS {
+            let add = t.chars().count() + if list.is_empty() { 0 } else { 2 };
+            if list.chars().count() + add > budget {
                 break;
             }
-            if !prompt.is_empty() {
-                prompt.push_str(", ");
+            if !list.is_empty() {
+                list.push_str(", ");
             }
-            prompt.push_str(t);
+            list.push_str(t);
         }
-        SttOpts { language, prompt: (!prompt.is_empty()).then(|| format!("{prompt}.")) }
+        if !list.is_empty() {
+            prompt.push_str(&format!("Nama dan istilah yang dibahas: {list}."));
+        }
+        let prompt = prompt.trim().to_string();
+        SttOpts { language, prompt: (!prompt.is_empty()).then_some(prompt) }
     }
 
     async fn transcribe_chunk<'a>(
@@ -777,6 +789,12 @@ impl Worker {
         }
         Ok(())
     }
+}
+
+/// Judul bawaan "Meeting 8 Okt 2026 09.00" / "Meeting" (belum bermakna untuk prompt STT).
+fn is_default_title(title: &str) -> bool {
+    let t = title.trim();
+    t == "Meeting" || (t.starts_with("Meeting ") && t.ends_with(|c: char| c.is_ascii_digit()))
 }
 
 fn hhmmss(ms: i64) -> String {
