@@ -185,7 +185,7 @@ export type DetectedKey = { provider: string; key: string };
 export type LevelPayload = { micDbfs: number; systemDbfs: number };
 export type AutoStopWarningPayload = { reason: "silence" | "meeting_ended"; secondsLeft: number; silenceMin?: number };
 export type RecordingWarningPayload = {
-  code: "device_lost" | "system_silent" | "system_ok" | "write_failed";
+  code: "device_lost" | "system_silent" | "system_ok" | "write_failed" | "limit_soon";
   channel: Channel;
   minutes?: number;
 };

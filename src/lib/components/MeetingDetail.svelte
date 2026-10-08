@@ -339,6 +339,25 @@
             : t.detail.noSummary,
   );
 
+  const SEG_BLOCK = 200;
+  const segBlocks = $derived.by(() => {
+    const out: TranscriptSegment[][] = [];
+    for (let i = 0; i < transcript.length; i += SEG_BLOCK) out.push(transcript.slice(i, i + SEG_BLOCK));
+    return out;
+  });
+
+  /** Panah kiri/kanan/Home/End di baris tab (pola ARIA tabs). */
+  function tabKey(e: KeyboardEvent) {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(e.key) || editingSummary) return;
+    e.preventDefault();
+    const i = tabs.findIndex((x) => x.key === tab);
+    const n = tabs.length;
+    const next = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (i + (e.key === "ArrowRight" ? 1 : n - 1)) % n;
+    tab = tabs[next].key;
+    document.getElementById(`tab-${tab}`)?.focus();
+  }
+
   const tabs: { key: Tab; text: string }[] = [
     { key: "summary", text: t.detail.tabSummary },
     { key: "actions", text: t.detail.tabActionItems },
@@ -519,11 +538,14 @@
 
     <!-- Baris tab + aksi tab aktif (Salin / Ubah) di ujung kanan: tanpa baris toolbar terpisah. -->
     <div class="flex flex-wrap items-end gap-x-6 gap-y-2 border-b border-line">
-      <div role="tablist" class="flex gap-6">
+      <div role="tablist" class="flex gap-6" aria-label={t.detail.tabsLabel} tabindex="-1" onkeydown={tabKey}>
         {#each tabs as tb (tb.key)}
           <button
             type="button"
             role="tab"
+            id={`tab-${tb.key}`}
+            aria-controls="detail-panel"
+            tabindex={tab === tb.key ? 0 : -1}
             aria-selected={tab === tb.key}
             disabled={editingSummary && tab !== tb.key}
             title={editingSummary && tab !== tb.key ? t.edit.finishFirst : undefined}
@@ -558,7 +580,7 @@
       {/if}
     </div>
 
-    <section role="tabpanel" class="flex flex-col gap-6">
+    <div id="detail-panel" role="tabpanel" aria-labelledby={`tab-${tab}`} class="flex flex-col gap-6">
       {#if (tab === "summary" || tab === "actions") && editingSummary && meeting.summary}
         <SummaryEditor {meeting} onsave={saveSummary} oncancel={() => (editingSummary = false)} />
       {:else if tab === "summary" || tab === "actions"}
@@ -674,11 +696,14 @@
         {/if}
 
         <!-- Transkrip polos (tanpa label pembicara, keputusan pemilik). Satu tombol putar per baris di kolom waktu. -->
-        <ol
+        <!-- Transkrip panjang dibagi blok 200 baris; blok di luar layar tidak di-layout/di-render (content-visibility). -->
+        <div
           class={["flex flex-col gap-1", transcript.length > 500 && "virtualized"]}
           onwheel={() => (followUntil = Date.now() + 5000)}
         >
-          {#each transcript as s (s.id)}
+          {#each segBlocks as block, bi (bi)}
+          <ol class="seg-block flex flex-col gap-1" style:--rows={block.length}>
+          {#each block as s (s.id)}
             <li
               id={`seg-${s.id}`}
               class={[
@@ -701,9 +726,11 @@
               <p class="max-w-[70ch] leading-[1.7]">{s.text.trim()}</p>
             </li>
           {/each}
-        </ol>
+          </ol>
+          {/each}
+        </div>
       {/if}
-    </section>
+    </div>
   {/if}
 </main>
 
@@ -799,9 +826,10 @@
     }
   }
 
-  /* Transkrip panjang: browser hanya me-render baris yang terlihat (PRD §14.5). */
-  .virtualized .row {
+  /* Transkrip panjang: browser hanya me-render blok yang terlihat (PRD §14.5). Perkiraan tinggi
+     dipakai sebelum blok pertama kali tampil, lalu diganti tinggi sebenarnya (`auto`). */
+  .virtualized .seg-block {
     content-visibility: auto;
-    contain-intrinsic-size: auto 2.5rem;
+    contain-intrinsic-size: auto calc(var(--rows) * 2.6rem);
   }
 </style>

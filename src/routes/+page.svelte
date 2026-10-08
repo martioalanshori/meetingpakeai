@@ -142,6 +142,15 @@
     }
   }
 
+  /** Halaman berikutnya dimuat otomatis saat ujung daftar mendekati layar (tombol tetap ada sebagai cadangan). */
+  function autoLoad(el: HTMLElement) {
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting) && hasMore && !loadingMore) loadMore();
+    }, { rootMargin: "600px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }
+
   async function resolve(meetingId: string, action: "process" | "discard") {
     if (action === "discard") {
       const ok = await confirmDialog({
@@ -303,7 +312,7 @@
           <ul class="flex flex-col">
             {#each g.items as m (m.id)}
               {@const active = viewport.wide && m.id === selected}
-              <li>
+              <li class="mrow">
                 <a
                   href={`/meeting/${m.id}`}
                   onclick={(e) => openRow(e, m.id)}
@@ -347,7 +356,7 @@
       {/each}
     </div>
     {#if hasMore}
-      <button type="button" class="btn btn-line self-start" disabled={loadingMore} onclick={loadMore}>
+      <button type="button" class="btn btn-line self-start" disabled={loadingMore} onclick={loadMore} {@attach autoLoad}>
         {loadingMore ? id.common.loading : id.home.loadMore}
       </button>
     {/if}
@@ -375,3 +384,11 @@
     {@render listBody(false)}
   </main>
 {/if}
+
+<style>
+  /* Baris di luar layar tidak di-layout/di-render; tinggi baris hampir tetap. */
+  .mrow {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 4.25rem;
+  }
+</style>

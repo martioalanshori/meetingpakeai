@@ -33,6 +33,7 @@
   let autoStopReason = $state<"silence" | "meeting_ended">("silence");
   let silenceMin = $state(10);
   let systemSilentMin = $state(2);
+  let limitSoonMin = $state<number | null>(null);
   let root = $state<HTMLDivElement | null>(null);
   let errorTimer: ReturnType<typeof setTimeout> | undefined;
   let busy = $state(false);
@@ -101,6 +102,7 @@
         }
         else if (w.code === "system_ok") systemSilent = false;
         else if (w.code === "write_failed") error = id.recorder.writeFailed;
+        else if (w.code === "limit_soon") limitSoonMin = w.minutes ?? 10;
         else if (!lostChannels.includes(w.channel)) lostChannels = [...lostChannels, w.channel];
       }),
       await events.recordingLive(() => (liveTranscribing = true)),
@@ -236,6 +238,12 @@
       {id.recorder.deviceLost(ch)}
     </div>
   {/each}
+
+  {#if limitSoonMin !== null}
+    <div class="flex min-h-11 items-center border-t border-white/10 px-3 py-2 text-xs leading-snug text-white/85">
+      {id.recorder.limitSoon(limitSoonMin)}
+    </div>
+  {/if}
 
   {#if systemSilent && !lostChannels.includes("system")}
     <div class="flex min-h-11 items-center border-t border-white/10 bg-warn-deep px-3 py-2 text-xs leading-snug text-warn-deep-text">

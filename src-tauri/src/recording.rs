@@ -39,6 +39,8 @@ const SYSTEM_SILENT_DBFS: f32 = -70.0;
 const SYSTEM_SILENT_WARN_AFTER: Duration = Duration::from_secs(120);
 /// Windows sering mengirim beberapa notifikasi default device beruntun; tunggu sebelum membuka ulang.
 const DEVICE_SWITCH_DEBOUNCE: Duration = Duration::from_secs(1);
+/// Peringatan sebelum batas durasi rekaman (lalu berlanjut sebagai meeting baru).
+const LIMIT_WARN_BEFORE: Duration = Duration::from_secs(600);
 
 const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
@@ -87,6 +89,7 @@ struct AutoStopState {
 
 struct Active {
     meeting_id: String,
+    source_app: Option<String>,
     dir: PathBuf,
     recorder: Recorder,
     monitor_stop: Arc<AtomicBool>,
@@ -209,6 +212,7 @@ impl RecordingService {
         };
         let active = Arc::new(Active {
             meeting_id: meeting_id.clone(),
+            source_app,
             dir,
             recorder,
             monitor_stop: Arc::new(AtomicBool::new(false)),
@@ -367,7 +371,8 @@ impl RecordingService {
         let note = match reason {
             StopReason::Manual => None,
             StopReason::Silence => Some("Tidak ada suara terdeteksi. Rekaman dihentikan otomatis dan sedang diproses."),
-            StopReason::MaxDuration => Some("Durasi maksimal rekaman tercapai. Rekaman dihentikan dan sedang diproses."),
+            // Pemberitahuan dikirim oleh `continue_after_limit` (rekaman berlanjut sebagai meeting baru).
+            StopReason::MaxDuration => None,
             StopReason::DiskFull => Some("Ruang disk hampir habis. Rekaman dihentikan dan sedang diproses."),
             StopReason::DeviceLost => Some("Perangkat audio tidak tersedia. Rekaman dihentikan dan sedang diproses."),
             StopReason::MeetingEnded => Some("Meeting sudah selesai. Rekaman dihentikan otomatis dan sedang diproses."),
@@ -416,7 +421,7 @@ impl RecordingService {
         }
     }
 
-    fn monitor_loop(&self, active: Arc<Active>) {
+    fn monitor_loop(self: &Arc<Self>, active: Arc<Active>) {
         let silence_limit = Duration::from_secs(u64::from(self.config.auto_stop_silence_min) * 60);
         let max_duration = Duration::from_secs(u64::from(self.config.max_recording_hours) * 3600);
         let mut health = [ChannelHealth::default(), ChannelHealth::default()];
@@ -425,6 +430,7 @@ impl RecordingService {
         let watcher = DeviceWatcher::start();
         let mut system_health = SystemHealth::default();
         let mut switch_at: [Option<Instant>; 2] = [None, None];
+        let mut limit_warned = false;
 
         let stop_reason = loop {
             if active.monitor_stop.load(Ordering::SeqCst) {
@@ -509,8 +515,23 @@ impl RecordingService {
                 break StopReason::DiskFull;
             }
 
-            // Durasi maksimal.
-            if rec.elapsed() >= max_duration {
+            // Durasi maksimal: peringatan 10 menit sebelumnya, lalu berlanjut sebagai meeting baru.
+            let elapsed = rec.elapsed();
+            if !limit_warned && elapsed + LIMIT_WARN_BEFORE >= max_duration {
+                limit_warned = true;
+                let minutes = max_duration.saturating_sub(elapsed).as_secs().div_ceil(60);
+                self.events.emit_json(
+                    events::EV_RECORDING_WARNING,
+                    serde_json::json!({ "code": "limit_soon", "channel": "mic", "minutes": minutes }),
+                );
+                self.events.notify(
+                    "Batas durasi rekaman sebentar lagi",
+                    &format!(
+                        "Dalam {minutes} menit rekaman ini ditutup lalu langsung berlanjut sebagai meeting baru \"(lanjutan)\"."
+                    ),
+                );
+            }
+            if elapsed >= max_duration {
                 break StopReason::MaxDuration;
             }
 
@@ -552,9 +573,41 @@ impl RecordingService {
                 );
             }
         };
+        let source_app = active.source_app.clone();
+        let prev_id = active.meeting_id.clone();
         drop(active);
         if let Err(e) = self.stop(stop_reason) {
             tracing::warn!("auto-stop gagal: {}", e.message);
+        }
+        if stop_reason == StopReason::MaxDuration {
+            self.continue_after_limit(&prev_id, source_app);
+        }
+    }
+
+    /// Batas durasi tercapai: rekaman langsung dilanjutkan sebagai meeting baru "<judul> (lanjutan)".
+    fn continue_after_limit(self: &Arc<Self>, prev_id: &str, source_app: Option<String>) {
+        let prev_title = repo_meetings::get(&self.db.conn(), prev_id).map(|m| m.title).ok();
+        match self.start(source_app) {
+            Ok(new_id) => {
+                let base = prev_title.unwrap_or_else(|| default_title(now_ms()));
+                let base = base.trim_end_matches(" (lanjutan)");
+                if let Err(e) = repo_meetings::rename(&self.db.conn(), &new_id, &format!("{base} (lanjutan)")) {
+                    tracing::warn!("judul lanjutan gagal disimpan: {}", e.message);
+                }
+                events::emit(self.events.as_ref(), events::EV_MEETING_UPDATED, &MeetingUpdated { meeting_id: &new_id });
+                tracing::info!("rekaman berlanjut setelah batas durasi: {prev_id} → {new_id}");
+                self.events.notify(
+                    "Rekaman berlanjut",
+                    "Batas durasi tercapai. Bagian sebelumnya sedang diproses; rekaman berlanjut sebagai meeting baru.",
+                );
+            }
+            Err(e) => {
+                tracing::warn!("lanjutan rekaman gagal dimulai: {}", e.message);
+                self.events.notify(
+                    "Rekaman dihentikan",
+                    "Durasi maksimal rekaman tercapai dan rekaman tidak bisa dilanjutkan. Rekaman sebelumnya sedang diproses.",
+                );
+            }
         }
     }
 }
