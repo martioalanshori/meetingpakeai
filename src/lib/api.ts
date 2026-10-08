@@ -19,6 +19,7 @@ import type {
   SummaryEdit,
   TestApiKeyResult,
   TranscriptSegment,
+  UpdateInfo,
 } from "./types";
 
 /** Error dari command selalu berbentuk AppError; error lain dibungkus jadi INTERNAL. */
@@ -81,6 +82,8 @@ export const api = {
   // Pengaturan
   getSettings: () => call<Settings>("get_settings"),
   updateSettings: (patch: Partial<Settings>) => call<Settings>("update_settings", { patch }),
+  checkUpdate: () => call<UpdateInfo | null>("check_update"),
+  installUpdate: () => call<void>("install_update"),
 };
 
 function on<T>(event: string, cb: (payload: T) => void): Promise<UnlistenFn> {

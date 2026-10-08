@@ -17,6 +17,7 @@ Sumber kebenaran: **`PRD.md`**. Baca §0 sebelum mengerjakan apa pun. Kerjakan s
 | wasapi / hound | 0.25.0 / 3.5.1 |
 | tauri-plugin-dialog / winreg / webrtc-vad / strsim / async-trait | 2.8.1 / 0.56.0 / 0.4.0 / 0.11.1 / 0.1.92 |
 | tauri-plugin-global-shortcut / tauri-plugin-autostart (langkah 21) | 2.4.0 / 2.7.0 |
+| tauri-plugin-updater (langkah 25) | 2.13.2 |
 | tokio (time, sync, macros, rt, rt-multi-thread) | 1.53.2 |
 | @tauri-apps/plugin-dialog | (npm) |
 | tracing / tracing-appender / tracing-subscriber (env-filter) | 0.1.44 / 0.2.5 / 0.3.23 |
@@ -38,6 +39,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 - Uji rekam 2 channel (langkah 5): `cargo run --example record_both -- <detik> [folder] [pause_di pause_lama] [mute_di mute_lama]`
 - Uji repair header WAV: `cargo run --example repair_wav -- <file.wav>`
 - Build installer: `npm run tauri build` (NSIS, per-user)
+- Build rilis dengan auto-update: set env `MPA_UPDATER_PUBKEY` (isi file `.pub` dari `npx tauri signer generate`), `MPA_UPDATER_ENDPOINT` (mis. `https://github.com/<org>/<repo>/releases/latest/download/latest.json`), `TAURI_SIGNING_PRIVATE_KEY` (+ `_PASSWORD`), lalu `npm run tauri build -- --config src-tauri/tauri.updater.conf.json`. Unggah installer, `.sig`, dan `latest.json` ke GitHub Release.
 - Di shell sesi lama mungkin perlu `export PATH="$HOME/.cargo/bin:$PATH"`.
 
 ## Pengecualian dari PRD (keputusan pemilik proyek, 2026-10-06)
@@ -115,6 +117,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Edit ringkasan (langkah 23) | Migrasi `002_edits.sql`: `summaries.edited`. Command tambahan `update_summary { id, edit }` (hanya status `done`, ganti seluruh action item, baris kosong dibuang) dan `set_speaker_name { id, name }` (F10; kosong → default "Peserta lain"). Label baru otomatis dipakai transkrip, salin, dan ringkasan ulang (worker membaca `meeting_speaker_names`). |
 | Kesehatan audio sistem (langkah 24) | Monitor: level sistem < −70 dBFS selama 2 menit sementara mic sempat aktif (≥ −50 dBFS, tidak mute, tidak pause) → `recording://warning { code: "system_silent" }`; suara sistem kembali → `system_ok`. Widget menampilkan baris peringatan. |
 | Deteksi API key di clipboard (langkah 24) | Command tambahan `detect_api_key_in_clipboard`: baca CF_UNICODETEXT lewat Win32 (tanpa plugin); hanya mengembalikan teks berbentuk `gsk_[A-Za-z0-9_]+` (24–200 karakter). UI menawarkan tombol "Pakai key ini" (cek saat tampil & saat jendela fokus), tidak mengisi diam-diam. GIF panduan belum dibuat (butuh aset dari pemilik); langkah teks onboarding diperjelas. |
+| Auto-update (langkah 25) | `tauri-plugin-updater`; `plugins.updater.pubkey` di `tauri.conf.json` sengaja kosong dan diisi saat runtime dari `option_env!("MPA_UPDATER_PUBKEY")` + endpoint `MPA_UPDATER_ENDPOINT` (`updater.rs`). Tanpa env saat build → updater nonaktif. `requireSignedVersion: true`, NSIS mode `passive`. `createUpdaterArtifacts` hanya di `tauri.updater.conf.json` agar build biasa tidak butuh kunci privat. Cek latar 1 menit setelah start lalu tiap 24 jam → notifikasi sekali per versi; pasang hanya dari Pengaturan (command tambahan `check_update`, `install_update`), ditolak saat merekam/memproses. |
 
 ## Hasil verifikasi §21
 

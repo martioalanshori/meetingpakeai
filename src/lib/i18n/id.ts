@@ -193,6 +193,12 @@ export const id = {
     about: "Tentang",
     version: (v: string) => `Versi ${v}`,
     openLogs: "Buka folder log",
+    checkUpdate: "Cek pembaruan",
+    checkingUpdate: "Memeriksa…",
+    upToDate: "Anda memakai versi terbaru.",
+    updateAvailable: (v: string) => `Versi ${v} tersedia.`,
+    installUpdate: "Pasang & mulai ulang",
+    installingUpdate: "Mengunduh pembaruan…",
   },
 
   onboarding: {

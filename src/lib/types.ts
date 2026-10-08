@@ -114,6 +114,8 @@ export type Settings = {
   meetingDetection: boolean;
 };
 
+export type UpdateInfo = { version: string; notes: string | null };
+
 export type PendingConsent = { open: boolean; sourceApp: string | null };
 
 export type AudioTestResult = {

@@ -15,6 +15,7 @@ pub mod queue;
 pub mod recording;
 pub mod secrets;
 pub mod stt;
+pub mod updater;
 pub mod windows_integration;
 
 use std::path::{Path, PathBuf};
@@ -226,6 +227,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::Builder::new().args([desktop::ARG_MINIMIZED]).build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(desktop::on_shortcut).build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let state = init_state(app.handle())?;
             build_tray(app.handle(), &state.bridge)?;
@@ -240,7 +242,9 @@ pub fn run() {
                 let conn = state.db.conn();
                 (settings::load(&conn)?, settings::onboarding_completed(&conn)?)
             };
+            let bridge = state.bridge.clone();
             app.manage(state);
+            updater::spawn_background(app.handle().clone(), bridge);
             if let Err(e) = desktop::set_shortcut(app.handle(), "", &s.global_shortcut) {
                 tracing::warn!("shortcut global tidak aktif: {}", e.message);
             }
@@ -279,6 +283,8 @@ pub fn run() {
             commands::api_key::detect_api_key_in_clipboard,
             commands::settings::get_settings,
             commands::settings::update_settings,
+            commands::settings::check_update,
+            commands::settings::install_update,
             commands::recording::start_recording,
             commands::recording::pause_recording,
             commands::recording::resume_recording,

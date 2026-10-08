@@ -31,3 +31,15 @@ pub async fn update_settings(app: AppHandle, state: State<'_, AppState>, patch: 
     state.minimize_to_tray.store(updated.minimize_to_tray, Ordering::Relaxed);
     Ok(updated)
 }
+
+/// Tambahan (langkah 25): versi baru dari endpoint updater; `null` jika terbaru / updater nonaktif.
+#[tauri::command]
+pub async fn check_update(app: AppHandle) -> AppResult<Option<crate::updater::UpdateInfo>> {
+    crate::updater::check(&app).await
+}
+
+/// Tambahan (langkah 25): unduh, pasang, dan mulai ulang aplikasi.
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> AppResult<()> {
+    crate::updater::install(&app).await
+}

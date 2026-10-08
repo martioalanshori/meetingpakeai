@@ -6,13 +6,40 @@
   import ShortcutInput from "$lib/components/ShortcutInput.svelte";
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
-  import type { AppError, Settings } from "$lib/types";
+  import type { AppError, Settings, UpdateInfo } from "$lib/types";
 
   const t = id.settings;
 
   let form = $state<Settings | null>(null);
   let saving = $state(false);
   let version = $state("");
+  let update = $state<UpdateInfo | null>(null);
+  let updateMsg = $state<string | null>(null);
+  let updateBusy = $state(false);
+
+  async function checkUpdate() {
+    updateBusy = true;
+    updateMsg = null;
+    try {
+      update = await api.checkUpdate();
+      if (!update) updateMsg = t.upToDate;
+    } catch (e) {
+      updateMsg = (e as AppError).message;
+    } finally {
+      updateBusy = false;
+    }
+  }
+
+  async function installUpdate() {
+    updateBusy = true;
+    updateMsg = t.installingUpdate;
+    try {
+      await api.installUpdate();
+    } catch (e) {
+      updateMsg = (e as AppError).message;
+      updateBusy = false;
+    }
+  }
 
   onMount(async () => {
     try {
@@ -123,12 +150,40 @@
   <section class="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-5">
     <h2 class="font-semibold">{t.about}</h2>
     <span class="text-gray-600">{t.version(version)}</span>
-    <button
-      type="button"
-      class="ml-auto rounded-lg border border-gray-300 px-4 py-2 hover:bg-gray-50"
-      onclick={() => api.openLogFolder().catch((e: AppError) => showToast(e.message, "error"))}
-    >
-      {t.openLogs}
-    </button>
+    <div class="ml-auto flex flex-wrap gap-2">
+      {#if update}
+        <button
+          type="button"
+          class="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          disabled={updateBusy}
+          onclick={installUpdate}
+        >
+          {t.installUpdate}
+        </button>
+      {:else}
+        <button
+          type="button"
+          class="rounded-lg border border-gray-300 px-4 py-2 hover:bg-gray-50 disabled:opacity-50"
+          disabled={updateBusy}
+          onclick={checkUpdate}
+        >
+          {updateBusy ? t.checkingUpdate : t.checkUpdate}
+        </button>
+      {/if}
+      <button
+        type="button"
+        class="rounded-lg border border-gray-300 px-4 py-2 hover:bg-gray-50"
+        onclick={() => api.openLogFolder().catch((e: AppError) => showToast(e.message, "error"))}
+      >
+        {t.openLogs}
+      </button>
+    </div>
+    {#if update}
+      <p class="w-full text-sm text-indigo-800">{t.updateAvailable(update.version)}</p>
+      {#if update.notes}<p class="w-full text-sm whitespace-pre-line text-gray-600">{update.notes}</p>{/if}
+    {/if}
+    {#if updateMsg}
+      <p class="w-full text-sm text-gray-600" role="status">{updateMsg}</p>
+    {/if}
   </section>
 </main>
