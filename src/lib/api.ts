@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AskAllResult,
+  HomeOverview,
   FollowUp,
   QaItem,
   AiConfig,
@@ -100,6 +101,7 @@ export const api = {
   summarizeSoFar: (id: string) => call<string[]>("summarize_so_far", { id }),
   askMeeting: (id: string, question: string) => call<QaItem>("ask_meeting", { id, question }),
   askAllMeetings: (question: string) => call<AskAllResult>("ask_all_meetings", { question }),
+  homeOverview: () => call<HomeOverview>("home_overview"),
   listTags: () => call<string[]>("list_tags"),
   setMeetingTags: (id: string, tags: string[]) => call<string[]>("set_meeting_tags", { id, tags }),
   restoreTranscript: (id: string) => call<void>("restore_transcript", { id }),

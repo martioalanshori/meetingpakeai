@@ -418,6 +418,7 @@ pub fn run() {
             commands::meetings::save_notes,
             commands::meetings::toggle_bookmark_at,
             commands::meetings::ask_meeting,
+            commands::home::home_overview,
             commands::meetings::list_tags,
             commands::meetings::set_meeting_tags,
             commands::meetings::restore_transcript,

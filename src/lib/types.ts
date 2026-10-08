@@ -71,6 +71,20 @@ export type ActionItem = {
   sourceMs: number | null;
 };
 
+/** Data Beranda (`home_overview`). */
+export type HomeOverview = {
+  processing: { id: string; title: string; status: MeetingStatus; progressDone: number; progressTotal: number } | null;
+  attentionCount: number;
+  attentionId: string | null;
+  queuePaused: boolean;
+  recent: { id: string; title: string; startedAt: number; line: string | null }[];
+  urgentTasks: TaskItem[];
+  openTasks: number;
+  hasMeetings: boolean;
+  meetingDetection: boolean;
+  autostart: boolean;
+};
+
 export type AskAllResult = {
   answer: string;
   refs: { meetingId: string; title: string; startedAt: number; atMs: number | null }[];
