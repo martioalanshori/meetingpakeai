@@ -14,6 +14,8 @@ pub enum StepError {
     WaitingNetwork(i64),
     /// Meeting dihapus saat diproses.
     Cancelled,
+    /// File ditolak Groq karena terlalu besar (413); step transkripsi memecahnya.
+    TooLarge,
 }
 
 impl From<AppError> for StepError {

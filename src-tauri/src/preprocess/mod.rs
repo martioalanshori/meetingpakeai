@@ -94,3 +94,42 @@ pub fn run(data_dir: &Path, db: &Db, meeting_id: &str, chunk_target_sec: u32) ->
     }
     Ok(count)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn map() -> Vec<OffsetEntry> {
+        // Dua potongan: file 0–1000 ms = asli 5000–6000; file 1300–3300 ms = asli 20 000–22 000 (jeda 300 ms).
+        vec![
+            OffsetEntry { file_ms: 0, orig_ms: 5_000, dur_ms: 1_000 },
+            OffsetEntry { file_ms: 1_300, orig_ms: 20_000, dur_ms: 2_000 },
+        ]
+    }
+
+    #[test]
+    fn map_time_di_dalam_potongan() {
+        assert_eq!(map_time(&map(), 0), 5_000);
+        assert_eq!(map_time(&map(), 500), 5_500);
+        assert_eq!(map_time(&map(), 1_300), 20_000);
+        assert_eq!(map_time(&map(), 2_300), 21_000);
+    }
+
+    #[test]
+    fn map_time_di_jeda_dijepit_ke_akhir_potongan() {
+        assert_eq!(map_time(&map(), 1_200), 6_000);
+        assert_eq!(map_time(&map(), 9_999), 22_000);
+    }
+
+    #[test]
+    fn map_time_map_kosong_identitas() {
+        assert_eq!(map_time(&[], 1_234), 1_234);
+    }
+
+    #[test]
+    fn region_duration_at_memilih_potongan() {
+        assert_eq!(region_duration_at(&map(), 100), Some(1_000));
+        assert_eq!(region_duration_at(&map(), 1_500), Some(2_000));
+        assert_eq!(region_duration_at(&[], 0), None);
+    }
+}

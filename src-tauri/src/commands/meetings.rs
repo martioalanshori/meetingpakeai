@@ -179,6 +179,8 @@ pub async fn delete_meeting(state: State<'_, AppState>, id: String) -> AppResult
     if m.status == MeetingStatus::Recording {
         return Err(AppError::new(ErrorCode::InvalidState));
     }
+    // Hentikan request Groq yang sedang berjalan untuk meeting ini sebelum datanya dihapus (A6).
+    state.worker.cancel_and_wait(&id).await;
     repo_meetings::delete(&state.db.conn(), &id)?;
     let dir = state.data_dir.join("recordings").join(&id);
     if dir.exists() {

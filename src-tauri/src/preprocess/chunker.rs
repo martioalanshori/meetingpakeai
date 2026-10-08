@@ -85,6 +85,35 @@ pub fn plan_chunks(vad: &VadResult, target_sec: u32) -> Vec<ChunkPlan> {
     chunks
 }
 
+/// Titik potong (ms di file upload) untuk memecah chunk yang ditolak 413: tengah jeda antar-potongan
+/// yang paling dekat dengan tengah file; satu potongan saja → tepat di tengah.
+pub fn split_point_ms(map: &[OffsetEntry], file_ms: i64) -> i64 {
+    let half = file_ms / 2;
+    let gap_ms = to_ms(GAP_SAMPLES);
+    map.iter()
+        .skip(1)
+        .map(|e| e.file_ms - gap_ms / 2)
+        .min_by_key(|cut| (cut - half).abs())
+        .filter(|cut| *cut > 0 && *cut < file_ms)
+        .unwrap_or(half)
+}
+
+/// Pecah WAV `src` di `cut_ms` menjadi `a` (awal) dan `b` (sisa).
+pub fn split_wav(src: &Path, cut_ms: i64, a: &Path, b: &Path) -> std::io::Result<()> {
+    let mut r = hound::WavReader::open(src).map_err(std::io::Error::other)?;
+    let cut = (cut_ms.max(0) as u64 * SR / 1000) as usize;
+    let mut wa = hound::WavWriter::create(a, WAV_SPEC).map_err(std::io::Error::other)?;
+    let mut wb = hound::WavWriter::create(b, WAV_SPEC).map_err(std::io::Error::other)?;
+    for (i, s) in r.samples::<i16>().enumerate() {
+        let s = s.map_err(std::io::Error::other)?;
+        let w = if i < cut { &mut wa } else { &mut wb };
+        w.write_sample(s).map_err(std::io::Error::other)?;
+    }
+    wa.finalize().map_err(std::io::Error::other)?;
+    wb.finalize().map_err(std::io::Error::other)?;
+    Ok(())
+}
+
 fn to_ms(samples: u64) -> i64 {
     (samples * 1000 / SR) as i64
 }
@@ -115,4 +144,69 @@ pub fn write_chunk(reader: &PartReader, plan: &ChunkPlan, path: &Path) -> std::i
     }
     w.finalize().map_err(std::io::Error::other)?;
     Ok((to_ms(file_pos), map))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn vad(regions: &[(u64, u64)], total_sec: u64) -> VadResult {
+        let total = total_sec * SR;
+        VadResult {
+            regions: regions.iter().map(|&(s, e)| Region { start: s * SR, end: e * SR }).collect(),
+            frame_energy: vec![1.0; (total / FRAME as u64) as usize + 1],
+            total_samples: total,
+        }
+    }
+
+    #[test]
+    fn tanpa_region_tanpa_chunk() {
+        assert!(plan_chunks(&vad(&[], 60), 300).is_empty());
+    }
+
+    #[test]
+    fn region_pendek_jadi_satu_chunk() {
+        let plans = plan_chunks(&vad(&[(0, 20), (40, 60)], 60), 300);
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].pieces.len(), 2);
+    }
+
+    #[test]
+    fn dipotong_saat_mencapai_target() {
+        // Tiap region 100 dtk; target 300 dtk → chunk ditutup setelah region ke-3.
+        let regions: Vec<(u64, u64)> = (0..6).map(|i| (i * 120, i * 120 + 100)).collect();
+        let plans = plan_chunks(&vad(&regions, 800), 300);
+        assert_eq!(plans.len(), 2);
+        assert!(plans.iter().all(|p| p.file_samples() <= MAX_CHUNK_SAMPLES));
+    }
+
+    #[test]
+    fn region_panjang_dipecah_maks_600_dtk() {
+        let plans = plan_chunks(&vad(&[(0, 1_500)], 1_500), 300);
+        assert!(plans.len() >= 3);
+        assert!(plans.iter().all(|p| p.file_samples() <= MAX_CHUNK_SAMPLES));
+        let total: u64 = plans.iter().flat_map(|p| &p.pieces).map(Region::len).sum();
+        assert_eq!(total, 1_500 * SR);
+    }
+
+    #[test]
+    fn split_point_di_jeda_terdekat_tengah() {
+        let map = vec![
+            OffsetEntry { file_ms: 0, orig_ms: 0, dur_ms: 100_000 },
+            OffsetEntry { file_ms: 100_300, orig_ms: 200_000, dur_ms: 100_000 },
+            OffsetEntry { file_ms: 200_600, orig_ms: 400_000, dur_ms: 300_000 },
+        ];
+        // File 500,6 dtk, tengah 250,3 dtk → jeda sebelum potongan ke-3 (200,45 dtk) lebih dekat.
+        assert_eq!(split_point_ms(&map, 500_600), 200_450);
+        let single = vec![OffsetEntry { file_ms: 0, orig_ms: 0, dur_ms: 600_000 }];
+        assert_eq!(split_point_ms(&single, 600_000), 300_000);
+    }
+
+    #[test]
+    fn sisa_kurang_10_dtk_digabung() {
+        // 300 dtk lalu 5 dtk → sisa 5 dtk digabung ke chunk sebelumnya.
+        let plans = plan_chunks(&vad(&[(0, 300), (310, 315)], 320), 300);
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].pieces.len(), 2);
+    }
 }

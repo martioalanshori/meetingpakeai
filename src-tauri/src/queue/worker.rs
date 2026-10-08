@@ -2,7 +2,8 @@
 //! Setiap step membaca status dari DB sehingga bisa dilanjutkan setelah restart.
 
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -26,7 +27,7 @@ use crate::pipeline::{dedup, merge};
 use crate::queue::rate_limiter::{self, Admission, Cost};
 use crate::queue::state::{StepError, StepResult};
 use crate::stt::groq::GroqStt;
-use crate::stt::{SttProvider, SttRequest};
+use crate::stt::{SttProvider, SttRequest, SttSegment};
 use crate::{preprocess, secrets};
 
 const RATE_MAX_ATTEMPTS: u32 = 6;
@@ -37,6 +38,10 @@ const IDLE_MAX_SLEEP: Duration = Duration::from_secs(60);
 /// Retensi "7 hari": audio meeting selesai yang lebih tua dari ini dihapus.
 const AUDIO_KEEP_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 const RETENTION_SWEEP_EVERY: Duration = Duration::from_secs(60 * 60);
+/// Chunk yang ditolak 413 dipecah dua, maksimal sedalam ini (≤ 4 bagian).
+const MAX_SPLIT_DEPTH: u32 = 2;
+/// `delete_meeting` menunggu worker melepas meeting yang dibatalkan maksimal selama ini.
+const CANCEL_WAIT: Duration = Duration::from_secs(5);
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,6 +63,8 @@ pub struct Worker {
     paused: AtomicBool,
     /// Meeting yang sedang diproses.
     current: Mutex<Option<String>>,
+    /// Pembatal job yang sedang berjalan (meeting dihapus): `notify_one` menghentikan step di await berikutnya.
+    cancel: Mutex<Option<(String, Arc<Notify>)>>,
 }
 
 /// Backoff `2s × 2^n` + jitter 0–1 dtk.
@@ -87,7 +94,17 @@ impl Worker {
         wake: Arc<Notify>,
     ) -> Self {
         let paused = repo_meetings::has_invalid_key_failure(&db.conn()).unwrap_or(false);
-        Self { data_dir, db, providers, http, events, wake, paused: AtomicBool::new(paused), current: Mutex::new(None) }
+        Self {
+            data_dir,
+            db,
+            providers,
+            http,
+            events,
+            wake,
+            paused: AtomicBool::new(paused),
+            current: Mutex::new(None),
+            cancel: Mutex::new(None),
+        }
     }
 
     pub fn is_paused(&self) -> bool {
@@ -108,6 +125,21 @@ impl Worker {
 
     pub fn current_meeting(&self) -> Option<String> {
         self.current.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// Batalkan job meeting `id` jika sedang diproses, lalu tunggu worker melepasnya (request Groq
+    /// yang sedang berjalan dihentikan sehingga kuota tidak terbuang dan tidak ada error palsu di log).
+    pub async fn cancel_and_wait(&self, id: &str) {
+        let token = {
+            let guard = self.cancel.lock().unwrap_or_else(|e| e.into_inner());
+            guard.as_ref().filter(|(cid, _)| cid == id).map(|(_, n)| n.clone())
+        };
+        let Some(token) = token else { return };
+        token.notify_one();
+        let start = std::time::Instant::now();
+        while self.current_meeting().as_deref() == Some(id) && start.elapsed() < CANCEL_WAIT {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
     }
 
     fn delete_audio(&self, id: &str) -> Result<(), AppError> {
@@ -150,8 +182,15 @@ impl Worker {
             match next {
                 Ok(Some(m)) => {
                     *self.current.lock().unwrap_or_else(|e| e.into_inner()) = Some(m.id.clone());
+                    let token = Arc::new(Notify::new());
+                    *self.cancel.lock().unwrap_or_else(|e| e.into_inner()) = Some((m.id.clone(), token.clone()));
                     self.events.processing_changed(true);
-                    self.process(m).await;
+                    let id = m.id.clone();
+                    tokio::select! {
+                        _ = self.process(m) => {}
+                        _ = token.notified() => tracing::info!("meeting {id} dibatalkan (dihapus) saat diproses"),
+                    }
+                    *self.cancel.lock().unwrap_or_else(|e| e.into_inner()) = None;
                     *self.current.lock().unwrap_or_else(|e| e.into_inner()) = None;
                 }
                 Ok(None) => {
@@ -253,6 +292,12 @@ impl Worker {
                 tracing::info!("meeting {id} dihapus saat diproses");
                 return;
             }
+            StepError::TooLarge => {
+                let err = provider_failure(&ProviderError::PayloadTooLarge);
+                tracing::warn!("meeting {id} gagal di {}: file terlalu besar", step.as_str());
+                let _ = repo_meetings::set_failed(&conn, id, step, &err);
+                MeetingStatus::Failed
+            }
             StepError::Failed(err) => {
                 tracing::warn!("meeting {id} gagal di {}: {}", step.as_str(), err.code.as_str());
                 let _ = repo_meetings::set_failed(&conn, id, step, &err);
@@ -339,6 +384,7 @@ impl Worker {
                 Err(ProviderError::Unauthorized) => {
                     return Err(StepError::Unauthorized(ErrorCode::InvalidApiKey.into()));
                 }
+                Err(ProviderError::PayloadTooLarge) => return Err(StepError::TooLarge),
                 Err(e) => return Err(StepError::Failed(provider_failure(&e))),
             }
         }
@@ -371,11 +417,8 @@ impl Worker {
         for c in chunks.iter().filter(|c| c.stt_status != "done") {
             let path = self.data_dir.join(&c.path);
             let cost = Cost::Stt { audio_sec: c.duration_ms as f64 / 1000.0 };
-            let segments = self
-                .with_retry(cost, || {
-                    stt.transcribe(SttRequest { wav_path: path.clone(), language: language.clone(), prompt: None })
-                })
-                .await;
+            let map: Vec<preprocess::OffsetEntry> = serde_json::from_str(&c.offset_map_json).unwrap_or_default();
+            let segments = self.transcribe_file(&stt, &language, &path, c.duration_ms, &map, 0).await;
             let segments = match segments {
                 Ok(s) => s,
                 Err(e) => {
@@ -394,6 +437,62 @@ impl Worker {
             self.set_progress(id, MeetingStatus::Transcribing, done, total);
         }
         Ok(())
+    }
+
+    /// Transkrip satu file chunk. Ditolak 413 → pecah dua di jeda antar-region (offset map) dan
+    /// transkrip tiap bagian; waktu segmen bagian kedua digeser sehingga tetap waktu file asli.
+    fn transcribe_file<'a>(
+        &'a self,
+        stt: &'a GroqStt,
+        language: &'a Option<String>,
+        path: &'a Path,
+        duration_ms: i64,
+        map: &'a [preprocess::OffsetEntry],
+        depth: u32,
+    ) -> Pin<Box<dyn Future<Output = StepResult<Vec<SttSegment>>> + Send + 'a>> {
+        Box::pin(async move {
+            let cost = Cost::Stt { audio_sec: duration_ms as f64 / 1000.0 };
+            let res = self
+                .with_retry(cost, || {
+                    stt.transcribe(SttRequest { wav_path: path.to_path_buf(), language: language.clone(), prompt: None })
+                })
+                .await;
+            if !matches!(res, Err(StepError::TooLarge)) || depth >= MAX_SPLIT_DEPTH {
+                return res;
+            }
+            let cut_ms = preprocess::chunker::split_point_ms(map, duration_ms);
+            let (a, b) = (path.with_extension(format!("{depth}a.wav")), path.with_extension(format!("{depth}b.wav")));
+            tracing::info!("chunk terlalu besar (413): dipecah di {} dtk", cut_ms / 1000);
+            {
+                let (src, a, b) = (path.to_path_buf(), a.clone(), b.clone());
+                tokio::task::spawn_blocking(move || preprocess::chunker::split_wav(&src, cut_ms, &a, &b))
+                    .await
+                    .map_err(|e| StepError::Failed(AppError::internal(e)))??;
+            }
+            // Map untuk tiap bagian dalam waktu file bagian itu (hanya dipakai memilih titik potong berikutnya).
+            let map_a: Vec<_> = map.iter().copied().filter(|e| e.file_ms < cut_ms).collect();
+            let map_b: Vec<_> = map
+                .iter()
+                .filter(|e| e.file_ms >= cut_ms)
+                .map(|e| preprocess::OffsetEntry { file_ms: e.file_ms - cut_ms, ..*e })
+                .collect();
+            let parts = async {
+                let first = self.transcribe_file(stt, language, &a, cut_ms, &map_a, depth + 1).await?;
+                let second = self.transcribe_file(stt, language, &b, duration_ms - cut_ms, &map_b, depth + 1).await?;
+                Ok::<_, StepError>((first, second))
+            }
+            .await;
+            let _ = std::fs::remove_file(&a);
+            let _ = std::fs::remove_file(&b);
+            let (mut out, second) = parts?;
+            let shift = cut_ms as f64 / 1000.0;
+            out.extend(second.into_iter().map(|mut s| {
+                s.start_s += shift;
+                s.end_s += shift;
+                s
+            }));
+            Ok(out)
+        })
     }
 
     async fn step_merge(&self, id: &str) -> StepResult<()> {

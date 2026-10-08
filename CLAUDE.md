@@ -44,7 +44,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 
 ## Pengecualian dari PRD (keputusan pemilik proyek, 2026-10-06)
 
-1. **Tanpa test otomatis.** Pemilik menguji manual. `cargo test` dan unit test wajib di §0/§16 tidak ditulis. Gerbang per langkah: `cargo check` + `cargo clippy -- -D warnings` + `npm run check` hijau, lalu checklist uji manual.
+1. **Test otomatis terbatas.** Pemilik menguji manual. Sejak langkah 27 (feedback A16/K1) hanya ada unit test untuk fungsi paling sensitif: `Aligner` (`audio/timeline.rs`), `map_time`/`region_duration_at` (`preprocess/mod.rs`), `plan_chunks`/`split_point_ms` (`preprocess/chunker.rs`), `parse_final` (`llm/parse.rs`) — jalankan `cargo test --lib` dari `src-tauri/`. Gerbang per langkah: `cargo check` + `cargo clippy --all-targets -- -D warnings` + `npm run check` hijau, lalu checklist uji manual.
 2. **Fase 0 spike dilewati** sebagai proyek terpisah. Item §21 diverifikasi di langkah terkait (model Groq di langkah 3, `wasapi`/loopback di langkah 4–5) dan hasilnya dicatat di bagian "Hasil verifikasi" di bawah.
 3. Proyek di-scaffold langsung di root folder ini (bukan subfolder `meeting-pake-ai/`).
 
@@ -86,7 +86,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Command tambahan `open_log_folder` | Untuk tombol "Buka folder log" di Pengaturan (§14.6). |
 | `response_json` chunk | Disimpan sebagai JSON `Vec<SttSegment>` hasil parse (bukan body mentah Groq) agar step merging tidak bergantung format provider. |
 | Fallback parameter LLM | Jika Groq membalas 400 yang menyebut reasoning/response_format/json, request diulang sekali tanpa `llm_extra_body` & `response_format`, dan sisa sesi tanpa itu. |
-| `PayloadTooLarge` (413) | Tidak memecah chunk; job `failed` dengan pesan. Chunk maks ±610 dtk = ±19,5 MB < 25 MB sehingga praktis tidak terjadi. |
+| `PayloadTooLarge` (413) | Langkah 27: `StepError::TooLarge`; file chunk dipecah dua di tengah jeda antar-potongan (offset map) terdekat dari tengah (`split_point_ms`), tiap bagian ditranskrip, segmen bagian kedua digeser `cut_ms`. Offset map chunk asli tetap dipakai (tanpa perubahan DB). Maks kedalaman 2 (≤ 4 bagian); tetap 413 → `failed`. |
 | Rate limiter | Jendela kosong selalu diizinkan (request besar tidak macet). Saat menunggu jendela menit/jam, cek ulang tiap 5 dtk. Pemakaian dicatat setelah request sukses (LLM: token aktual dari `usage`). |
 | Error provider di `failed` | `error_code = INTERNAL` dengan pesan Indonesia (mis. "Groq menolak permintaan: …"). |
 | `MeetingListItem.errorCode` | Field tambahan untuk banner "antrean dijeda" di Beranda. |
@@ -119,6 +119,7 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Deteksi API key di clipboard (langkah 24) | Command tambahan `detect_api_key_in_clipboard`: baca CF_UNICODETEXT lewat Win32 (tanpa plugin); hanya mengembalikan teks berbentuk `gsk_[A-Za-z0-9_]+` (24–200 karakter). UI menawarkan tombol "Pakai key ini" (cek saat tampil & saat jendela fokus), tidak mengisi diam-diam. GIF panduan belum dibuat (butuh aset dari pemilik); langkah teks onboarding diperjelas. |
 | Auto-update (langkah 25) | `tauri-plugin-updater`; `plugins.updater.pubkey` di `tauri.conf.json` sengaja kosong dan diisi saat runtime dari `option_env!("MPA_UPDATER_PUBKEY")` + endpoint `MPA_UPDATER_ENDPOINT` (`updater.rs`). Tanpa env saat build → updater nonaktif. `requireSignedVersion: true`, NSIS mode `passive`. `createUpdaterArtifacts` hanya di `tauri.updater.conf.json` agar build biasa tidak butuh kunci privat. Cek latar 1 menit setelah start lalu tiap 24 jam → notifikasi sekali per versi; pasang hanya dari Pengaturan (command tambahan `check_update`, `install_update`), ditolak saat merekam/memproses. |
 | Retensi audio (langkah 26, K3) | Setting `audioRetention`: `after_transcript` / `days7` / `forever`, default **`days7`**. Pengganti bool `delete_audio_after_transcript`; nilai bool lama yang pernah disimpan dipetakan (true → after_transcript, false → forever). Worker menyapu tiap 1 jam: meeting `done`/`failed` dengan audio dan `ended_at` > 7 hari → folder rekaman dihapus. |
+| Pembatalan job (langkah 27, A6) | `Worker.cancel` menyimpan `Notify` per job; `run` menjalankan `process` dalam `tokio::select!` dengan token itu. `delete_meeting` memanggil `cancel_and_wait` (maks 5 dtk) sebelum menghapus row & folder. |
 | Putar audio (langkah 26) | Command tambahan `prepare_playback`: mic + sistem dicampur (jumlah ter-clamp) ke `recordings/<id>/playback.wav`, dibuat sekali. Diputar lewat asset protocol (fitur tauri `protocol-asset`, scope hanya `$APPDATA/recordings/*/playback.wav`, CSP `media-src asset: http://asset.localhost`). Klik timestamp → seek & play. |
 | Ekspor (langkah 26, F11) | Command tambahan `save_export { fileName, contents }`: dialog simpan dibuka di Rust, isi ditulis ke path pilihan pengguna. Isi dari `src/lib/minutes.ts` (format §14.7, termasuk transkrip). PDF = `window.print()` dengan blok `print:block` berisi notulen teks; sisa halaman `print:hidden`. |
 

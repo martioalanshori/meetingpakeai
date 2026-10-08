@@ -118,3 +118,56 @@ pub fn parse_partial(raw: &str) -> Result<PartialNotes, String> {
         topik: string_list(v.get("topik"))?,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_final_lengkap() {
+        let raw = r#"{"judul":"Rapat","ringkasan":"Isi.","keputusan":["A"],
+            "action_items":[{"tugas":"Kirim","penanggung_jawab":"Budi","tenggat":null}],"topik":["x","y"]}"#;
+        let n = parse_final(raw).unwrap();
+        assert_eq!(n.judul, "Rapat");
+        assert_eq!(n.keputusan, vec!["A"]);
+        assert_eq!(n.action_items.len(), 1);
+        assert_eq!(n.action_items[0].penanggung_jawab.as_deref(), Some("Budi"));
+        assert_eq!(n.action_items[0].tenggat, None);
+    }
+
+    #[test]
+    fn parse_final_membuang_think_dan_teks_sekitar() {
+        let raw = "<think>menimbang…</think>Berikut hasilnya:\n```json\n{\"judul\":\"J\",\"ringkasan\":\"R\"}\n```";
+        let n = parse_final(raw).unwrap();
+        assert_eq!(n.judul, "J");
+        assert!(n.keputusan.is_empty() && n.action_items.is_empty() && n.topik.is_empty());
+    }
+
+    #[test]
+    fn parse_final_think_tidak_tertutup() {
+        let n = parse_final("<think>bocor {\"judul\":\"J\",\"ringkasan\":\"R\"}").unwrap();
+        assert_eq!(n.ringkasan, "R");
+    }
+
+    #[test]
+    fn parse_final_judul_kosong_ditolak() {
+        assert!(parse_final(r#"{"judul":"  ","ringkasan":"R"}"#).is_err());
+        assert!(parse_final("bukan json").is_err());
+    }
+
+    #[test]
+    fn parse_final_batas_judul_dan_topik() {
+        let judul = "a".repeat(150);
+        let topik: Vec<String> = (0..12).map(|i| format!("t{i}")).collect();
+        let raw = serde_json::json!({ "judul": judul, "ringkasan": "R", "topik": topik }).to_string();
+        let n = parse_final(&raw).unwrap();
+        assert_eq!(n.judul.chars().count(), 100);
+        assert_eq!(n.topik.len(), 8);
+    }
+
+    #[test]
+    fn parse_final_item_tanpa_tugas_dibuang() {
+        let raw = r#"{"judul":"J","ringkasan":"R","action_items":[{"tugas":""},{"tugas":"Ok"}]}"#;
+        assert_eq!(parse_final(raw).unwrap().action_items.len(), 1);
+    }
+}

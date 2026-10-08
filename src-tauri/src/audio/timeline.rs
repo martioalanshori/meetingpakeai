@@ -129,3 +129,58 @@ impl Aligner {
         zeros
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn align_tepat_waktu_ditulis_apa_adanya() {
+        let mut a = Aligner::default();
+        let packet = [1i16; 160];
+        let r = a.align(&packet, 160);
+        assert_eq!(r.zeros_before, 0);
+        assert_eq!(r.samples.len(), 160);
+        assert_eq!(a.written(), 160);
+    }
+
+    #[test]
+    fn align_tertinggal_lebih_dari_toleransi_disisipi_nol() {
+        let mut a = Aligner::default();
+        let packet = [1i16; 160];
+        // Diharapkan 10 000 sampel, baru 0 tertulis → nol sampai expected − panjang paket.
+        let r = a.align(&packet, 10_000);
+        assert_eq!(r.zeros_before, 10_000 - 160);
+        assert_eq!(r.samples.len(), 160);
+        assert_eq!(a.written(), 10_000);
+    }
+
+    #[test]
+    fn align_dalam_toleransi_tidak_dikoreksi() {
+        let mut a = Aligner::default();
+        let packet = [1i16; 160];
+        let r = a.align(&packet, TOLERANCE_SAMPLES);
+        assert_eq!(r.zeros_before, 0);
+        assert_eq!(a.written(), 160);
+    }
+
+    #[test]
+    fn align_kelebihan_membuang_awal_paket() {
+        let mut a = Aligner::default();
+        a.set_written(10_000);
+        let packet = [1i16; 1_000];
+        // Tertulis 10 000, diharapkan 5 000 → kelebihan 5 000 ≥ panjang paket → seluruh paket dibuang.
+        let r = a.align(&packet, 5_000);
+        assert_eq!(r.samples.len(), 0);
+        assert_eq!(a.written(), 10_000);
+    }
+
+    #[test]
+    fn fill_gap_dan_pad_to() {
+        let mut a = Aligner::default();
+        assert_eq!(a.fill_gap(TOLERANCE_SAMPLES), 0);
+        assert_eq!(a.fill_gap(TOLERANCE_SAMPLES + 1), TOLERANCE_SAMPLES + 1);
+        assert_eq!(a.pad_to(TOLERANCE_SAMPLES + 101), 100);
+        assert_eq!(a.pad_to(10), 0);
+    }
+}
