@@ -3,6 +3,7 @@ pub mod bridge;
 pub mod commands;
 pub mod config;
 pub mod db;
+pub mod desktop;
 pub mod error;
 pub mod events;
 pub mod groq;
@@ -138,7 +139,7 @@ pub fn show_main_window(app: &AppHandle) {
     bridge::show_main_window(app, false);
 }
 
-fn stop_recording_in_background(app: &AppHandle, then_exit: bool) {
+pub(crate) fn stop_recording_in_background(app: &AppHandle, then_exit: bool) {
     let app = app.clone();
     std::thread::spawn(move || {
         if let Some(state) = app.try_state::<AppState>() {
@@ -222,11 +223,25 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::Builder::new().args([desktop::ARG_MINIMIZED]).build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(desktop::on_shortcut).build())
         .setup(|app| {
             let state = init_state(app.handle())?;
             build_tray(app.handle(), &state.bridge)?;
             tauri::async_runtime::spawn(state.worker.clone().run());
+            let (s, onboarded) = {
+                let conn = state.db.conn();
+                (settings::load(&conn)?, settings::onboarding_completed(&conn)?)
+            };
             app.manage(state);
+            if let Err(e) = desktop::set_shortcut(app.handle(), "", &s.global_shortcut) {
+                tracing::warn!("shortcut global tidak aktif: {}", e.message);
+            }
+            // Jendela main dibuat manual ("create": false): dilewati saat start dari autostart.
+            let minimized = std::env::args().any(|a| a == desktop::ARG_MINIMIZED);
+            if !minimized || !onboarded {
+                show_main_window(app.handle());
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

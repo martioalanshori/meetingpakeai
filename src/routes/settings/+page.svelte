@@ -3,6 +3,7 @@
   import { getVersion } from "@tauri-apps/api/app";
   import { api } from "$lib/api";
   import ApiKeySection from "$lib/components/ApiKeySection.svelte";
+  import ShortcutInput from "$lib/components/ShortcutInput.svelte";
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
   import type { AppError, Settings } from "$lib/types";
@@ -81,6 +82,20 @@
           <span class="text-sm text-gray-500">{t.minimizeToTrayNote}</span>
         </span>
       </label>
+
+      <label class="flex items-start gap-3">
+        <input type="checkbox" class="mt-1 h-4 w-4" bind:checked={form.autostart} />
+        <span class="flex flex-col">
+          <span>{t.autostart}</span>
+          <span class="text-sm text-gray-500">{t.autostartNote}</span>
+        </span>
+      </label>
+
+      <div class="flex flex-col gap-1">
+        <span class="text-sm font-medium">{t.shortcut}</span>
+        <ShortcutInput bind:value={form.globalShortcut} />
+        <span class="text-sm text-gray-500">{t.shortcutHint}</span>
+      </div>
 
       <label class="flex flex-col gap-1">
         <span class="text-sm font-medium">{t.consentMessage}</span>

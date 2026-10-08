@@ -41,6 +41,8 @@ export const id = {
   } satisfies Record<MeetingStatus, string>,
 
   consent: {
+    autoCopied: "Pesan consent sudah disalin — tempel ke chat meeting.",
+    enterHint: "Centang lalu tekan Enter untuk mulai.",
     title: "Sebelum merekam",
     body: "Pastikan semua peserta tahu meeting ini direkam dan ditranskrip dengan AI. Audio akan dikirim ke Groq untuk diproses.",
     messageLabel: "Pesan untuk ditempel ke chat meeting",
@@ -153,6 +155,11 @@ export const id = {
     minimizeToTray: "Tutup ke tray",
     minimizeToTrayNote: "Tombol tutup menyembunyikan aplikasi ke tray; antrean tetap diproses.",
     consentMessage: "Pesan consent",
+    shortcut: "Shortcut Mulai/Stop rekam",
+    shortcutHint: "Tekan kombinasi tombol di kolom ini (mis. Ctrl+Alt+R). Berlaku dari aplikasi mana pun. Kosongkan untuk mematikan.",
+    shortcutClear: "Matikan",
+    autostart: "Jalankan saat Windows menyala",
+    autostartNote: "Aplikasi berjalan tersembunyi di tray sehingga selalu siap merekam.",
     save: "Simpan",
     about: "Tentang",
     version: (v: string) => `Versi ${v}`,
@@ -186,6 +193,8 @@ export const id = {
     systemFail: "✖ Audio sistem tidak tertangkap. Anda tetap bisa lanjut, tetapi suara peserta lain mungkin tidak terekam. Periksa volume dan perangkat output.",
     doneTitle: "Siap dipakai!",
     tip: "Gunakan headphone untuk hasil terbaik.",
+    autostart: "Jalankan Meeting Pake AI di tray saat Windows menyala",
+    shortcutTip: (sc: string) => `Tekan ${sc} dari aplikasi mana pun untuk mulai atau berhenti merekam.`,
     start: "Mulai",
   },
 

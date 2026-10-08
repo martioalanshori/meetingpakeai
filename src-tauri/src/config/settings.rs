@@ -14,9 +14,12 @@ pub const KEY_DELETE_AUDIO: &str = "delete_audio_after_transcript";
 pub const KEY_MINIMIZE_TO_TRAY: &str = "minimize_to_tray";
 pub const KEY_CONSENT_MESSAGE: &str = "consent_message";
 pub const KEY_RECORDER_POSITION: &str = "recorder_position";
+pub const KEY_GLOBAL_SHORTCUT: &str = "global_shortcut";
+pub const KEY_AUTOSTART: &str = "autostart";
 
 pub const DEFAULT_USER_DISPLAY_NAME: &str = "Saya";
 pub const DEFAULT_SYSTEM_LABEL: &str = "Peserta lain";
+pub const DEFAULT_GLOBAL_SHORTCUT: &str = "Ctrl+Alt+R";
 pub const DEFAULT_CONSENT_MESSAGE: &str = "Halo semua, meeting ini saya rekam dan transkrip menggunakan Meeting Pake AI untuk membuat notulen. Rekaman hanya untuk keperluan internal. Jika ada yang keberatan, mohon kabari saya.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +47,10 @@ pub struct Settings {
     pub delete_audio_after_transcript: bool,
     pub minimize_to_tray: bool,
     pub consent_message: String,
+    /// Shortcut global Mulai/Stop rekam; kosong = mati.
+    pub global_shortcut: String,
+    /// Jalankan tersembunyi di tray saat Windows menyala.
+    pub autostart: bool,
 }
 
 /// `Partial<Settings>` dari `update_settings`.
@@ -55,6 +62,8 @@ pub struct SettingsPatch {
     pub delete_audio_after_transcript: Option<bool>,
     pub minimize_to_tray: Option<bool>,
     pub consent_message: Option<String>,
+    pub global_shortcut: Option<String>,
+    pub autostart: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -72,6 +81,9 @@ pub fn load(conn: &Connection) -> AppResult<Settings> {
         minimize_to_tray: repo_settings::get(conn, KEY_MINIMIZE_TO_TRAY)?.unwrap_or(true),
         consent_message: repo_settings::get(conn, KEY_CONSENT_MESSAGE)?
             .unwrap_or_else(|| DEFAULT_CONSENT_MESSAGE.to_string()),
+        global_shortcut: repo_settings::get(conn, KEY_GLOBAL_SHORTCUT)?
+            .unwrap_or_else(|| DEFAULT_GLOBAL_SHORTCUT.to_string()),
+        autostart: repo_settings::get(conn, KEY_AUTOSTART)?.unwrap_or(false),
     })
 }
 
@@ -95,6 +107,13 @@ pub fn apply_patch(conn: &Connection, patch: SettingsPatch) -> AppResult<Setting
         let msg = msg.trim();
         let msg = if msg.is_empty() { DEFAULT_CONSENT_MESSAGE } else { msg };
         repo_settings::set(conn, KEY_CONSENT_MESSAGE, &msg)?;
+    }
+    // Shortcut sudah divalidasi & didaftarkan pemanggil (command); kosong = mati.
+    if let Some(sc) = patch.global_shortcut {
+        repo_settings::set(conn, KEY_GLOBAL_SHORTCUT, &sc.trim())?;
+    }
+    if let Some(v) = patch.autostart {
+        repo_settings::set(conn, KEY_AUTOSTART, &v)?;
     }
     load(conn)
 }

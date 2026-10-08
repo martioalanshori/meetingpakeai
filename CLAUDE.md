@@ -16,6 +16,7 @@ Sumber kebenaran: **`PRD.md`**. Baca §0 sebelum mengerjakan apa pun. Kerjakan s
 | reqwest (default rustls + json, multipart) | 0.13.5 |
 | wasapi / hound | 0.25.0 / 3.5.1 |
 | tauri-plugin-dialog / winreg / webrtc-vad / strsim / async-trait | 2.8.1 / 0.56.0 / 0.4.0 / 0.11.1 / 0.1.92 |
+| tauri-plugin-global-shortcut / tauri-plugin-autostart (langkah 21) | 2.4.0 / 2.7.0 |
 | tokio (time, sync, macros, rt, rt-multi-thread) | 1.53.2 |
 | @tauri-apps/plugin-dialog | (npm) |
 | tracing / tracing-appender / tracing-subscriber (env-filter) | 0.1.44 / 0.2.5 / 0.3.23 |
@@ -105,6 +106,9 @@ Crate lain (§6.1) ditambahkan di langkahnya masing-masing; catat versinya di ta
 | Tes audio onboarding (langkah 19) | Puncak mic diambil di 0–2,5 dtk (pengguna bicara), lalu nada diputar untuk tes loopback sampai detik 5. |
 | `ended_at` meeting terputus (langkah 19) | Recovery mengisi `ended_at = started_at + duration_ms` jika masih kosong. |
 | Ikon tray memproses (langkah 19) | `icons/tray-processing.png` (placeholder lingkaran amber). Prioritas: merekam > memproses > idle; worker memanggil `EventSink::processing_changed`. Ikon final menunggu desain dari pemilik. |
+| Shortcut global (langkah 21) | Setting `globalShortcut` (default `Ctrl+Alt+R`, kosong = mati), didaftarkan dari Rust (`desktop.rs`). Idle → jendela main + popup consent; merekam → Stop. Shortcut baru gagal didaftarkan → setting tidak disimpan, shortcut lama dipulihkan. |
+| Autostart (langkah 21) | `tauri-plugin-autostart` dengan argumen `--minimized`; setting `autostart` (default mati, dicentang di langkah akhir onboarding). Jendela main `"create": false` di konfigurasi dan dibuat di `setup` kecuali start dengan `--minimized` setelah onboarding selesai. |
+| Consent cepat (langkah 21) | Pesan consent otomatis disalin ke clipboard saat popup dibuka; fokus di checkbox; centang lalu Enter = Mulai. |
 
 ## Hasil verifikasi §21
 

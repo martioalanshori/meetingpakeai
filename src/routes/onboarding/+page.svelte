@@ -10,6 +10,8 @@
   const t = id.onboarding;
 
   let step = $state(1);
+  let autostart = $state(true);
+  let shortcut = $state("");
 
   // Langkah 2: API key
   let keyInput = $state("");
@@ -34,6 +36,7 @@
     } catch {
       /* abaikan */
     }
+    shortcut = await api.getSettings().then((s) => s.globalShortcut, () => "");
     unlisten = await events.recordingLevel((l) => {
       micDb = l.micDbfs;
       sysDb = l.systemDbfs;
@@ -85,6 +88,7 @@
 
   async function finish() {
     try {
+      await api.updateSettings({ autostart }).catch(() => {});
       await api.completeOnboarding();
       await goto("/");
     } catch (e) {
@@ -221,6 +225,13 @@
     <section class="flex flex-col gap-5">
       <h1 class="text-2xl font-semibold">{t.doneTitle}</h1>
       <p class="text-gray-700">🎧 {t.tip}</p>
+      {#if shortcut}
+        <p class="text-gray-700">⌨ {t.shortcutTip(shortcut)}</p>
+      {/if}
+      <label class="flex items-center gap-2">
+        <input type="checkbox" class="h-4 w-4" bind:checked={autostart} />
+        <span>{t.autostart}</span>
+      </label>
       <button type="button" class={[primary, "self-start"]} onclick={finish}>{t.start}</button>
       {#if testError}
         <p class="text-red-700">{testError}</p>

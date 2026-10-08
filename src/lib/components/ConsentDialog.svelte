@@ -7,16 +7,30 @@
 
   let message = $state("");
   let confirmed = $state(false);
+  let autoCopied = $state(false);
   let dialog: HTMLDialogElement;
+  let checkbox: HTMLInputElement;
 
   onMount(async () => {
     dialog.showModal();
+    checkbox.focus();
     try {
       message = (await api.getSettings()).consentMessage;
+      // Pesan langsung ada di clipboard: tinggal tempel ke chat meeting.
+      await navigator.clipboard.writeText(message);
+      autoCopied = true;
     } catch {
-      message = "";
+      /* salin manual lewat tombol */
     }
   });
+
+  function onKeydown(e: KeyboardEvent) {
+    // Centang + Enter = mulai (satu gerakan).
+    if (e.key === "Enter" && confirmed && !rec.busy && e.target instanceof HTMLInputElement) {
+      e.preventDefault();
+      startRecording();
+    }
+  }
 
   function close() {
     rec.consentOpen = false;
@@ -40,6 +54,7 @@
     e.preventDefault();
     close();
   }}
+  onkeydown={onKeydown}
 >
   <div class="flex flex-col gap-4 p-6">
     <h2 id="consent-title" class="text-lg font-semibold">{id.consent.title}</h2>
@@ -56,11 +71,15 @@
     >
       {id.consent.copy}
     </button>
+    {#if autoCopied}
+      <p class="text-sm text-emerald-700" role="status">{id.consent.autoCopied}</p>
+    {/if}
 
     <label class="flex items-center gap-2">
-      <input type="checkbox" class="h-4 w-4" bind:checked={confirmed} />
+      <input type="checkbox" class="h-4 w-4" bind:this={checkbox} bind:checked={confirmed} />
       <span>{id.consent.checkbox}</span>
     </label>
+    <p class="text-xs text-gray-500">{id.consent.enterHint}</p>
 
     <div class="flex justify-end gap-2">
       <button type="button" class="rounded-lg px-4 py-2 hover:bg-gray-100" onclick={close}>

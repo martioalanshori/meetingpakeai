@@ -1,8 +1,9 @@
 use std::sync::atomic::Ordering;
 
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::config::settings::{self, Settings, SettingsPatch};
+use crate::desktop;
 use crate::error::AppResult;
 use crate::AppState;
 
@@ -12,7 +13,20 @@ pub async fn get_settings(state: State<'_, AppState>) -> AppResult<Settings> {
 }
 
 #[tauri::command]
-pub async fn update_settings(state: State<'_, AppState>, patch: SettingsPatch) -> AppResult<Settings> {
+pub async fn update_settings(app: AppHandle, state: State<'_, AppState>, patch: SettingsPatch) -> AppResult<Settings> {
+    let current = settings::load(&state.db.conn())?;
+    // Efek ke sistem dulu; gagal → setting tidak disimpan.
+    if let Some(sc) = &patch.global_shortcut {
+        let sc = sc.trim();
+        if sc != current.global_shortcut {
+            desktop::set_shortcut(&app, &current.global_shortcut, sc)?;
+        }
+    }
+    if let Some(v) = patch.autostart {
+        if v != current.autostart {
+            desktop::set_autostart(&app, v)?;
+        }
+    }
     let updated = settings::apply_patch(&state.db.conn(), patch)?;
     state.minimize_to_tray.store(updated.minimize_to_tray, Ordering::Relaxed);
     Ok(updated)

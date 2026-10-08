@@ -98,6 +98,9 @@ export type Settings = {
   deleteAudioAfterTranscript: boolean;
   minimizeToTray: boolean;
   consentMessage: string;
+  /** Shortcut global Mulai/Stop rekam, mis. "Ctrl+Alt+R"; "" = mati. */
+  globalShortcut: string;
+  autostart: boolean;
 };
 
 export type AudioTestResult = {
