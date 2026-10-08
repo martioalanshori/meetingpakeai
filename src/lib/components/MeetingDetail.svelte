@@ -16,7 +16,7 @@
   import Menu, { type MenuEntry } from "$lib/components/Menu.svelte";
   import { confirmDialog } from "$lib/confirm.svelte";
   import { detailTab, setWindowTitle } from "$lib/viewport.svelte";
-  import { formatActionItems, formatMinutes, formatSummaryTab, formatTranscript } from "$lib/minutes";
+  import { formatActionItems, formatMinutes, formatSummaryTab, formatTranscript, markdownToHtml } from "$lib/minutes";
   import { formatDateTime, formatDuration, formatTime, formatTimestamp } from "$lib/format";
   import { id as t } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
@@ -239,14 +239,6 @@
     if (!meeting) return [];
     const m = meeting;
     const items: MenuEntry[] = [];
-    if (m.summary) {
-      items.push(
-        { label: t.minutes.exportMd, icon: "download", onselect: () => exportFile("markdown") },
-        { label: t.minutes.exportTxt, icon: "download", onselect: () => exportFile("text") },
-        { label: t.minutes.print, icon: "printer", onselect: printMinutes },
-        { separator: true },
-      );
-    }
     items.push(
       {
         label: t.detail.regenerate,
@@ -267,6 +259,49 @@
     );
     return items;
   });
+
+  // Bagikan (feedback3 F2): semua cara mengirim notulen di satu tempat.
+  const shareItems = $derived.by((): MenuEntry[] => {
+    if (!meeting?.summary) return [];
+    const items: MenuEntry[] = [{ label: t.detail.copyMinutes, icon: "copy", onselect: copyMinutes }];
+    if (meeting.status === "done" && meeting.summary.status === "ok") {
+      items.push({
+        label: t.followUp.button,
+        icon: "send",
+        onselect: () => {
+          tab = "summary";
+          followOpen = true;
+        },
+      });
+    }
+    items.push(
+      { separator: true },
+      { label: t.minutes.exportMd, icon: "download", onselect: () => exportFile("markdown") },
+      { label: t.minutes.exportTxt, icon: "download", onselect: () => exportFile("text") },
+      { label: t.minutes.print, icon: "printer", onselect: printMinutes },
+    );
+    return items;
+  });
+
+  async function copyMinutes() {
+    if (!meeting) return;
+    const plain = formatMinutes(meeting, "text");
+    try {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/plain": new Blob([plain], { type: "text/plain" }),
+            "text/html": new Blob([markdownToHtml(formatMinutes(meeting, "markdown"))], { type: "text/html" }),
+          }),
+        ]);
+      } catch {
+        await navigator.clipboard.writeText(plain);
+      }
+      showToast(t.detail.copiedMinutes, "success", 2000);
+    } catch {
+      showToast(t.minutes.copyFailed, "error");
+    }
+  }
 
   async function saveSummary(edit: SummaryEdit) {
     try {
@@ -680,6 +715,11 @@
           </h1>
         {/if}
 
+        {#if shareItems.length > 0}
+          <Menu label={t.detail.share} items={shareItems} triggerClass="btn btn-line btn-sm">
+            {#snippet trigger()}<Icon name="send" size={14} /><span class="max-sm:sr-only">{t.detail.share}</span>{/snippet}
+          </Menu>
+        {/if}
         <Menu label={t.detail.menu} items={menuItems}>
           {#snippet trigger()}<Icon name="more" size={20} />{/snippet}
         </Menu>
@@ -841,7 +881,21 @@
         {#if !meeting.summary}
           <p class="max-w-prose text-ink-soft">{emptyNote}</p>
         {:else if tab === "summary" && meeting.summary.status === "empty"}
-          <p class="text-ink-soft">{t.summary.noSpeech}</p>
+          <!-- F3: notulen kosong dengan langkah yang bisa dilakukan. -->
+          <section class="flex max-w-prose flex-col items-start gap-2 rounded-xl border border-dashed border-line px-6 py-8">
+            <p class="text-lg font-semibold">{t.detail.emptyTitle}</p>
+            <p class="text-ink-soft">{t.detail.emptyHelp}</p>
+            <div class="mt-1 flex flex-wrap gap-2">
+              {#if transcript.length > 0}
+                <button type="button" class="btn btn-line btn-sm" onclick={() => (tab = "transcript")}>{t.detail.tabTranscript}</button>
+              {/if}
+              {#if canRetranscribe}
+                <button type="button" class="btn btn-ink btn-sm" onclick={() => act(() => api.retranscribe(meetingId), t.toast.requeued)}>
+                  <Icon name="refresh" size={14} />{t.detail.retranscribe}
+                </button>
+              {/if}
+            </div>
+          </section>
         {:else if tab === "summary"}
           {#if followOpen && meeting.status === "done"}
             {#key meeting.id}

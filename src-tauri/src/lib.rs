@@ -227,11 +227,36 @@ fn request_quit(app: &AppHandle) {
         });
 }
 
+/// Buka jendela main di meeting `done` terbaru (`route = None`) atau di halaman tertentu (langkah 57).
+fn open_in_main(app: &AppHandle, route: Option<&str>) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    match route {
+        Some(r) => state.bridge.set_pending_nav(r),
+        None => {
+            let latest: Option<String> = state
+                .db
+                .conn()
+                .query_row("SELECT id FROM meetings WHERE status = 'done' ORDER BY started_at DESC LIMIT 1", [], |r| r.get(0))
+                .ok();
+            if let Some(id) = latest {
+                state.bridge.set_pending_meeting(&id);
+            }
+        }
+    }
+    show_main_window(app);
+    let _ = tauri::Emitter::emit_to(app, "main", bridge::EV_APP_PENDING, ());
+}
+
 fn build_tray(app: &AppHandle, bridge: &TauriBridge) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Buka Meeting Pake AI", true, None::<&str>)?;
     let record = MenuItem::with_id(app, "record", "Mulai rekam", true, None::<&str>)?;
+    // Langkah 57 (feedback3 A4): akses cepat ke hasil tanpa membuka aplikasi dulu.
+    let latest = MenuItem::with_id(app, "latest", "Notulen terakhir", true, None::<&str>)?;
+    let tasks = MenuItem::with_id(app, "tasks", "Tugas terbuka", true, None::<&str>)?;
+    let sep1 = tauri::menu::PredefinedMenuItem::separator(app)?;
+    let sep2 = tauri::menu::PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Keluar", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &record, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &record, &sep1, &latest, &tasks, &sep2, &quit])?;
     *bridge.record_item.lock().unwrap_or_else(|e| e.into_inner()) = Some(record.clone());
 
     TrayIconBuilder::with_id(TRAY_ID)
@@ -249,6 +274,8 @@ fn build_tray(app: &AppHandle, bridge: &TauriBridge) -> tauri::Result<()> {
                     start_recording_in_background(app);
                 }
             }
+            "latest" => open_in_main(app, None),
+            "tasks" => open_in_main(app, Some("/tasks")),
             "quit" => request_quit(app),
             _ => {}
         })
@@ -390,6 +417,8 @@ pub fn run() {
             commands::meetings::save_notes,
             commands::meetings::toggle_bookmark_at,
             commands::meetings::ask_meeting,
+            commands::meetings::weekly_digest,
+            commands::meetings::weekly_summary_text,
             commands::meetings::previous_open_tasks,
             commands::meetings::update_action_item,
             commands::meetings::add_action_item,
@@ -401,6 +430,7 @@ pub fn run() {
             commands::meetings::clear_meeting_qa,
             commands::recording::open_notes_window,
             commands::recording::open_meeting_in_main,
+            commands::recording::take_pending_nav,
             commands::meetings::retranscribe,
             commands::meetings::resolve_interrupted,
         ])

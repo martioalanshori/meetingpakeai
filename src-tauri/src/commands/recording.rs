@@ -38,6 +38,12 @@ pub async fn resume_recording(state: State<'_, AppState>) -> AppResult<Recording
     state.recording.resume()
 }
 
+/// Tambahan (langkah 57): halaman tujuan dari menu tray (sekali ambil).
+#[tauri::command]
+pub async fn take_pending_nav(state: State<'_, AppState>) -> AppResult<Option<String>> {
+    Ok(state.bridge.take_pending_nav())
+}
+
 /// Tambahan (langkah 48): kartu "Notulen siap" → buka jendela main di meeting itu.
 #[tauri::command]
 pub async fn open_meeting_in_main(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> AppResult<()> {

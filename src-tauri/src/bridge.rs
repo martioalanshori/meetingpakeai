@@ -52,6 +52,8 @@ pub struct TauriBridge {
     /// Notifikasi desktop tidak punya handler klik: meeting terakhir yang selesai dibuka
     /// saat jendela main berikutnya mendapat fokus (klik notifikasi / tray).
     pending_meeting: Mutex<Option<(String, Instant)>>,
+    /// Halaman yang dibuka saat jendela main berikutnya fokus (menu tray "Tugas terbuka"), langkah 57.
+    pending_nav: Mutex<Option<String>>,
     /// Tawaran rekam dari deteksi meeting: jenis aplikasi (`source_app`).
     pending_offer: Mutex<Option<(String, Instant)>>,
     recording: AtomicBool,
@@ -214,6 +216,7 @@ impl TauriBridge {
             db,
             record_item: Mutex::new(None),
             pending_meeting: Mutex::new(None),
+            pending_nav: Mutex::new(None),
             pending_offer: Mutex::new(None),
             recording: AtomicBool::new(false),
             processing: AtomicBool::new(false),
@@ -231,6 +234,14 @@ impl TauriBridge {
     }
 
     /// Meeting yang menunggu dibuka dari notifikasi "Notulen siap" (sekali ambil).
+    pub fn set_pending_nav(&self, route: &str) {
+        *self.pending_nav.lock().unwrap_or_else(|e| e.into_inner()) = Some(route.to_string());
+    }
+
+    pub fn take_pending_nav(&self) -> Option<String> {
+        self.pending_nav.lock().unwrap_or_else(|e| e.into_inner()).take()
+    }
+
     pub fn set_pending_meeting(&self, meeting_id: &str) {
         *self.pending_meeting.lock().unwrap_or_else(|e| e.into_inner()) = Some((meeting_id.to_string(), Instant::now()));
     }

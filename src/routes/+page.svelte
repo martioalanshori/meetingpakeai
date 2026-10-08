@@ -176,6 +176,49 @@
     return () => io.disconnect();
   }
 
+  // Ringkasan mingguan (feedback3 D5): kartu sampai ditutup untuk minggu itu.
+  let week = $state<Awaited<ReturnType<typeof api.weeklyDigest>> | null>(null);
+  let weekText = $state("");
+  let weekBusy = $state(false);
+  let weekHidden = $state(false);
+  const WEEK_KEY = "weekly-digest-closed";
+
+  async function loadWeek() {
+    try {
+      const w = await api.weeklyDigest();
+      let closed: string | null = null;
+      try {
+        closed = localStorage.getItem(WEEK_KEY);
+      } catch {
+        /* penyimpanan tidak tersedia */
+      }
+      weekHidden = closed === w.weekStart;
+      week = w;
+    } catch {
+      week = null;
+    }
+  }
+
+  async function summarizeWeek() {
+    weekBusy = true;
+    try {
+      weekText = await api.weeklySummaryText();
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    } finally {
+      weekBusy = false;
+    }
+  }
+
+  function closeWeek() {
+    weekHidden = true;
+    try {
+      if (week) localStorage.setItem(WEEK_KEY, week.weekStart);
+    } catch {
+      /* abaikan */
+    }
+  }
+
   let importing = $state(false);
   let dragOver = $state(false);
 
@@ -235,6 +278,7 @@
       }),
     );
     await reload();
+    loadWeek();
     refreshQueuePaused();
     lastRecordingStatus = await api.getRecordingState().then((r) => r.status, () => "idle");
     unlisten.push(
@@ -312,6 +356,32 @@
       </button>
     </div>
   {/each}
+
+  {#if week && week.meetings > 0 && !weekHidden && query.trim() === ""}
+    <section class="flex flex-col gap-2 rounded-xl border border-line bg-sheet px-4 py-3.5" aria-label={id.home.weekTitle}>
+      <div class="flex items-start gap-2">
+        <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span class="font-semibold">{id.home.weekTitle}</span>
+          <span class="text-sm text-ink-soft">{id.home.weekStats(week.meetings, week.minutes, week.decisions)}</span>
+          {#if week.openTasks > 0}
+            <a href="/tasks" class={["text-sm", week.overdue > 0 ? "font-semibold text-bad" : "link"]}
+              >{id.home.weekTasks(week.openTasks, week.overdue)}</a
+            >
+          {/if}
+        </div>
+        <button type="button" class="btn btn-quiet btn-icon btn-sm" aria-label={id.home.weekClose} title={id.home.weekClose} onclick={closeWeek}>
+          <Icon name="x" size={14} />
+        </button>
+      </div>
+      {#if weekText}
+        <p class="text-sm leading-relaxed">{weekText}</p>
+      {:else}
+        <button type="button" class="btn btn-line btn-sm self-start" disabled={weekBusy} onclick={summarizeWeek}>
+          {weekBusy ? id.home.weekBusy : id.home.weekSummarize}
+        </button>
+      {/if}
+    </section>
+  {/if}
 
   {#if query.trim().length >= 3}
     <!-- Tanya AI lintas meeting (feedback3 D1). -->

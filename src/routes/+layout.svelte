@@ -22,6 +22,8 @@
   async function openPending() {
     const meetingId = await api.takePendingMeeting().catch(() => null);
     if (meetingId) await goto(`/meeting/${meetingId}`);
+    const nav = await api.takePendingNav().catch(() => null);
+    if (nav) await goto(nav);
     const offer = await api.takePendingOffer().catch(() => null);
     if (offer && rec.state.status === "idle") rec.offer = offer;
   }
