@@ -294,6 +294,35 @@
   }
 
 
+  /** Segment terakhir yang mulai ≤ `ms` (pencarian biner); null jika transkrip kosong. */
+  function segmentAt(ms: number): TranscriptSegment | null {
+    if (transcript.length === 0) return null;
+    let lo = 0;
+    let hi = transcript.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (transcript[mid].startMs <= ms) lo = mid;
+      else hi = mid - 1;
+    }
+    return transcript[lo];
+  }
+
+  /** Chip waktu keputusan/tugas: buka Transkrip di baris terdekat (sedikit sebelum, agar konteks terbaca) dan putar. */
+  async function jumpTo(ms: number) {
+    const target = Math.max(0, ms - 3000);
+    tab = "transcript";
+    await tick();
+    const seg = segmentAt(target);
+    if (seg) {
+      followUntil = Date.now() + 5000;
+      const el = document.getElementById(`seg-${seg.id}`);
+      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+      el?.classList.add("flash");
+      setTimeout(() => el?.classList.remove("flash"), 1600);
+    }
+    if (!meeting?.audioDeleted) await playAt(seg?.startMs ?? target);
+  }
+
   /** Segment yang sedang diputar: `startMs` terbesar yang ≤ posisi (pencarian biner). */
   const activeSegId = $derived.by(() => {
     if (playMs === null || transcript.length === 0) return null;
@@ -364,6 +393,20 @@
     { key: "transcript", text: t.detail.tabTranscript },
   ];
 </script>
+
+{#snippet sourceChip(ms: number | null | undefined)}
+  {#if ms !== null && ms !== undefined && transcript.length > 0}
+    <button
+      type="button"
+      class="tabular ml-1.5 inline-flex translate-y-[-0.1em] items-center gap-1 rounded-md bg-wash px-1.5 py-px align-middle text-xs text-ink-soft hover:bg-line-soft hover:text-ink print:hidden"
+      title={t.detail.sourceAt(formatTimestamp(ms))}
+      aria-label={t.detail.sourceAt(formatTimestamp(ms))}
+      onclick={() => jumpTo(ms)}
+    >
+      <Icon name="play" size={10} />{formatTimestamp(ms)}
+    </button>
+  {/if}
+{/snippet}
 
 {#if meeting}
   <!-- Hanya tampil saat dicetak (Cetak / simpan PDF): dokumen notulen berformat, bukan teks polos. -->
@@ -606,7 +649,8 @@
                   <ul class="flex flex-col gap-2">
                     {#each meeting.summary.decisions as d, i (i)}
                       <li class="grid grid-cols-[1rem_1fr] text-lg leading-relaxed">
-                        <span class="mt-[0.7em] h-1.5 w-1.5 rounded-full bg-ink" aria-hidden="true"></span>{d}
+                        <span class="mt-[0.7em] h-1.5 w-1.5 rounded-full bg-ink" aria-hidden="true"></span>
+                        <span>{d}{@render sourceChip(meeting.summary.decisionSources[i])}</span>
                       </li>
                     {/each}
                   </ul>
@@ -645,7 +689,9 @@
                       />
                       <span class="flex min-w-0 flex-col text-sm">
                         <span class={a.done ? "text-ink-faint line-through" : ""}>{a.task}</span>
-                        {#if a.assignee}<span class="text-ink-soft">{a.assignee}</span>{/if}
+                        {#if a.assignee || a.sourceMs !== null}
+                          <span class="text-ink-soft">{a.assignee ?? ""}{@render sourceChip(a.sourceMs)}</span>
+                        {/if}
                       </span>
                     </li>
                   {/each}
@@ -668,10 +714,11 @@
                 />
                 <div class="flex min-w-0 flex-col gap-0.5">
                   <span class={a.done ? "text-ink-faint line-through" : "font-medium"}>{a.task}</span>
-                  {#if a.assignee || a.due}
-                    <span class="flex flex-wrap gap-x-4 text-sm text-ink-soft">
+                  {#if a.assignee || a.due || a.sourceMs !== null}
+                    <span class="flex flex-wrap items-baseline gap-x-4 text-sm text-ink-soft">
                       {#if a.assignee}<span>{t.detail.assignee} <span class="text-ink">{a.assignee}</span></span>{/if}
                       {#if a.due}<span>{t.detail.due} <span class="text-ink">{a.due}</span></span>{/if}
+                      {#if a.sourceMs !== null}<span class="-ml-1.5">{@render sourceChip(a.sourceMs)}</span>{/if}
                     </span>
                   {/if}
                 </div>
@@ -828,6 +875,10 @@
 
   /* Transkrip panjang: browser hanya me-render blok yang terlihat (PRD §14.5). Perkiraan tinggi
      dipakai sebelum blok pertama kali tampil, lalu diganti tinggi sebenarnya (`auto`). */
+  :global(.row.flash) {
+    background: var(--color-wash);
+    box-shadow: inset 3px 0 0 var(--color-ink);
+  }
   .virtualized .seg-block {
     content-visibility: auto;
     contain-intrinsic-size: auto calc(var(--rows) * 2.6rem);

@@ -768,9 +768,9 @@ impl Worker {
         };
         let mut conn = self.db.conn();
         match outcome {
-            SummaryOutcome::Empty => repo_summary::save(&mut conn, id, None, &model)?,
+            SummaryOutcome::Empty => repo_summary::save(&mut conn, id, None, &model, m.duration_ms)?,
             SummaryOutcome::Notes(notes) => {
-                repo_summary::save(&mut conn, id, Some(&notes), &model)?;
+                repo_summary::save(&mut conn, id, Some(&notes), &model, m.duration_ms)?;
                 repo_meetings::set_generated_title(&conn, id, &notes.judul)?;
             }
         }

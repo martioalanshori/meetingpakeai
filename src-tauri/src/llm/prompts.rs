@@ -11,7 +11,8 @@ Aturan:
 
 pub const CHUNK: &str = "Tanggal meeting: {tanggal_iso}. Ini bagian {i} dari {n} transkrip.
 Ekstrak informasi HANYA dari bagian ini dengan format:
-{\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
+{\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [{\"teks\": \"...\", \"sumber\": \"HH:MM:SS\"}], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null, \"sumber\": \"HH:MM:SS\"}], \"topik\": [\"...\"]}
+sumber: waktu [HH:MM:SS] baris transkrip tempat keputusan atau tugas dibahas; null jika tidak yakin.
 Gunakan array kosong [] jika tidak ada.
 
 TRANSKRIP:
@@ -21,7 +22,7 @@ TRANSKRIP:
 
 pub const FINAL: &str = "Tanggal meeting: {tanggal_iso}.
 Buat notulen dari transkrip berikut dengan format:
-{\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
+{\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [{\"teks\": \"...\", \"sumber\": \"HH:MM:SS\"}], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null, \"sumber\": \"HH:MM:SS\"}], \"topik\": [\"...\"]}
 Ketentuan:
 - judul: maksimal 8 kata, menggambarkan inti meeting.
 - ringkasan: 1-3 paragraf bergaya notulen rapat profesional: buka dengan tujuan atau konteks meeting, lalu poin pembahasan utama, lalu hasil dan langkah berikutnya. Kalimat lugas, sudut pandang orang ketiga, tanpa opini, tanpa basa-basi pembuka.
@@ -30,6 +31,7 @@ Ketentuan:
 - action_items.penanggung_jawab: nama orang jika disebut; \"{label_saya}\" jika pemilik rekaman berkomitmen; null jika tidak jelas.
 - action_items.tenggat: tulis seperti yang disebut; jika tanggal relatif bisa dihitung dari tanggal meeting, tambahkan tanggal dalam kurung format YYYY-MM-DD, contoh \"Jumat depan (2026-10-16)\"; null jika tidak disebut.
 - topik: maksimal 8 item.
+- sumber: waktu [HH:MM:SS] baris transkrip tempat keputusan atau tugas itu dibahas; null jika tidak yakin.
 Gunakan array kosong [] jika tidak ada.
 
 TRANSKRIP:
@@ -43,8 +45,8 @@ Berikut hasil ekstraksi per bagian dari satu meeting (JSON array, berurutan):
 {json_parsial}
 >>>
 Gabungkan menjadi satu notulen dengan format dan ketentuan yang sama persis seperti berikut:
-{\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
-- Gabungkan keputusan dan action item yang sama atau mirip menjadi satu.
+{\"judul\": \"...\", \"ringkasan\": \"...\", \"keputusan\": [{\"teks\": \"...\", \"sumber\": \"HH:MM:SS\"}], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null, \"sumber\": \"HH:MM:SS\"}], \"topik\": [\"...\"]}
+- Gabungkan keputusan dan action item yang sama atau mirip menjadi satu; pertahankan sumber paling awal.
 - judul maksimal 8 kata; ringkasan 1-3 paragraf bergaya notulen rapat profesional (tujuan/konteks, poin pembahasan, hasil dan langkah berikutnya); topik maksimal 8 item.";
 
 /// Merge perantara (merge bertingkat) memakai format CHUNK (`ringkasan_bagian`) — PRD §10.4.
@@ -54,8 +56,8 @@ Berikut hasil ekstraksi per bagian dari satu meeting (JSON array, berurutan):
 {json_parsial}
 >>>
 Gabungkan menjadi satu ekstraksi dengan format:
-{\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [\"...\"], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null}], \"topik\": [\"...\"]}
-- Gabungkan keputusan dan action item yang sama atau mirip menjadi satu.
+{\"ringkasan_bagian\": \"3-6 kalimat\", \"keputusan\": [{\"teks\": \"...\", \"sumber\": \"HH:MM:SS\"}], \"action_items\": [{\"tugas\": \"...\", \"penanggung_jawab\": null, \"tenggat\": null, \"sumber\": \"HH:MM:SS\"}], \"topik\": [\"...\"]}
+- Gabungkan keputusan dan action item yang sama atau mirip menjadi satu; pertahankan sumber paling awal.
 Gunakan array kosong [] jika tidak ada.";
 
 pub const RETRY: &str =

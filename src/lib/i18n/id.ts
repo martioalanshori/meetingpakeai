@@ -136,6 +136,7 @@ export const id = {
     tabActionItems: "Tugas",
     tabTranscript: "Transkrip",
     tabsLabel: "Bagian notulen",
+    sourceAt: (ts: string) => `Lihat di transkrip (${ts})`,
     processing: "Sedang diproses…",
     retry: "Coba lagi",
     menu: "Menu lainnya",

@@ -8,6 +8,17 @@ pub struct ActionItem {
     pub tugas: String,
     pub penanggung_jawab: Option<String>,
     pub tenggat: Option<String>,
+    /// Waktu di transkrip `HH:MM:SS` tempat tugas dibahas (langkah 42).
+    #[serde(default)]
+    pub sumber: Option<String>,
+}
+
+/// Keputusan + waktu sumbernya. Format lama (string saja) tetap diterima.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Decision {
+    pub teks: String,
+    #[serde(default)]
+    pub sumber: Option<String>,
 }
 
 /// Hasil final (FINAL / MERGE).
@@ -15,7 +26,7 @@ pub struct ActionItem {
 pub struct FinalNotes {
     pub judul: String,
     pub ringkasan: String,
-    pub keputusan: Vec<String>,
+    pub keputusan: Vec<Decision>,
     pub action_items: Vec<ActionItem>,
     pub topik: Vec<String>,
 }
@@ -24,7 +35,7 @@ pub struct FinalNotes {
 #[derive(Debug, Clone, Serialize)]
 pub struct PartialNotes {
     pub ringkasan_bagian: String,
-    pub keputusan: Vec<String>,
+    pub keputusan: Vec<Decision>,
     pub action_items: Vec<ActionItem>,
     pub topik: Vec<String>,
 }
@@ -71,6 +82,38 @@ fn string_list(v: Option<&Value>) -> Result<Vec<String>, String> {
     }
 }
 
+/// `keputusan`: array string (format lama) atau objek `{teks, sumber}`.
+fn decisions(v: Option<&Value>) -> Result<Vec<Decision>, String> {
+    match v {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(Value::Array(items)) => Ok(items
+            .iter()
+            .filter_map(|i| match i {
+                Value::String(s) if !s.trim().is_empty() => Some(Decision { teks: s.trim().to_string(), sumber: None }),
+                Value::Object(_) => {
+                    let teks = opt_string(i.get("teks")).or_else(|| opt_string(i.get("text")))?;
+                    Some(Decision { teks, sumber: opt_string(i.get("sumber")) })
+                }
+                _ => None,
+            })
+            .collect()),
+        Some(Value::String(s)) if !s.trim().is_empty() => Ok(vec![Decision { teks: s.trim().to_string(), sumber: None }]),
+        Some(_) => Err("keputusan bukan array".into()),
+    }
+}
+
+/// `HH:MM:SS` / `MM:SS` (boleh diawali `[`) → ms.
+pub fn timestamp_ms(s: &str) -> Option<i64> {
+    let s = s.trim().trim_start_matches('[').trim_end_matches(']');
+    let parts: Vec<i64> = s.split(':').map(|p| p.trim().parse::<i64>().ok()).collect::<Option<Vec<_>>>()?;
+    let secs = match parts.as_slice() {
+        [h, m, sec] => h * 3600 + m * 60 + sec,
+        [m, sec] => m * 60 + sec,
+        _ => return None,
+    };
+    (secs >= 0).then_some(secs * 1000)
+}
+
 fn action_items(v: Option<&Value>) -> Result<Vec<ActionItem>, String> {
     match v {
         None | Some(Value::Null) => Ok(Vec::new()),
@@ -82,6 +125,7 @@ fn action_items(v: Option<&Value>) -> Result<Vec<ActionItem>, String> {
                     tugas,
                     penanggung_jawab: opt_string(i.get("penanggung_jawab")),
                     tenggat: opt_string(i.get("tenggat")),
+                    sumber: opt_string(i.get("sumber")),
                 })
             })
             .collect()),
@@ -100,7 +144,7 @@ pub fn parse_final(raw: &str) -> Result<FinalNotes, String> {
     Ok(FinalNotes {
         judul: truncate_chars(&judul, 100),
         ringkasan,
-        keputusan: string_list(v.get("keputusan"))?,
+        keputusan: decisions(v.get("keputusan"))?,
         action_items: action_items(v.get("action_items"))?,
         topik: string_list(v.get("topik"))?.into_iter().take(8).collect(),
     })
@@ -113,7 +157,7 @@ pub fn parse_partial(raw: &str) -> Result<PartialNotes, String> {
         .unwrap_or_default();
     Ok(PartialNotes {
         ringkasan_bagian,
-        keputusan: string_list(v.get("keputusan"))?,
+        keputusan: decisions(v.get("keputusan"))?,
         action_items: action_items(v.get("action_items"))?,
         topik: string_list(v.get("topik"))?,
     })
@@ -129,7 +173,7 @@ mod tests {
             "action_items":[{"tugas":"Kirim","penanggung_jawab":"Budi","tenggat":null}],"topik":["x","y"]}"#;
         let n = parse_final(raw).unwrap();
         assert_eq!(n.judul, "Rapat");
-        assert_eq!(n.keputusan, vec!["A"]);
+        assert_eq!(n.keputusan[0].teks, "A");
         assert_eq!(n.action_items.len(), 1);
         assert_eq!(n.action_items[0].penanggung_jawab.as_deref(), Some("Budi"));
         assert_eq!(n.action_items[0].tenggat, None);

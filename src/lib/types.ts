@@ -65,12 +65,16 @@ export type ActionItem = {
   assignee: string | null;
   due: string | null;
   done: boolean;
+  /** Ms dari awal meeting tempat tugas dibahas; null = tidak diketahui. */
+  sourceMs: number | null;
 };
 
 export type MeetingSummary = {
   status: "ok" | "empty";
   summary: string | null;
   decisions: string[];
+  /** Sejajar `decisions`. */
+  decisionSources: (number | null)[];
   topics: string[];
   /** Sudah diubah pengguna. */
   edited: boolean;
