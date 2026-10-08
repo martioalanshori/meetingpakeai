@@ -44,6 +44,22 @@
   let titleDraft = $state("");
   let titleInput = $state<HTMLInputElement | null>(null);
   let editingSummary = $state(false);
+  let soFar = $state<string[]>([]);
+  let soFarBusy = $state(false);
+  /** Transkrip belum final (id negatif dari Rust = segment sementara). */
+  const isLive = $derived(transcript.length > 0 && transcript[0].id < 0);
+
+  async function summarizeSoFar() {
+    if (!meeting || soFarBusy) return;
+    soFarBusy = true;
+    try {
+      soFar = await api.summarizeSoFar(meeting.id);
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    } finally {
+      soFarBusy = false;
+    }
+  }
   let followOpen = $state(false);
   let audioSrc = $state<string | null>(null);
   let player = $state<AudioPlayer | null>(null);
@@ -93,7 +109,8 @@
         const remembered = detailTab.meetingId === mid ? detailTab.tab : null;
         const wanted = remembered ?? initialTab;
         if (wanted === "summary" || wanted === "actions" || wanted === "transcript") tab = wanted;
-        else if (m.status !== "done" && m.summary === null) tab = tr.length > 0 ? "transcript" : "summary";
+        else if (m.status !== "done" && m.summary === null)
+          tab = tr.length > 0 || m.status === "recording" ? "transcript" : "summary";
         else tab = "summary";
       }
     } catch (e) {
@@ -135,6 +152,10 @@
       }),
       await events.meetingUpdated((p) => {
         if (p.meetingId === meetingId || p.meetingId === "") load();
+      }),
+      // Transkripsi bertahap selesai satu putaran → transkrip sementara bertambah.
+      await events.recordingLive(() => {
+        if (meeting?.status === "recording") load();
       }),
     );
   });
@@ -806,9 +827,36 @@
           </ul>
         {/if}
       {:else if transcript.length === 0}
-        <p class="max-w-prose text-ink-soft">{processing ? t.detail.processing : t.detail.emptyTranscript}</p>
+        <p class="max-w-prose text-ink-soft">
+          {meeting.status === "recording" ? t.detail.liveEmpty : processing ? t.detail.processing : t.detail.emptyTranscript}
+        </p>
       {:else}
-        {#if !meeting.audioDeleted}<p class="-mt-2 text-sm text-ink-faint">{t.detail.clickToPlay}</p>{/if}
+        {#if isLive}
+          <!-- Transkrip sementara (feedback3 B1) + Ringkas sejauh ini. -->
+          <div class="-mt-1 flex flex-col gap-3 rounded-xl border border-line bg-paper/60 p-4">
+            <div class="flex flex-wrap items-start gap-3">
+              <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span class="font-semibold">{t.detail.liveTranscript}</span>
+                <span class="hint">{t.detail.liveTranscriptHint}</span>
+              </div>
+              <button type="button" class="btn btn-ink btn-sm" disabled={soFarBusy} onclick={summarizeSoFar}>
+                <Icon name="list" size={14} />{soFarBusy ? t.detail.soFarBusy : t.detail.soFar}
+              </button>
+            </div>
+            {#if soFar.length > 0}
+              <div class="flex flex-col gap-1.5 border-t border-line pt-3" role="status">
+                <span class="text-sm font-semibold">{t.detail.soFarTitle}</span>
+                <ul class="flex flex-col gap-1.5">
+                  {#each soFar as p, i (i)}
+                    <li class="grid grid-cols-[1rem_1fr] leading-relaxed">
+                      <span class="mt-[0.65em] h-1.5 w-1.5 rounded-full bg-ink" aria-hidden="true"></span>{p}
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+            {/if}
+          </div>
+        {:else if !meeting.audioDeleted}<p class="-mt-2 text-sm text-ink-faint">{t.detail.clickToPlay}</p>{/if}
 
         {#if audioSrc || audioLoading}
           <div class="sticky top-2 z-10 rounded-xl border border-line bg-sheet px-3 py-2 shadow-[0_8px_24px_-12px_rgb(30_36_51/0.3)]">
@@ -838,7 +886,7 @@
               ]}
               aria-current={s.id === activeSegId ? "true" : undefined}
             >
-              {#if meeting.audioDeleted}
+              {#if meeting.audioDeleted || isLive}
                 <span class="tabular text-sm text-ink-faint">{formatTimestamp(s.startMs)}</span>
               {:else}
                 <button
