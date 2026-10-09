@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Logo aplikasi (Logo.png: empat kotak hitam + kotak tengah oranye), digambar ulang sebagai SVG agar tajam di semua ukuran.
+  // Logo aplikasi (assets/Logo.png: empat kotak hitam + kotak tengah oranye), digambar ulang sebagai SVG agar tajam di semua ukuran.
   let { size = 22, showName = true }: { size?: number; showName?: boolean } = $props();
 </script>
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Beranda (PLAN-beranda.md + PLAN-evaluasi-beranda.md), disederhanakan 2026-10-09 atas permintaan pemilik:
+  // Beranda (docs/rencana/PLAN-beranda.md + PLAN-evaluasi-beranda.md), disederhanakan 2026-10-09 atas permintaan pemilik:
   // sapaan + kolom Tanya, status hanya jika perlu perhatian, lalu daftar ringkas notulen terbaru & tugas mendesak.
   import { onDestroy, onMount } from "svelte";
   import type { UnlistenFn } from "@tauri-apps/api/event";

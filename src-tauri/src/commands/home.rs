@@ -1,4 +1,4 @@
-//! Data halaman Beranda (PLAN-beranda.md, langkah B2): satu panggilan untuk semua isi Beranda.
+//! Data halaman Beranda (docs/rencana/PLAN-beranda.md, langkah B2): satu panggilan untuk semua isi Beranda.
 
 use serde::Serialize;
 use tauri::State;
