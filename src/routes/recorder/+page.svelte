@@ -39,9 +39,6 @@
   let meetingTitle = $state("");
   /** Tugas terbuka dari meeting sebelumnya dalam rangkaian yang sama (feedback3 D3). */
   let prevTasks = $state<{ meetingId: string; title: string; tasks: string[] } | null>(null);
-  let bookmarkCount = $state(0);
-  let bookmarkFlash = $state(false);
-  let flashTimer: ReturnType<typeof setTimeout> | undefined;
   let root = $state<HTMLDivElement | null>(null);
   let errorTimer: ReturnType<typeof setTimeout> | undefined;
   let busy = $state(false);
@@ -74,11 +71,13 @@
     return `${Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}%`;
   }
 
+  // Lebar = RECORDER_WIDTH di bridge.rs (cukup untuk timer, meter, dan 4 tombol).
+  const WIDGET_WIDTH = 380;
   // Tinggi jendela mengikuti isi (baris peringatan bisa 1–3 baris teks), bukan jumlah baris × tinggi tetap.
   $effect(() => {
     if (!root) return;
     const el = root;
-    const fit = () => getCurrentWindow().setSize(new LogicalSize(300, Math.ceil(el.scrollHeight))).catch(() => {});
+    const fit = () => getCurrentWindow().setSize(new LogicalSize(WIDGET_WIDTH, Math.ceil(el.scrollHeight))).catch(() => {});
     const ro = new ResizeObserver(fit);
     for (const child of el.children) ro.observe(child);
     ro.observe(el);
@@ -119,13 +118,6 @@
         else if (!lostChannels.includes(w.channel)) lostChannels = [...lostChannels, w.channel];
       }),
       await events.recordingLive(() => (liveTranscribing = true)),
-      // Tanda dari tombol bintang maupun shortcut global.
-      await events.recordingBookmark((b) => {
-        bookmarkCount = b.count;
-        bookmarkFlash = true;
-        clearTimeout(flashTimer);
-        flashTimer = setTimeout(() => (bookmarkFlash = false), 900);
-      }),
       await events.autoStopWarning((w) => {
         autoStopReason = w.reason;
         if (w.silenceMin) silenceMin = w.silenceMin;
@@ -179,8 +171,8 @@
   }
 </script>
 
-<div class="on-dark flex min-h-screen select-none flex-col bg-ink text-white" bind:this={root}>
-  <div data-tauri-drag-region class="flex h-16 shrink-0 items-center gap-2.5 px-3">
+<div class="on-dark flex min-h-screen select-none flex-col overflow-hidden bg-ink text-white" bind:this={root}>
+  <div data-tauri-drag-region class="flex h-16 shrink-0 items-center gap-2 px-3 [&>button]:shrink-0">
     <span
       class={[
         "h-3 w-3 shrink-0 rounded-full",
@@ -203,7 +195,7 @@
     </button>
 
     <!-- Meter berlabel ikon (mic = suara Anda, speaker = audio komputer), bukan hanya warna. -->
-    <div data-tauri-drag-region class="flex min-w-0 flex-1 flex-col gap-1.5">
+    <div data-tauri-drag-region class="flex min-w-16 flex-1 flex-col gap-1.5 px-1">
       <div data-tauri-drag-region class="flex items-center gap-1.5" title={id.recorder.mic}>
         <Icon name="mic" size={11} class="shrink-0 text-white/60" />
         <span class="sr-only">{id.recorder.mic}</span>
@@ -232,16 +224,14 @@
     </button>
     <button
       type="button"
-      class={["relative rounded p-1.5 hover:bg-white/15 disabled:opacity-50", bookmarkFlash && "bg-white/20"]}
-      title={bookmarkCount > 0 ? `${id.recorder.bookmark} · ${id.recorder.bookmarked(bookmarkCount)}` : id.recorder.bookmark}
-      aria-label={id.recorder.bookmark}
-      disabled={busy || rs.status !== "recording"}
-      onclick={() => api.addBookmark().catch((e: AppError) => (error = e.message))}
+      class={["rounded p-1.5 hover:bg-white/15 disabled:opacity-50", rs.micMuted && "bg-rec/70"]}
+      title={rs.micMuted ? id.recorder.unmute : id.recorder.mute}
+      aria-label={rs.micMuted ? id.recorder.unmute : id.recorder.mute}
+      aria-pressed={rs.micMuted}
+      disabled={busy}
+      onclick={toggleMute}
     >
-      <Icon name="star" class={bookmarkCount > 0 ? "text-amber-300" : ""} />
-      {#if bookmarkCount > 0}
-        <span class="tabular absolute -top-0.5 -right-0.5 min-w-3.5 rounded-full bg-white px-0.5 text-center text-[0.625rem] leading-3.5 font-bold text-ink">{bookmarkCount}</span>
-      {/if}
+      <Icon name={rs.micMuted ? "mic-off" : "mic"} />
     </button>
     <button
       type="button"
@@ -252,17 +242,6 @@
       onclick={togglePause}
     >
       <Icon name={rs.status === "paused" ? "play" : "pause"} />
-    </button>
-    <button
-      type="button"
-      class={["rounded p-1.5 hover:bg-white/15 disabled:opacity-50", rs.micMuted && "bg-rec/70"]}
-      title={rs.micMuted ? id.recorder.unmute : id.recorder.mute}
-      aria-label={rs.micMuted ? id.recorder.unmute : id.recorder.mute}
-      aria-pressed={rs.micMuted}
-      disabled={busy}
-      onclick={toggleMute}
-    >
-      <Icon name={rs.micMuted ? "mic-off" : "mic"} />
     </button>
     <button
       type="button"

@@ -16,9 +16,9 @@
   import Wordmark from "$lib/components/Wordmark.svelte";
   import Menu, { type MenuEntry } from "$lib/components/Menu.svelte";
   import { confirmDialog } from "$lib/confirm.svelte";
-  import { detailTab, setWindowTitle } from "$lib/viewport.svelte";
+  import { detailTab } from "$lib/viewport.svelte";
   import { formatActionItems, formatMinutes, formatSummaryTab, formatTranscript, markdownToHtml } from "$lib/minutes";
-  import { formatDateTime, formatDuration, formatTime, formatTimestamp } from "$lib/format";
+  import { formatDate, formatDateTime, formatDuration, formatTime, formatTimestamp } from "$lib/format";
   import { id as t } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
   import type {
@@ -593,10 +593,6 @@
     }
   });
 
-  $effect(() => {
-    if (meeting) setWindowTitle(meeting.title);
-  });
-
   /** Teks saat notulen belum ada, sesuai status (bukan "—"). */
   const emptyNote = $derived(
     !meeting
@@ -661,7 +657,7 @@
       <span class="print-brand"><Wordmark size={18} /></span>
       <h1>{meeting.title}</h1>
       <p class="print-meta">
-        {formatDateTime(meeting.startedAt)}{#if meeting.endedAt}–{formatTime(meeting.endedAt)}{/if}{#if meeting.durationMs > 0}&ensp;·&ensp;{formatDuration(meeting.durationMs)}{/if}
+        {formatDateTime(meeting.startedAt)}{#if meeting.endedAt}&nbsp;–&nbsp;{formatTime(meeting.endedAt)}{/if}{#if meeting.durationMs > 0}&ensp;·&ensp;{formatDuration(meeting.durationMs)}{/if}
       </p>
     </header>
     {#if meeting.summary?.status === "ok"}
@@ -774,9 +770,13 @@
         </Menu>
       </div>
 
-      <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-ink-soft">
+      <!-- Meta: satu gaya teks, dipisah jarak + garis tipis (bukan titik tengah). -->
+      <div
+        class="flex flex-wrap items-center gap-y-1 text-sm leading-5 font-normal text-ink-soft [&>*+*]:ml-4 [&>*+*]:border-l [&>*+*]:border-line [&>*+*]:pl-4"
+      >
+        <span class="tabular">{formatDate(meeting.startedAt)}</span>
         <span class="tabular">
-          {formatDateTime(meeting.startedAt)}{#if meeting.endedAt}–{formatTime(meeting.endedAt)}{/if}
+          {formatTime(meeting.startedAt)}{#if meeting.endedAt}&nbsp;–&nbsp;{formatTime(meeting.endedAt)}{/if}
         </span>
         {#if meeting.durationMs > 0}<span class="tabular">{formatDuration(meeting.durationMs)}</span>{/if}
         {#if !processing}

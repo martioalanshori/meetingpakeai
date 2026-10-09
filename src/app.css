@@ -7,6 +7,9 @@
   Kedua warna itu hanya dipakai di tempat suara muncul (meter, transkrip, label). Sisanya tinta di atas kertas.
   Merah rekam hanya untuk status merekam.
 */
+/* Rel kiri penuh (ikon + label) vs ringkas (ikon): diatur tombol rel / Ctrl+B, bukan hanya lebar jendela. */
+@custom-variant full (&:where([data-rail="full"], [data-rail="full"] *));
+
 @theme {
   --font-sans: "Plus Jakarta Sans Variable", "Segoe UI", system-ui, sans-serif;
 
@@ -74,6 +77,28 @@ body {
   color: var(--color-ink);
   background: var(--color-paper);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar tipis tanpa panah, menyatu dengan bidang (bawaan Windows terlalu tebal dan membelah panel).
+   Sengaja tanpa `scrollbar-width`/`scrollbar-color`: jika diset, Chromium mengabaikan ::-webkit-scrollbar. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-button {
+  display: none;
+}
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--color-line) padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-ink-faint);
 }
 
 /* Latar gelap (widget, toast, banner): outline fokus putih agar terlihat. */

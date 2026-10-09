@@ -18,7 +18,7 @@ function bullet(style: MinutesStyle): string {
 
 function dateLine(m: MeetingDetail, style: MinutesStyle): string {
   let when = formatDateTime(m.startedAt).replace(/ (\d\d\.\d\d)$/, ", $1");
-  if (m.endedAt) when += `–${formatTime(m.endedAt)}`;
+  if (m.endedAt) when += ` – ${formatTime(m.endedAt)}`;
   if (m.durationMs > 0) when += ` (${formatDuration(m.durationMs)})`;
   const label = `${t.minutes.date}:`;
   if (style === "markdown") return `**${label}** ${when}`;

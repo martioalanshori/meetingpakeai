@@ -5,12 +5,15 @@
   import Icon, { type IconName } from "$lib/components/Icon.svelte";
   import RecordButton from "$lib/components/RecordButton.svelte";
   import { id } from "$lib/i18n/id";
-  import { toggleRail } from "$lib/ui.svelte";
+  import { railCollapsed, toggleRail } from "$lib/ui.svelte";
 
   let shortcut = $state("");
   onMount(async () => {
     shortcut = await api.getSettings().then((s) => s.globalShortcut, () => "");
   });
+
+  const collapsed = $derived(railCollapsed());
+  const toggleLabel = $derived(collapsed ? id.rail.show : id.rail.hide);
 
   const nav: { href: string; text: string; icon: IconName; match: (p: string) => boolean }[] = [
     { href: "/", text: id.nav.home, icon: "home", match: (p) => p === "/" },
@@ -20,8 +23,11 @@
   ];
 </script>
 
-<!-- < 1280 px: rel ikon (label jadi tooltip) agar panel detail cukup lebar; ≥ 1280 px: rel penuh. -->
-<aside class="flex h-full w-[4.25rem] shrink-0 flex-col gap-6 px-2.5 py-5 xl:w-56 xl:px-4">
+<!-- Rel ringkas (ikon, label jadi tooltip) atau penuh; default ikut lebar jendela (≥ 1280 px penuh). -->
+<aside
+  data-rail={collapsed ? "icons" : "full"}
+  class="flex h-full w-[4.25rem] shrink-0 flex-col gap-6 px-2.5 py-5 full:w-56 full:px-4"
+>
   <RecordButton />
 
   <nav aria-label={id.nav.label} class="flex flex-col gap-0.5">
@@ -32,29 +38,30 @@
         aria-current={active ? "page" : undefined}
         title={n.text}
         class={[
-          "flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-base xl:justify-start xl:py-2",
+          "flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-base full:justify-start full:py-2",
           active ? "bg-sheet font-semibold text-ink shadow-[0_1px_2px_rgb(28_31_38/0.08),inset_0_0_0_1px_var(--color-line)]" : "text-ink-soft hover:bg-wash hover:text-ink",
         ]}
       >
         <Icon name={n.icon} size={18} class="shrink-0" />
-        <span class="sr-only xl:not-sr-only">{n.text}</span>
+        <span class="sr-only full:not-sr-only">{n.text}</span>
       </a>
     {/each}
   </nav>
 
   <div class="mt-auto flex flex-col gap-3">
     {#if shortcut}
-      <p class="hidden px-1 text-xs leading-relaxed text-ink-faint xl:block">{id.rail.shortcutHint(shortcut)}</p>
+      <p class="hidden px-1 text-xs leading-relaxed text-ink-faint full:block">{id.rail.shortcutHint(shortcut)}</p>
     {/if}
     <button
       type="button"
-      class="flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-soft hover:bg-wash hover:text-ink xl:justify-start xl:py-2"
-      title={id.rail.hide}
-      aria-label={id.rail.hide}
-      onclick={() => toggleRail(true)}
+      class="flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-soft hover:bg-wash hover:text-ink full:justify-start full:py-2"
+      title={toggleLabel}
+      aria-label={toggleLabel}
+      aria-expanded={!collapsed}
+      onclick={() => toggleRail()}
     >
       <Icon name="panel-left" size={18} class="shrink-0" />
-      <span class="sr-only xl:not-sr-only">{id.rail.hide.replace(" (Ctrl+B)", "")}</span>
+      <span class="sr-only whitespace-nowrap full:not-sr-only">{id.rail.hideShort}</span>
     </button>
   </div>
 </aside>

@@ -11,7 +11,6 @@
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
   import { confirmDialog } from "$lib/confirm.svelte";
-  import { setWindowTitle } from "$lib/viewport.svelte";
   import type { AppError, Settings, UpdateInfo } from "$lib/types";
 
   const t = id.settings;
@@ -94,7 +93,6 @@
   const GLOSSARY_MAX = 800;
 
   onMount(async () => {
-    setWindowTitle(t.title);
     try {
       form = await api.getSettings();
       nameDraft = form.userDisplayName;
@@ -148,7 +146,7 @@
 <main class="mx-auto flex w-full max-w-3xl flex-col px-6 pt-7 pb-16 xl:px-10">
   <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
 
-  <nav class="mt-5 flex gap-1 overflow-x-auto border-b border-line" aria-label={t.title}>
+  <nav class="mt-5 flex gap-1 border-b border-line" aria-label={t.title}>
     {#each sections as sec (sec.key)}
       <button
         type="button"

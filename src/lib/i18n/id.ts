@@ -28,8 +28,9 @@ export const id = {
   },
 
   rail: {
-    hide: "Sembunyikan sidebar (Ctrl+B)",
-    show: "Tampilkan sidebar (Ctrl+B)",
+    hide: "Ringkas sidebar (Ctrl+B)",
+    show: "Lebarkan sidebar (Ctrl+B)",
+    hideShort: "Ringkas sidebar",
     recording: "Merekam",
     paused: "Dijeda",
     shortcutHint: (sc: string) => `Tekan ${sc} untuk mulai atau berhenti merekam dari aplikasi mana pun.`,

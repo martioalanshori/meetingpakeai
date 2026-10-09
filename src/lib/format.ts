@@ -4,10 +4,15 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** epoch ms → "6 Okt 2026" di zona waktu lokal. */
+export function formatDate(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 /** epoch ms (UTC) → "6 Okt 2026 14.00" di zona waktu lokal. */
 export function formatDateTime(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} ${pad(d.getHours())}.${pad(d.getMinutes())}`;
+  return `${formatDate(ms)} ${formatTime(ms)}`;
 }
 
 /** epoch ms → "14.00". */

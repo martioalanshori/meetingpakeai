@@ -313,8 +313,9 @@
         disabled={importing}
         onclick={() => importFile()}
       >
-        <Icon name={importing ? "refresh" : "download"} size={14} class={importing ? "motion-safe:animate-spin" : ""} />
-        {#if !compact}{importing ? id.home.importing : id.home.importButton}{/if}
+        <Icon name={importing ? "refresh" : "upload"} size={14} class={importing ? "motion-safe:animate-spin" : ""} />
+        <!-- Teks selalu tampil: ikon saja tidak menjelaskan fungsinya. -->
+        {importing ? id.home.importing : id.home.importButton}
       </button>
     </div>
     <label class="relative flex items-center">

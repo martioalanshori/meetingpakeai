@@ -1,6 +1,6 @@
 <script lang="ts">
-  // Beranda (PLAN-beranda.md + PLAN-evaluasi-beranda.md): satu hal yang menonjol — kolom Tanya; sisanya tenang.
-  // Dua kelompok: "sekarang" (sapaan, Tanya, status) lalu "sebelumnya" (notulen terbaru, tugas mendesak).
+  // Beranda (PLAN-beranda.md + PLAN-evaluasi-beranda.md), disederhanakan 2026-10-09 atas permintaan pemilik:
+  // sapaan + kolom Tanya, status hanya jika perlu perhatian, lalu daftar ringkas notulen terbaru & tugas mendesak.
   import { onDestroy, onMount } from "svelte";
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { goto } from "$app/navigation";
@@ -33,7 +33,8 @@
   });
 
   const recording = $derived(rec.state.status === "recording" || rec.state.status === "paused");
-  const suggestions = $derived(data && data.suggestions.length > 0 ? data.suggestions : t.genericSuggestions);
+  /** Maks. 2 contoh pertanyaan agar tidak ramai. */
+  const suggestions = $derived((data && data.suggestions.length > 0 ? data.suggestions : t.genericSuggestions).slice(0, 2));
 
   async function load() {
     try {
@@ -83,15 +84,6 @@
   function undoTask(task: TaskItem) {
     clearTimeout(pendingDone[task.id]);
     delete pendingDone[task.id];
-  }
-
-  async function enableAutostart() {
-    try {
-      await api.updateSettings({ autostart: true });
-      await load();
-    } catch (e) {
-      showToast((e as AppError).message, "error");
-    }
   }
 
   async function importFile() {
@@ -158,29 +150,28 @@
 </script>
 
 <main class="mx-auto flex w-full max-w-2xl flex-col px-6 pt-12 pb-16">
-  <h1 class="sr-only">{t.title}</h1>
-
-  <!-- Sekarang: sapaan → Tanya → status. -->
+  <!-- Sekarang: sapaan → Tanya → status (hanya jika perlu perhatian). -->
   <section class="flex flex-col gap-3" aria-label={t.askLabel}>
-    <p class="text-ink-soft">{greeting}</p>
+    <h1 class="text-2xl font-bold tracking-[-0.02em]">{greeting}</h1>
 
     <form
-      class="flex items-center gap-3 rounded-2xl border-2 border-line bg-sheet py-2 pr-2 pl-5 transition-colors focus-within:border-ink-strong"
+      class="mt-1 flex items-center gap-2 rounded-xl border border-line bg-sheet py-1.5 pr-1.5 pl-4 transition-colors focus-within:border-ink-strong"
       onsubmit={(e) => {
         e.preventDefault();
         ask();
       }}
     >
+      <Icon name="search" size={18} class="shrink-0 text-ink-faint" />
       <input
         bind:this={input}
-        class="min-w-0 flex-1 bg-transparent py-2.5 text-xl font-medium tracking-[-0.01em] outline-none placeholder:font-normal placeholder:text-ink-faint"
+        class="min-w-0 flex-1 bg-transparent py-2 text-base outline-none placeholder:text-ink-faint"
         placeholder={t.askPlaceholder}
         aria-label={t.askLabel}
         maxlength="500"
         bind:value={question}
       />
-      <button type="submit" class="btn btn-ink btn-icon h-11 w-11" disabled={asking || question.trim() === ""} aria-label={t.ask} title={t.ask}>
-        <Icon name="send" size={18} />
+      <button type="submit" class="btn btn-ink btn-icon h-9 w-9" disabled={asking || question.trim() === ""} aria-label={t.ask} title={t.ask}>
+        <Icon name="send" size={16} />
       </button>
     </form>
 
@@ -189,7 +180,7 @@
     {:else if lastAsk.answer && lastAsk.question}
       <div class="flex flex-col gap-2.5 px-1" role="status">
         <div class="flex items-start gap-2">
-          <p class="flex-1 text-lg leading-relaxed whitespace-pre-line">{lastAsk.answer.answer}</p>
+          <p class="flex-1 leading-relaxed whitespace-pre-line">{lastAsk.answer.answer}</p>
           <button type="button" class="btn btn-quiet btn-icon btn-sm shrink-0" aria-label={t.closeAnswer} title={t.closeAnswer} onclick={closeAnswer}>
             <Icon name="x" size={16} />
           </button>
@@ -213,17 +204,20 @@
       </div>
     {:else if data}
       <!-- Contoh pertanyaan dari meeting pengguna sendiri. -->
-      <div class="flex flex-wrap items-center gap-x-1 gap-y-1.5 px-1 text-sm">
-        <span class="mr-1 text-ink-faint">{t.tryAsking}</span>
+      <div class="flex flex-wrap gap-2" role="group" aria-label={t.tryAsking}>
         {#each suggestions as s (s)}
-          <button type="button" class="rounded-full px-2.5 py-1 text-ink-soft hover:bg-wash hover:text-ink" onclick={() => ask(s)}>{s}</button>
+          <button
+            type="button"
+            class="max-w-full truncate rounded-full border border-line px-3 py-1 text-sm text-ink-soft hover:border-ink-faint hover:text-ink"
+            onclick={() => ask(s)}>{s}</button
+          >
         {/each}
       </div>
     {/if}
 
-    <!-- Status: satu kalimat dengan penanda kecil; hanya titik rekam yang bergerak. -->
-    {#if data}
-      <div class="mt-2 px-1 text-sm">
+    <!-- Status: hanya tampil jika ada yang berjalan atau perlu tindakan (kondisi normal tidak perlu kalimat). -->
+    {#if data && (recording || data.processing || data.queuePaused || data.attentionCount > 0 || !data.meetingDetection)}
+      <div class="mt-1 px-1 text-sm">
         {#if recording}
           <a href={rec.state.meetingId ? `/meeting/${rec.state.meetingId}?tab=transcript` : "/meetings"} class="group flex items-center gap-2">
             <span class="h-2 w-2 shrink-0 rounded-full bg-rec motion-safe:animate-pulse" aria-hidden="true"></span>
@@ -245,67 +239,56 @@
           </a>
         {:else if !data.meetingDetection}
           <p class="text-warn">{t.detectionOff}&ensp;<a href="/settings" class="link">{t.openSettings}</a></p>
-        {:else if !data.autostart}
-          <p class="text-ink-soft">
-            {t.readyNoAutostart}&ensp;<button type="button" class="link" onclick={enableAutostart}>{t.enableAutostart}</button>
-          </p>
-        {:else}
-          <p class="flex items-center gap-2 text-ink-soft">
-            <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" aria-hidden="true"></span>{t.ready}
-          </p>
         {/if}
       </div>
     {/if}
   </section>
 
-  <!-- Sebelumnya: notulen terbaru → tugas mendesak (jarak besar memisahkan dari "sekarang"). -->
+  <!-- Sebelumnya: notulen terbaru → tugas mendesak. -->
   {#if !data}
-    <div class="mt-14 flex flex-col gap-3 motion-safe:animate-pulse" aria-hidden="true">
+    <div class="mt-12 flex flex-col gap-3 motion-safe:animate-pulse" aria-hidden="true">
       <div class="h-4 w-40 rounded bg-line-soft"></div>
       <div class="h-12 rounded-lg bg-line-soft"></div>
       <div class="h-12 rounded-lg bg-line-soft"></div>
     </div>
   {:else if !data.hasMeetings}
-    <section class="mt-14 flex flex-col gap-3 border-t border-line pt-8">
+    <section class="mt-12 flex flex-col gap-3">
       <h2 class="section-title">{t.newTitle}</h2>
       <p class="max-w-prose text-ink-soft">{t.newRecord}</p>
       <div class="flex flex-wrap items-center gap-3">
         <span class="text-ink-soft">{t.newImport}</span>
         <button type="button" class="btn btn-line btn-sm" disabled={importing} onclick={importFile}>
-          <Icon name="download" size={14} />{importing ? id.home.importing : id.home.importButton}
+          <Icon name="upload" size={14} />{importing ? id.home.importing : id.home.importButton}
         </button>
       </div>
     </section>
   {:else}
-    <div class="mt-14 flex flex-col gap-10 border-t border-line pt-8">
+    <div class="mt-12 flex flex-col gap-10">
       {#if data.recent.length > 0}
         <section class="flex flex-col" aria-labelledby="recent-title">
-          <h2 id="recent-title" class="section-title mb-2">{t.recent}</h2>
+          <div class="mb-1 flex items-baseline justify-between gap-3">
+            <h2 id="recent-title" class="section-title">{t.recent}</h2>
+            <a href="/meetings" class="link text-sm">{t.allMeetings}</a>
+          </div>
           <ul class="flex flex-col">
             {#each data.recent as m (m.id)}
               <li>
-                <a href={`/meeting/${m.id}`} class="-mx-3 flex flex-col gap-0.5 rounded-lg px-3 py-2.5 hover:bg-wash">
-                  <span class="flex items-baseline gap-3">
-                    <span class="min-w-0 flex-1 truncate font-semibold">{m.title}</span>
-                    <span class="tabular shrink-0 text-sm text-ink-faint">{when(m.startedAt)}</span>
-                  </span>
-                  {#if m.line}
-                    <span class="line-clamp-2 text-ink-soft">
-                      <span class="text-ink-faint">{m.lineKind === "decision" ? t.decided : t.summaryPrefix}</span>
-                      {m.line}
-                    </span>
-                  {/if}
+                <a href={`/meeting/${m.id}`} class="-mx-3 flex items-baseline gap-3 rounded-lg px-3 py-2.5 hover:bg-wash">
+                  <span class="min-w-0 flex-1 truncate">{m.title}</span>
+                  <span class="tabular shrink-0 text-sm text-ink-faint">{when(m.startedAt)}</span>
                 </a>
               </li>
             {/each}
           </ul>
-          <a href="/meetings" class="link mt-2 self-start text-sm">{t.allMeetings}</a>
         </section>
       {/if}
 
       {#if data.urgentTasks.length > 0}
         <section class="flex flex-col" aria-labelledby="tasks-title">
-          <h2 id="tasks-title" class="section-title mb-2">{t.urgent}</h2>
+          <div class="mb-1 flex items-baseline justify-between gap-3">
+            <h2 id="tasks-title" class="section-title">{t.urgent}</h2>
+            <a href="/tasks" class="link text-sm">{t.allTasks(data.openTasks)}</a>
+          </div>
           <ul class="flex flex-col">
             {#each data.urgentTasks as task (task.id)}
               {@const due = dueLabel(task)}
@@ -333,7 +316,6 @@
               </li>
             {/each}
           </ul>
-          <a href="/tasks" class="link mt-2 self-start text-sm">{t.allTasks(data.openTasks)}</a>
         </section>
       {/if}
     </div>
