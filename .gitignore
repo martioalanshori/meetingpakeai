@@ -8,3 +8,6 @@ node_modules
 !.env.example
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Dokumen kerja (PRD, rencana, feedback, catatan AI) tidak dinaikkan ke GitHub
+*.md

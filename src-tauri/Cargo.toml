@@ -1,6 +1,6 @@
 [package]
 name = "meeting-pake-ai"
-version = "0.1.0"
+version = "0.2.0"
 description = "Meeting Pake AI - perekam meeting tanpa bot"
 authors = ["Meeting Pake AI"]
 edition = "2021"
