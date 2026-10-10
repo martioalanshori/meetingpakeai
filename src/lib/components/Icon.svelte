@@ -28,7 +28,9 @@
     | "send"
     | "chevron-down"
     | "panel-left"
-    | "home";
+    | "home"
+    | "help"
+    | "arrow-right";
 </script>
 
 <script lang="ts">
@@ -150,5 +152,12 @@
   {:else if name === "panel-left"}
     <rect width="18" height="18" x="3" y="3" rx="2" />
     <path d="M9 3v18" />
+  {:else if name === "help"}
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <path d="M12 17h.01" />
+  {:else if name === "arrow-right"}
+    <path d="M5 12h14" />
+    <path d="m12 5 7 7-7 7" />
   {/if}
 </svg>

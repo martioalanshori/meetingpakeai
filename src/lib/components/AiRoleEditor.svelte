@@ -90,8 +90,8 @@
 
 <form class="flex flex-col gap-4" onsubmit={save}>
   <div class="flex flex-col gap-0.5">
-    <h3 class="font-bold">{role === "stt" ? t.sttTitle : t.llmTitle}</h3>
-    <p class="text-sm text-ink-soft">{role === "stt" ? t.sttHint : t.llmHint}</p>
+    <h3 class="label">{role === "stt" ? t.sttTitle : t.llmTitle}</h3>
+    <p class="hint">{role === "stt" ? t.sttHint : t.llmHint}</p>
   </div>
 
   <div class="grid gap-3 sm:grid-cols-2">
@@ -116,7 +116,7 @@
     <label class="flex flex-col gap-1.5">
       <span class="label">{t.baseUrl}</span>
       <input class="field" spellcheck="false" bind:value={draft.baseUrl} placeholder="http://localhost:11434/v1" />
-      <span class="text-sm text-ink-soft">{t.baseUrlHint}</span>
+      <span class="hint">{t.baseUrlHint}</span>
     </label>
   {/if}
 
@@ -150,7 +150,7 @@
         type="password"
         autocomplete="off"
         spellcheck="false"
-        class="field font-medium"
+        class="field"
         placeholder={preset?.keyPrefix ? `${preset.keyPrefix}…` : t.keyPlaceholder}
         aria-label={t.apiKey}
         bind:value={keyInput}

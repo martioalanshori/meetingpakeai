@@ -58,6 +58,7 @@ export const api = {
   openMicSettings: () => call<void>("open_mic_settings"),
   runAudioTest: () => call<AudioTestResult>("run_audio_test"),
   completeOnboarding: () => call<void>("complete_onboarding"),
+  resetOnboarding: () => call<void>("reset_onboarding"),
   openLogFolder: () => call<void>("open_log_folder"),
 
   // Rekaman
@@ -138,7 +139,6 @@ export const api = {
   checkUpdate: () => call<UpdateInfo | null>("check_update"),
   getStorageUsage: () => call<{ recordingsBytes: number; clearableMeetings: number }>("get_storage_usage"),
   clearOldAudio: () => call<number>("clear_old_audio"),
-  saveProblemReport: () => call<boolean>("save_problem_report"),
   installUpdate: () => call<void>("install_update"),
 };
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { formatTimestamp } from "$lib/format";
+  import { formatTimerShort, formatTimestamp } from "$lib/format";
   import { id } from "$lib/i18n/id";
   import { rec, startRecording, stopRecording } from "$lib/recording.svelte";
 
@@ -40,7 +40,7 @@
 {:else}
   <!-- Rel ringkas: lampu + timer + tombol Stop persegi. -->
   <div class="flex flex-col items-center gap-2 full:hidden" role="status">
-    <span class="tabular text-2xs font-semibold text-rec">{formatTimestamp(elapsed)}</span>
+    <span class="tabular text-sm font-semibold tracking-tight text-rec">{formatTimerShort(elapsed)}</span>
     <button
       type="button"
       class="btn btn-ink aspect-square w-full p-0"

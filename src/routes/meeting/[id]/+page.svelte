@@ -11,7 +11,8 @@
 
   // Jendela cukup lebar (juga saat diperbesar) → detail tampil di panel kanan halaman Meeting; tab aktif dipertahankan.
   $effect(() => {
-    if (!viewport.wide) return;
+    // Sedang pindah ke halaman lain (URL baru, komponen belum dibongkar): jangan alihkan balik.
+    if (!viewport.wide || !meetingId || !page.url.pathname.startsWith("/meeting/")) return;
     const current = detailTab.meetingId === meetingId ? detailTab.tab : tab;
     untrack(() => goto(`/meetings?m=${meetingId}${current ? `&tab=${current}` : ""}`, { replaceState: true }));
   });

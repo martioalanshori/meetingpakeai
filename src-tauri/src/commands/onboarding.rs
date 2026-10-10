@@ -32,7 +32,13 @@ pub async fn get_onboarding_status(state: State<'_, AppState>) -> AppResult<Onbo
 
 #[tauri::command]
 pub async fn complete_onboarding(state: State<'_, AppState>) -> AppResult<()> {
-    settings::set_onboarding_completed(&state.db.conn())
+    settings::set_onboarding_completed(&state.db.conn(), true)
+}
+
+/// Ulangi onboarding & tur seperti baru dipasang. Meeting, pengaturan, dan API key tidak dihapus.
+#[tauri::command]
+pub async fn reset_onboarding(state: State<'_, AppState>) -> AppResult<()> {
+    settings::set_onboarding_completed(&state.db.conn(), false)
 }
 
 #[tauri::command]

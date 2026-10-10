@@ -636,11 +636,11 @@
 {#snippet sourceChip(ms: number | null | undefined)}
   {#if (ms === null || ms === undefined) && hasSources && transcript.length > 0}
     <!-- E2: poin tanpa waktu sumber (kemungkinan tebakan AI) ditandai halus. -->
-    <span class="ml-1.5 align-middle text-xs text-ink-faint italic print:hidden" title={t.detail.noSourceTitle}>{t.detail.noSource}</span>
+    <span class="ml-1.5 align-middle text-sm text-ink-faint italic print:hidden" title={t.detail.noSourceTitle}>{t.detail.noSource}</span>
   {:else if ms !== null && ms !== undefined && transcript.length > 0}
     <button
       type="button"
-      class="tabular ml-1.5 inline-flex translate-y-[-0.1em] items-center gap-1 rounded-md bg-wash px-1.5 py-px align-middle text-xs text-ink-soft hover:bg-line-soft hover:text-ink print:hidden"
+      class="tabular ml-1.5 inline-flex translate-y-[-0.1em] items-center gap-1 rounded-md bg-wash px-1.5 py-px align-middle text-sm text-ink-soft hover:bg-line-soft hover:text-ink print:hidden"
       title={t.detail.sourceAt(formatTimestamp(ms))}
       aria-label={t.detail.sourceAt(formatTimestamp(ms))}
       onclick={() => jumpTo(ms)}
@@ -839,7 +839,7 @@
 
     <!-- Baris tab + aksi tab aktif (Salin / Ubah) di ujung kanan: tanpa baris toolbar terpisah. -->
     <div class="flex flex-wrap items-end gap-x-6 gap-y-2 border-b border-line">
-      <div role="tablist" class="flex gap-6" aria-label={t.detail.tabsLabel} tabindex="-1" onkeydown={tabKey}>
+      <div role="tablist" data-tour="detail-tabs" class="flex gap-6" aria-label={t.detail.tabsLabel} tabindex="-1" onkeydown={tabKey}>
         {#each tabs as tb (tb.key)}
           <button
             type="button"
@@ -969,7 +969,7 @@
                   <h2 class="section-title">{t.detail.keyPoints}</h2>
                   <ul class="flex flex-col gap-1.5">
                     {#each meeting.summary.keyPoints as p, i (i)}
-                      <li class="grid grid-cols-[1.25rem_1fr] text-lg leading-relaxed font-medium">
+                      <li class="grid grid-cols-[1.25rem_1fr] leading-relaxed font-medium">
                         <span class="tabular text-ink-faint">{i + 1}.</span>{p}
                       </li>
                     {/each}
@@ -978,7 +978,7 @@
               {/if}
               <div class="flex flex-col gap-2">
                 <h2 class="section-title">{t.detail.summary}</h2>
-                <p class="text-lg leading-[1.75] whitespace-pre-line">{meeting.summary.summary}</p>
+                <p class="leading-[1.75] whitespace-pre-line">{meeting.summary.summary}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <h2 class="section-title">{t.detail.decisions}</h2>
@@ -987,7 +987,7 @@
                 {:else}
                   <ul class="flex flex-col gap-2">
                     {#each meeting.summary.decisions as d, i (i)}
-                      <li class="grid grid-cols-[1rem_1fr] text-lg leading-relaxed">
+                      <li class="grid grid-cols-[1rem_1fr] leading-relaxed">
                         <span class="mt-[0.7em] h-1.5 w-1.5 rounded-full bg-ink" aria-hidden="true"></span>
                         <span>{d}{@render sourceChip(meeting.summary.decisionSources[i])}</span>
                       </li>
@@ -1009,7 +1009,7 @@
                       <li class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 leading-relaxed">
                         <span
                           class={[
-                            "rounded-md px-1.5 py-px text-xs font-semibold",
+                            "rounded-md px-1.5 py-px text-sm font-semibold",
                             f.status === "selesai" ? "bg-ok/12 text-ok" : f.status === "dibahas" ? "bg-warn/12 text-warn" : "bg-wash text-ink-soft",
                           ]}>{t.detail.followupStatus[f.status]}</span
                         >
@@ -1037,7 +1037,7 @@
                   <h2 class="section-title">{t.detail.openQuestions}</h2>
                   <ul class="flex flex-col gap-2">
                     {#each meeting.summary.openQuestions as q, i (i)}
-                      <li class="grid grid-cols-[1rem_1fr] text-lg leading-relaxed">
+                      <li class="grid grid-cols-[1rem_1fr] leading-relaxed">
                         <span class="mt-[0.55em] text-warn" aria-hidden="true">?</span>
                         <span>{q}{@render sourceChip(meeting.summary.openQuestionSources[i])}</span>
                       </li>

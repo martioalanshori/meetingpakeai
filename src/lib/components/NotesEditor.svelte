@@ -71,7 +71,7 @@
         : "field",
     ]}
   ></textarea>
-  <span class={["text-xs", dark ? "text-white/55" : "text-ink-faint"]} role="status">
+  <span class={["text-sm", dark ? "text-white/55" : "text-ink-faint"]} role="status">
     {saveState === "saving" ? t.saving : saveState === "saved" ? t.saved : saveState === "error" ? t.error : t.hint}
   </span>
 </div>

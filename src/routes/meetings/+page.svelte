@@ -97,14 +97,18 @@
     select(h.meetingId, hitTab(h), h.startMs);
   }
 
+  // URL sudah berpindah ke halaman lain tetapi komponen ini belum dibongkar: efek di bawah tidak boleh
+  // menarik pengguna kembali ke /meetings (tanpa ?m= di URL baru, "pilih meeting terbaru" akan terpicu).
+  const onPage = $derived(page.url.pathname === "/meetings");
+
   // Panel kanan tidak dibiarkan kosong: pilih meeting terbaru.
   $effect(() => {
-    if (viewport.wide && !selected && items.length > 0) untrack(() => select(items[0].id));
+    if (onPage && viewport.wide && !selected && items.length > 0) untrack(() => select(items[0].id));
   });
 
   // Jendela diperkecil di bawah batas dua panel saat ada meeting terpilih → buka sebagai halaman sendiri.
   $effect(() => {
-    if (!viewport.wide && selected) {
+    if (onPage && !viewport.wide && selected) {
       const tab = detailTab.meetingId === selected ? detailTab.tab : selectedTab;
       untrack(() => goto(`/meeting/${selected}${tab ? `?tab=${tab}` : ""}`, { replaceState: true }));
     }
@@ -308,6 +312,7 @@
       <!-- Impor rekaman yang sudah ada (feedback3 A1); file juga bisa diseret ke jendela. -->
       <button
         type="button"
+        data-tour="meetings-import"
         class="btn btn-line btn-sm"
         title={`${id.home.importButton} (${id.home.importHint})`}
         disabled={importing}
@@ -318,7 +323,7 @@
         {importing ? id.home.importing : id.home.importButton}
       </button>
     </div>
-    <label class="relative flex items-center">
+    <label data-tour="meetings-search" class="relative flex items-center">
       <span class="sr-only">{id.home.searchLabel}</span>
       <Icon name="search" size={18} class="pointer-events-none absolute left-3.5 text-ink-faint" />
       <input
@@ -443,12 +448,12 @@
       <button type="button" class="btn btn-ink btn-sm" onclick={reload}>{id.common.retry}</button>
     </div>
   {:else if items.length === 0}
-    <section class="flex flex-col items-start gap-2 rounded-xl border border-dashed border-line px-6 py-10">
+    <section data-tour="meetings-list" class="flex flex-col items-start gap-2 rounded-xl border border-dashed border-line px-6 py-10">
       <p class="text-lg font-semibold">{id.home.emptyTitle}</p>
       <p class="max-w-prose text-ink-soft">{id.home.empty}</p>
     </section>
   {:else}
-    <div class="flex flex-col gap-5">
+    <div data-tour="meetings-list" class="flex flex-col gap-5">
       {#each groups as g (g.label)}
         <section aria-label={g.label}>
           <h2
@@ -482,7 +487,7 @@
                     <span class="leading-snug font-semibold text-pretty wrap-anywhere">{m.title}</span>
                     {#if m.tags.length > 0}
                       <span class="flex flex-wrap gap-1">
-                        {#each m.tags as tag (tag)}<span class="rounded-full bg-wash px-2 py-px text-xs text-ink-soft">{tag}</span>{/each}
+                        {#each m.tags as tag (tag)}<span class="rounded-full bg-wash px-2 py-px text-sm text-ink-soft">{tag}</span>{/each}
                       </span>
                     {/if}
                     {#if compact}

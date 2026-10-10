@@ -11,6 +11,9 @@
   import { id } from "$lib/i18n/id";
   import { showToast } from "$lib/toast.svelte";
   import { confirmDialog } from "$lib/confirm.svelte";
+  import { endTour, startTour } from "$lib/tour.svelte";
+  import { goto } from "$app/navigation";
+  import { rec } from "$lib/recording.svelte";
   import type { AppError, Settings, UpdateInfo } from "$lib/types";
 
   const t = id.settings;
@@ -42,13 +45,6 @@
   }
 
 
-  async function saveReport() {
-    try {
-      if (await api.saveProblemReport()) showToast(t.reportSaved, "success");
-    } catch (e) {
-      showToast((e as AppError).message, "error");
-    }
-  }
   let update = $state<UpdateInfo | null>(null);
   let updateMsg = $state<string | null>(null);
   let updateBusy = $state(false);
@@ -87,6 +83,11 @@
   // `?tab=ai` dari banner "antrean dijeda" langsung membuka Layanan AI.
   const initial = page.url.searchParams.get("tab");
   let section = $state<Section>(sections.some((x) => x.key === initial) ? (initial as Section) : "recording");
+  // `?tab=` berubah saat halaman sudah terbuka (tur aplikasi, tautan banner) → ikut pindah bagian.
+  const tabParam = $derived(page.url.searchParams.get("tab"));
+  $effect(() => {
+    if (tabParam && sections.some((x) => x.key === tabParam)) section = tabParam as Section;
+  });
 
   let nameDraft = $state("");
   let glossaryDraft = $state("");
@@ -124,6 +125,27 @@
     glossaryDraft = form?.sttGlossary ?? glossaryDraft;
   }
 
+  /** Anggap baru dipasang: onboarding + tur diulang, data tidak disentuh. */
+  async function resetOnboarding() {
+    if (rec.state.status !== "idle") {
+      showToast(id.guide.resetBlocked, "error");
+      return;
+    }
+    const ok = await confirmDialog({
+      title: id.guide.resetConfirmTitle,
+      message: id.guide.resetConfirmMessage,
+      confirmText: id.guide.reset,
+    });
+    if (!ok) return;
+    try {
+      await api.resetOnboarding();
+      endTour();
+      await goto("/onboarding");
+    } catch (e) {
+      showToast((e as AppError).message, "error");
+    }
+  }
+
   async function saveName() {
     if (!form) return;
     const v = nameDraft.trim();
@@ -146,7 +168,7 @@
 <main class="mx-auto flex w-full max-w-3xl flex-col px-6 pt-7 pb-16 xl:px-10">
   <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
 
-  <nav class="mt-5 flex gap-1 border-b border-line" aria-label={t.title}>
+  <nav data-tour="settings-tabs" class="mt-5 flex gap-1 border-b border-line" aria-label={t.title}>
     {#each sections as sec (sec.key)}
       <button
         type="button"
@@ -154,6 +176,7 @@
           "-mb-px border-b-2 px-3 pt-1 pb-2.5 text-base whitespace-nowrap",
           section === sec.key ? "border-ink font-semibold text-ink" : "border-transparent text-ink-soft hover:text-ink",
         ]}
+        data-tour={`settings-tab-${sec.key}`}
         aria-current={section === sec.key ? "page" : undefined}
         onclick={() => (section = sec.key)}
       >
@@ -203,7 +226,7 @@
           onchange={(v) => patch({ audioRetention: v })}
         />
       </div>
-      <div class="flex flex-col gap-2 py-5">
+      <div data-tour="settings-glossary" class="flex flex-col gap-2 py-5">
         <div class="flex items-baseline justify-between gap-4">
           <label class="label" for="glossary">{t.glossary}</label>
           <span class="hint tabular">{t.glossaryCount(glossaryDraft.length, GLOSSARY_MAX)}</span>
@@ -235,7 +258,7 @@
           {/if}
         </div>
       {/if}
-      <div class="flex flex-col gap-2 py-5">
+      <div data-tour="settings-shortcut" class="flex flex-col gap-2 py-5">
         <label class="label" for="shortcut-input">{t.shortcut}</label>
         <ShortcutInput inputId="shortcut-input" value={form.globalShortcut} onchange={(v) => patch({ globalShortcut: v })} />
         <span class="hint max-w-prose">{t.shortcutHint}</span>
@@ -262,7 +285,7 @@
       {/if}
     </section>
   {:else if section === "ai"}
-    <section class="py-6">
+    <section data-tour="settings-ai" class="py-6">
       <AiProviderSection />
     </section>
   {:else if section === "app" && form}
@@ -288,10 +311,17 @@
     <section class="flex flex-col divide-y divide-line-soft">
       <div class="flex flex-wrap items-center justify-between gap-4 py-5">
         <div class="flex flex-col gap-0.5">
-          <span class="label">{t.reportTitle}</span>
-          <span class="hint max-w-prose">{t.reportNote}</span>
+          <span class="label">{id.guide.settingsTitle}</span>
+          <span class="hint max-w-prose">{id.guide.settingsNote}</span>
         </div>
-        <button type="button" class="btn btn-line btn-sm" onclick={saveReport}>{t.report}</button>
+        <button type="button" class="btn btn-line btn-sm" onclick={() => startTour()}>{id.guide.openLong}</button>
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-4 py-5">
+        <div class="flex flex-col gap-0.5">
+          <span class="label">{id.guide.resetTitle}</span>
+          <span class="hint max-w-prose">{id.guide.resetNote}</span>
+        </div>
+        <button type="button" class="btn btn-line btn-sm" onclick={resetOnboarding}>{id.guide.reset}</button>
       </div>
       <div class="flex flex-wrap items-center justify-between gap-4 py-5">
         <div class="flex flex-col gap-0.5">

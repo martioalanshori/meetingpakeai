@@ -53,14 +53,17 @@
   --color-warn-deep-text: #f7d58c;
   --color-bad-deep: #5c1a14;
 
-  /* Skala huruf ±1.25: 11 / 13 / 14 / 15 / 17 / 22 / 28. */
-  --text-2xs: 0.6875rem;
-  --text-xs: 0.8125rem;
-  --text-sm: 0.875rem;
+  /* Skala huruf: HANYA 4 ukuran. Kecil 13 / Teks 15 / Judul bagian 18 / Judul halaman 28.
+     Ukuran bawaan Tailwind lain dimatikan (text-xs, text-xl, dst. tidak berlaku). */
+  --text-*: initial;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.4;
   --text-base: 0.9375rem;
-  --text-lg: 1.0625rem;
-  --text-xl: 1.375rem;
+  --text-base--line-height: 1.5;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.45;
   --text-2xl: 1.75rem;
+  --text-2xl--line-height: 1.25;
 
   /* Tiga tingkat sudut: kontrol kecil / tombol & field / bidang & dialog. */
   --radius-ctl: 0.375rem;
@@ -73,10 +76,14 @@ body {
   margin: 0;
   height: 100%;
   font-family: var(--font-sans);
+  /* html tetap 16px (dasar rem); teks tanpa kelas ukuran memakai --text-base agar ikut skala. */
   font-size: 16px;
   color: var(--color-ink);
   background: var(--color-paper);
   -webkit-font-smoothing: antialiased;
+}
+body {
+  font-size: var(--text-base);
 }
 
 /* Scrollbar tipis tanpa panah, menyatu dengan bidang (bawaan Windows terlalu tebal dan membelah panel).
@@ -145,7 +152,7 @@ input[type="radio"] {
   }
   .btn-sm {
     padding: 0.3125rem 0.625rem;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     line-height: 1.125rem;
     gap: 0.375rem;
   }

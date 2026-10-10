@@ -10,6 +10,7 @@
   import ConfirmHost from "$lib/components/ConfirmHost.svelte";
   import MeetingOfferBanner from "$lib/components/MeetingOfferBanner.svelte";
   import Toaster from "$lib/components/Toaster.svelte";
+  import TourOverlay from "$lib/components/TourOverlay.svelte";
   import { initRecording, rec } from "$lib/recording.svelte";
   import { id } from "$lib/i18n/id";
   import { toggleRail } from "$lib/ui.svelte";
@@ -78,5 +79,6 @@
 {#if !isRecorderWindow}
   <MeetingOfferBanner />
   <ConfirmHost />
+  {#if !isOnboarding}<TourOverlay />{/if}
   <Toaster />
 {/if}

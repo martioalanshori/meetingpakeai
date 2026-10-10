@@ -75,11 +75,11 @@
         <p class="leading-relaxed whitespace-pre-line">{qa.answer}</p>
         {#if qa.sources.length > 0}
           <div class="flex flex-wrap items-center gap-1.5">
-            <span class="text-xs text-ink-faint">{t.sources}</span>
+            <span class="text-sm text-ink-faint">{t.sources}</span>
             {#each qa.sources as ms (ms)}
               <button
                 type="button"
-                class="tabular inline-flex items-center gap-1 rounded-md bg-wash px-1.5 py-px text-xs text-ink-soft hover:bg-line-soft hover:text-ink"
+                class="tabular inline-flex items-center gap-1 rounded-md bg-wash px-1.5 py-px text-sm text-ink-soft hover:bg-line-soft hover:text-ink"
                 title={id.detail.sourceAt(formatTimestamp(ms))}
                 onclick={() => onjump(ms)}
               >

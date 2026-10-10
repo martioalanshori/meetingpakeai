@@ -231,8 +231,8 @@ pub fn onboarding_completed(conn: &Connection) -> AppResult<bool> {
     Ok(repo_settings::get(conn, KEY_ONBOARDING_COMPLETED)?.unwrap_or(false))
 }
 
-pub fn set_onboarding_completed(conn: &Connection) -> AppResult<()> {
-    repo_settings::set(conn, KEY_ONBOARDING_COMPLETED, &true)
+pub fn set_onboarding_completed(conn: &Connection, completed: bool) -> AppResult<()> {
+    repo_settings::set(conn, KEY_ONBOARDING_COMPLETED, &completed)
 }
 
 /// Ukuran & posisi jendela main terakhir (piksel fisik), dipulihkan saat jendela dibuat ulang.

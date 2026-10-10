@@ -5,6 +5,7 @@
   import Icon, { type IconName } from "$lib/components/Icon.svelte";
   import RecordButton from "$lib/components/RecordButton.svelte";
   import { id } from "$lib/i18n/id";
+  import { startTour } from "$lib/tour.svelte";
   import { railCollapsed, toggleRail } from "$lib/ui.svelte";
 
   let shortcut = $state("");
@@ -28,13 +29,14 @@
   data-rail={collapsed ? "icons" : "full"}
   class="flex h-full w-[4.25rem] shrink-0 flex-col gap-6 px-2.5 py-5 full:w-56 full:px-4"
 >
-  <RecordButton />
+  <div data-tour="record"><RecordButton /></div>
 
   <nav aria-label={id.nav.label} class="flex flex-col gap-0.5">
     {#each nav as n (n.href)}
       {@const active = n.match(page.url.pathname)}
       <a
         href={n.href}
+        data-tour={`nav-${n.href === "/" ? "home" : n.href.slice(1)}`}
         aria-current={active ? "page" : undefined}
         title={n.text}
         class={[
@@ -50,8 +52,18 @@
 
   <div class="mt-auto flex flex-col gap-3">
     {#if shortcut}
-      <p class="hidden px-1 text-xs leading-relaxed text-ink-faint full:block">{id.rail.shortcutHint(shortcut)}</p>
+      <p class="hidden px-1 text-sm leading-relaxed text-ink-faint full:block">{id.rail.shortcutHint(shortcut)}</p>
     {/if}
+    <button
+      type="button"
+      class="flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-soft hover:bg-wash hover:text-ink full:justify-start full:py-2"
+      title={id.guide.openLong}
+      data-tour="guide"
+      onclick={() => startTour()}
+    >
+      <Icon name="help" size={18} class="shrink-0" />
+      <span class="sr-only whitespace-nowrap full:not-sr-only">{id.guide.open}</span>
+    </button>
     <button
       type="button"
       class="flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-soft hover:bg-wash hover:text-ink full:justify-start full:py-2"

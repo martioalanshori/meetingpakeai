@@ -28,18 +28,18 @@
   onMount(reload);
 </script>
 
-<div class="flex flex-col gap-6">
+<!-- Judul + pengantar, lalu baris dipisah garis tipis; teks isi memakai kelas `label` / `hint` seperti tab lain. -->
+<div class="flex flex-col divide-y divide-line-soft">
   {#if showHeading}
-    <div class="flex flex-col gap-1">
-      <h2 class="text-lg font-bold">{id.ai.heading}</h2>
-      <p class="max-w-prose text-sm text-ink-soft">{id.ai.intro}</p>
+    <div class="flex flex-col gap-0.5 pb-5">
+      <h2 class="label">{id.ai.heading}</h2>
+      <p class="hint max-w-prose">{id.ai.intro}</p>
     </div>
   {/if}
   {#if error}
-    <p class="text-sm text-bad">{error}</p>
+    <p class="py-5 text-sm text-bad">{error}</p>
   {:else if config}
-    <AiRoleEditor role="stt" {config} onsaved={reload} />
-    <div class="border-t border-line-soft"></div>
-    <AiRoleEditor role="llm" {config} onsaved={reload} />
+    <div class="py-5"><AiRoleEditor role="stt" {config} onsaved={reload} /></div>
+    <div class="py-5"><AiRoleEditor role="llm" {config} onsaved={reload} /></div>
   {/if}
 </div>

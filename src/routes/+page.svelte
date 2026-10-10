@@ -107,7 +107,8 @@
 
   /** Label tenggat singkat: lewat tenggat / hari ini / besok / tanggal. */
   function dueLabel(task: TaskItem): { text: string; tone: "late" | "today" | null } | null {
-    if (!task.dueDate) return task.due ? { text: task.due, tone: null } : null;
+    // Tenggat tanpa tanggal pasti (mis. "2-3 hari setelah data diterima") tidak ditampilkan di Beranda.
+    if (!task.dueDate) return null;
     if (task.dueDate < isoDay()) return { text: t.late, tone: "late" };
     if (task.dueDate === isoDay()) return { text: t.today, tone: "today" };
     if (task.dueDate === isoDay(1)) return { text: t.tomorrow, tone: null };
@@ -155,6 +156,7 @@
     <h1 class="text-2xl font-bold tracking-[-0.02em]">{greeting}</h1>
 
     <form
+      data-tour="home-ask"
       class="mt-1 flex items-center gap-2 rounded-xl border border-line bg-sheet py-1.5 pr-1.5 pl-4 transition-colors focus-within:border-ink-strong"
       onsubmit={(e) => {
         e.preventDefault();
@@ -252,7 +254,7 @@
       <div class="h-12 rounded-lg bg-line-soft"></div>
     </div>
   {:else if !data.hasMeetings}
-    <section class="mt-12 flex flex-col gap-3">
+    <section data-tour="home-later" class="mt-12 flex flex-col gap-3">
       <h2 class="section-title">{t.newTitle}</h2>
       <p class="max-w-prose text-ink-soft">{t.newRecord}</p>
       <div class="flex flex-wrap items-center gap-3">
@@ -263,7 +265,7 @@
       </div>
     </section>
   {:else}
-    <div class="mt-12 flex flex-col gap-10">
+    <div data-tour="home-later" class="mt-12 flex flex-col gap-10">
       {#if data.recent.length > 0}
         <section class="flex flex-col" aria-labelledby="recent-title">
           <div class="mb-1 flex items-baseline justify-between gap-3">

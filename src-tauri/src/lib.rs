@@ -370,6 +370,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::onboarding::get_onboarding_status,
             commands::onboarding::complete_onboarding,
+            commands::onboarding::reset_onboarding,
             commands::onboarding::check_mic_permission,
             commands::onboarding::open_mic_settings,
             commands::onboarding::run_audio_test,
@@ -384,7 +385,6 @@ pub fn run() {
             commands::settings::check_update,
             commands::settings::get_storage_usage,
             commands::settings::clear_old_audio,
-            commands::settings::save_problem_report,
             commands::settings::install_update,
             commands::recording::start_recording,
             commands::recording::pause_recording,

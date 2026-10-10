@@ -14,6 +14,6 @@
     <rect x="380" y="371" width="320" height="329" rx="55" fill="#ff4a1c" />
   </svg>
   {#if showName}
-    <span class="text-[1.0625rem] leading-none font-bold tracking-[-0.01em] text-ink">Meeting Pake AI</span>
+    <span class="text-lg leading-none font-bold tracking-[-0.01em] text-ink">Meeting Pake AI</span>
   {/if}
 </span>

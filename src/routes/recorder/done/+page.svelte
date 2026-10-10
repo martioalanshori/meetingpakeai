@@ -79,7 +79,7 @@
             >&ensp;{pct}%</span
           >{/if}
       </span>
-      <span class="truncate text-xs text-white/70" data-tauri-drag-region>{done || failed ? title : t.workingHint}</span>
+      <span class="truncate text-sm text-white/70" data-tauri-drag-region>{done || failed ? title : t.workingHint}</span>
     </div>
     <button
       type="button"

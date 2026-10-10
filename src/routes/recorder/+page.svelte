@@ -188,9 +188,9 @@
     >
       {formatTimestamp(elapsed)}
       {#if rs.status === "paused"}
-        <span class="text-2xs leading-none font-medium text-warn-bright">{id.recorder.paused}</span>
+        <span class="text-sm leading-none font-medium text-warn-bright">{id.recorder.paused}</span>
       {:else if liveTranscribing}
-        <span class="text-2xs leading-none font-medium text-white/60">{id.recorder.liveTranscribing}</span>
+        <span class="text-sm leading-none font-medium text-white/60">{id.recorder.liveTranscribing}</span>
       {/if}
     </button>
 
@@ -256,13 +256,13 @@
   </div>
 
   {#each lostChannels as ch (ch)}
-    <div class="flex min-h-11 items-center border-t border-white/10 bg-warn-deep px-3 py-2 text-xs leading-snug text-warn-deep-text">
+    <div class="flex min-h-11 items-center border-t border-white/10 bg-warn-deep px-3 py-2 text-sm leading-snug text-warn-deep-text">
       {id.recorder.deviceLost(ch)}
     </div>
   {/each}
 
   {#if prevTasks}
-    <div class="flex min-h-11 items-center gap-2 border-t border-white/10 px-3 py-2 text-xs" title={prevTasks.tasks.join("\n")}>
+    <div class="flex min-h-11 items-center gap-2 border-t border-white/10 px-3 py-2 text-sm" title={prevTasks.tasks.join("\n")}>
       <span class="flex-1 leading-snug text-white/85">{id.recorder.prevTasks(prevTasks.tasks.length, prevTasks.title)}</span>
       <button
         type="button"
@@ -276,26 +276,26 @@
   {/if}
 
   {#if pausedLongMin !== null && rs.status === "paused"}
-    <div class="flex min-h-11 items-center gap-2 border-t border-white/10 bg-warn-deep px-3 py-2 text-xs text-warn-deep-text">
+    <div class="flex min-h-11 items-center gap-2 border-t border-white/10 bg-warn-deep px-3 py-2 text-sm text-warn-deep-text">
       <span class="flex-1 leading-snug">{id.recorder.pausedLong(pausedLongMin)}</span>
       <button type="button" class="rounded-md bg-white/15 px-2 py-1 font-semibold" onclick={togglePause}>{id.recorder.resume}</button>
     </div>
   {/if}
 
   {#if limitSoonMin !== null}
-    <div class="flex min-h-11 items-center border-t border-white/10 px-3 py-2 text-xs leading-snug text-white/85">
+    <div class="flex min-h-11 items-center border-t border-white/10 px-3 py-2 text-sm leading-snug text-white/85">
       {id.recorder.limitSoon(limitSoonMin)}
     </div>
   {/if}
 
   {#if systemSilent && !lostChannels.includes("system")}
-    <div class="flex min-h-11 items-center border-t border-white/10 bg-warn-deep px-3 py-2 text-xs leading-snug text-warn-deep-text">
+    <div class="flex min-h-11 items-center border-t border-white/10 bg-warn-deep px-3 py-2 text-sm leading-snug text-warn-deep-text">
       {id.recorder.systemSilent(systemSilentMin)}
     </div>
   {/if}
 
   {#if autoStopDeadline !== null}
-    <div class="flex min-h-11 items-center gap-2 border-t border-white/10 px-3 py-2 text-xs">
+    <div class="flex min-h-11 items-center gap-2 border-t border-white/10 px-3 py-2 text-sm">
       <span class="flex-1 leading-snug">
         {autoStopReason === "meeting_ended" ? id.recorder.meetingEnded : id.recorder.autoStop(silenceMin)}<br /><span
           class="tabular text-white/60">{id.recorder.autoStopCountdown(secondsLeft)}</span
@@ -311,6 +311,6 @@
   {/if}
 
   {#if error}
-    <div class="flex min-h-11 items-center border-t border-white/10 bg-bad-deep px-3 py-2 text-xs leading-snug" role="alert">{error}</div>
+    <div class="flex min-h-11 items-center border-t border-white/10 bg-bad-deep px-3 py-2 text-sm leading-snug" role="alert">{error}</div>
   {/if}
 </div>

@@ -38,6 +38,14 @@ export function formatTimestamp(ms: number): string {
   return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
 }
 
+/** Timer ringkas untuk ruang sempit: "12:34", "1:02:34". */
+export function formatTimerShort(ms: number): string {
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const rest = `${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
+  return h > 0 ? `${h}:${rest}` : rest;
+}
+
 const DAYS = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
 /** Judul kelompok hari: "Hari ini", "Kemarin", "Senin, 5 Okt" (tahun ditulis jika bukan tahun ini). */

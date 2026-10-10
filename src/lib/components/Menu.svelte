@@ -136,7 +136,7 @@
             {#if entry.icon}<Icon name={entry.icon} size={16} class="shrink-0 opacity-80" />{/if}
             <span class="flex flex-col">
               <span>{entry.label}</span>
-              {#if entry.hint}<span class="text-xs text-ink-faint">{entry.hint}</span>{/if}
+              {#if entry.hint}<span class="text-sm text-ink-faint">{entry.hint}</span>{/if}
             </span>
           </button>
         {/if}

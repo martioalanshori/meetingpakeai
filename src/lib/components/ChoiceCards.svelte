@@ -40,7 +40,7 @@
       </span>
       <span class="flex flex-col gap-0.5">
         <span class="text-sm font-semibold">{o.label}</span>
-        {#if o.hint}<span class="text-xs leading-snug text-ink-soft">{o.hint}</span>{/if}
+        {#if o.hint}<span class="text-sm leading-snug text-ink-soft">{o.hint}</span>{/if}
       </span>
     </label>
   {/each}

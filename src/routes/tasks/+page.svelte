@@ -193,7 +193,7 @@
 {/snippet}
 
 <main class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 pt-7 pb-12 xl:px-10">
-  <h1 class="text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
+  <h1 data-tour="tasks-title" class="text-2xl font-bold tracking-[-0.02em]">{t.title}</h1>
 
   {#if !loaded}
     <ul class="flex flex-col gap-1 motion-safe:animate-pulse" aria-hidden="true">

@@ -72,7 +72,7 @@
     </span>
     <div class="flex min-w-0 flex-1 flex-col" data-tauri-drag-region>
       <span class="truncate text-sm font-semibold" data-tauri-drag-region>{t.detected(app)}</span>
-      <span class="truncate text-xs text-white/70" role="status" data-tauri-drag-region>
+      <span class="truncate text-sm text-white/70" role="status" data-tauri-drag-region>
         {error ?? (auto ? t.autoIn(left) : t.question)}
       </span>
     </div>
